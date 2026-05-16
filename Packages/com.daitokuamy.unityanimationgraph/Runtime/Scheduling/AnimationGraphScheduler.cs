@@ -271,8 +271,8 @@ namespace UnityAnimationGraph {
                     VisitNodeIds(node, branchNode.FalseNodeIds);
                 }
                 else if (node is LoopNode loopNode) {
-                    ValidateLoopNode(loopNode);
-                    VisitNodeIds(node, loopNode.LoopNodeIds);
+                    var loopBodyNodeIds = ValidateLoopNode(loopNode);
+                    VisitNodeIds(node, new List<string>(loopBodyNodeIds));
                 }
 
                 currentPath.Remove(node.NodeId);
@@ -306,41 +306,19 @@ namespace UnityAnimationGraph {
                 throw new InvalidOperationException($"Node '{node.NodeId}' has multiple outputs but is not DelayNode, BranchNode, or LoopNode");
             }
 
-            void ValidateLoopNode(LoopNode loopNode) {
-                var loopNodeIds = loopNode.LoopNodeIds;
-                var loopNodeIdSet = new HashSet<string>(loopNodeIds.Count, StringComparer.Ordinal);
-                for (var i = 0; i < loopNodeIds.Count; i++) {
-                    var loopNodeId = loopNodeIds[i];
-                    if (string.IsNullOrEmpty(loopNodeId)) {
-                        throw new InvalidOperationException($"LoopNode '{loopNode.NodeId}' has empty loop node id");
-                    }
-
-                    if (loopNodeId == loopNode.NodeId) {
-                        throw new InvalidOperationException($"LoopNode '{loopNode.NodeId}' cannot contain itself");
-                    }
-
-                    if (!loopNodeIdSet.Add(loopNodeId)) {
-                        throw new InvalidOperationException($"LoopNode '{loopNode.NodeId}' has duplicated loop node '{loopNodeId}'");
-                    }
-
-                    if (!nodeMap.TryGetValue(loopNodeId, out var bodyNode)) {
-                        throw new InvalidOperationException($"Loop node '{loopNodeId}' does not exist");
-                    }
-
-                    if (bodyNode is StartNode) {
-                        throw new InvalidOperationException($"LoopNode '{loopNode.NodeId}' cannot contain StartNode");
-                    }
-                }
-
-                ValidateLoopBodyIsolation(loopNode, loopNodeIdSet);
+            HashSet<string> ValidateLoopNode(LoopNode loopNode) {
+                var loopBodyNodeIds = BuildLoopBodyNodeIdSet(loopNode, nodeMap);
+                ValidateLoopBodyIsolation(loopNode, loopBodyNodeIds);
+                return loopBodyNodeIds;
             }
 
-            void ValidateLoopBodyIsolation(LoopNode loopNode, HashSet<string> loopNodeIdSet) {
-                foreach (var loopNodeId in loopNodeIdSet) {
-                    var bodyNode = nodeMap[loopNodeId];
+            void ValidateLoopBodyIsolation(LoopNode loopNode, HashSet<string> loopBodyNodeIds) {
+                var loopExitNodeIds = new HashSet<string>(loopNode.NextNodeIds, StringComparer.Ordinal);
+                foreach (var loopBodyNodeId in loopBodyNodeIds) {
+                    var bodyNode = nodeMap[loopBodyNodeId];
                     var nextNodeIds = GetPhysicalNextNodeIds(bodyNode);
                     for (var i = 0; i < nextNodeIds.Count; i++) {
-                        if (loopNodeIdSet.Contains(nextNodeIds[i])) {
+                        if (!loopExitNodeIds.Contains(nextNodeIds[i]) && loopBodyNodeIds.Contains(nextNodeIds[i])) {
                             continue;
                         }
 
@@ -349,13 +327,13 @@ namespace UnityAnimationGraph {
                 }
 
                 foreach (var nodePair in nodeMap) {
-                    if (loopNodeIdSet.Contains(nodePair.Key)) {
+                    if (loopBodyNodeIds.Contains(nodePair.Key)) {
                         continue;
                     }
 
                     var nextNodeIds = GetPhysicalNextNodeIds(nodePair.Value);
                     for (var i = 0; i < nextNodeIds.Count; i++) {
-                        if (!loopNodeIdSet.Contains(nextNodeIds[i])) {
+                        if (!loopBodyNodeIds.Contains(nextNodeIds[i])) {
                             continue;
                         }
 
@@ -367,6 +345,90 @@ namespace UnityAnimationGraph {
             foreach (var nodePair in nodeMap) {
                 Visit(nodePair.Value);
             }
+        }
+
+        /// <summary>
+        /// LoopNode の開始 ID から通常接続で到達できる body node ID 一覧を構築
+        /// </summary>
+        /// <param name="loopNode">対象の LoopNode</param>
+        /// <param name="nodeMap">ノード ID 辞書</param>
+        /// <returns>LoopNode の body node ID 一覧</returns>
+        private HashSet<string> BuildLoopBodyNodeIdSet(LoopNode loopNode, Dictionary<string, Node> nodeMap) {
+            var loopBodyNodeIds = new HashSet<string>(StringComparer.Ordinal);
+            var explicitLoopNodeIds = new HashSet<string>(StringComparer.Ordinal);
+            var nodeIdsToVisit = new Queue<string>();
+            var loopExitNodeIds = new HashSet<string>(loopNode.NextNodeIds, StringComparer.Ordinal);
+            var loopNodeIds = loopNode.LoopNodeIds;
+            for (var i = 0; i < loopNodeIds.Count; i++) {
+                var loopNodeId = loopNodeIds[i];
+                if (string.IsNullOrEmpty(loopNodeId)) {
+                    throw new InvalidOperationException($"LoopNode '{loopNode.NodeId}' has empty loop node id");
+                }
+
+                if (loopNodeId == loopNode.NodeId) {
+                    throw new InvalidOperationException($"LoopNode '{loopNode.NodeId}' cannot contain itself");
+                }
+
+                if (!explicitLoopNodeIds.Add(loopNodeId)) {
+                    throw new InvalidOperationException($"LoopNode '{loopNode.NodeId}' has duplicated loop node '{loopNodeId}'");
+                }
+
+                if (!nodeMap.TryGetValue(loopNodeId, out var bodyNode)) {
+                    throw new InvalidOperationException($"Loop node '{loopNodeId}' does not exist");
+                }
+
+                if (bodyNode is StartNode) {
+                    throw new InvalidOperationException($"LoopNode '{loopNode.NodeId}' cannot contain StartNode");
+                }
+
+                AddLoopBodyNodeId(loopBodyNodeIds, nodeIdsToVisit, loopNodeId);
+            }
+
+            while (nodeIdsToVisit.Count > 0) {
+                var currentNodeId = nodeIdsToVisit.Dequeue();
+                var bodyNode = nodeMap[currentNodeId];
+                var nextNodeIds = GetPhysicalNextNodeIds(bodyNode);
+                for (var i = 0; i < nextNodeIds.Count; i++) {
+                    var nextNodeId = nextNodeIds[i];
+                    if (string.IsNullOrEmpty(nextNodeId)) {
+                        throw new InvalidOperationException($"Node '{bodyNode.NodeId}' has empty next node id");
+                    }
+
+                    if (loopExitNodeIds.Contains(nextNodeId)) {
+                        continue;
+                    }
+
+                    if (nextNodeId == loopNode.NodeId) {
+                        throw new InvalidOperationException($"LoopNode '{loopNode.NodeId}' cannot contain itself");
+                    }
+
+                    if (!nodeMap.TryGetValue(nextNodeId, out var nextNode)) {
+                        throw new InvalidOperationException($"Next node '{nextNodeId}' does not exist");
+                    }
+
+                    if (nextNode is StartNode) {
+                        throw new InvalidOperationException($"LoopNode '{loopNode.NodeId}' cannot contain StartNode");
+                    }
+
+                    AddLoopBodyNodeId(loopBodyNodeIds, nodeIdsToVisit, nextNodeId);
+                }
+            }
+
+            return loopBodyNodeIds;
+        }
+
+        /// <summary>
+        /// 未登録の Loop body node ID を追加して後続探索対象に積む
+        /// </summary>
+        /// <param name="loopBodyNodeIds">Loop body node ID 一覧</param>
+        /// <param name="nodeIdsToVisit">探索対象 queue</param>
+        /// <param name="nodeId">追加するノード ID</param>
+        private static void AddLoopBodyNodeId(HashSet<string> loopBodyNodeIds, Queue<string> nodeIdsToVisit, string nodeId) {
+            if (!loopBodyNodeIds.Add(nodeId)) {
+                return;
+            }
+
+            nodeIdsToVisit.Enqueue(nodeId);
         }
 
         /// <summary>
@@ -676,15 +738,17 @@ namespace UnityAnimationGraph {
         /// <param name="buildContext">スケジュール build 全体の状態</param>
         /// <returns>LoopNode のループ終了時刻</returns>
         private float BuildLoop(LoopNode loopNode, float incomingTime, int seedSalt, ref ScheduleBuildContext buildContext) {
-            if (loopNode.LoopNodeIds.Count == 0) {
+            var loopBodyNodeIds = BuildLoopBodyNodeIdSet(loopNode, _nodeMap);
+            if (loopBodyNodeIds.Count == 0) {
                 return incomingTime;
             }
 
-            var loopStartNodeIds = GetLoopStartNodeIds(loopNode);
+            var loopStartNodeIds = GetLoopStartNodeIds(loopNode, loopBodyNodeIds);
+            var loopBodyNodeIdList = new List<string>(loopBodyNodeIds);
             var loopEndTime = incomingTime;
             for (var i = 0; i < loopNode.LoopCount; i++) {
                 var iterationSeedSalt = CreateNodeSeed(seedSalt, loopNode.NodeId, i);
-                loopEndTime = BuildScope(loopStartNodeIds, loopEndTime, iterationSeedSalt, null, loopNode.LoopNodeIds, ref buildContext);
+                loopEndTime = BuildScope(loopStartNodeIds, loopEndTime, iterationSeedSalt, null, loopBodyNodeIdList, ref buildContext);
             }
 
             return loopEndTime;
@@ -694,28 +758,38 @@ namespace UnityAnimationGraph {
         /// LoopNode の開始ノード ID 一覧を取得
         /// </summary>
         /// <param name="loopNode">取得対象の LoopNode</param>
+        /// <param name="loopBodyNodeIds">LoopNode の body node ID 一覧</param>
         /// <returns>LoopNode の開始ノード ID 一覧</returns>
-        private IReadOnlyList<string> GetLoopStartNodeIds(LoopNode loopNode) {
-            var loopNodeIds = loopNode.LoopNodeIds;
-            var loopNodeIdSet = new HashSet<string>(loopNodeIds, StringComparer.Ordinal);
-            var incomingNodeIds = new HashSet<string>(loopNodeIds.Count, StringComparer.Ordinal);
-            for (var i = 0; i < loopNodeIds.Count; i++) {
-                var bodyNode = _nodeMap[loopNodeIds[i]];
+        private IReadOnlyList<string> GetLoopStartNodeIds(LoopNode loopNode, HashSet<string> loopBodyNodeIds) {
+            var incomingNodeIds = new HashSet<string>(loopBodyNodeIds.Count, StringComparer.Ordinal);
+            foreach (var loopBodyNodeId in loopBodyNodeIds) {
+                var bodyNode = _nodeMap[loopBodyNodeId];
                 var nextNodeIds = GetPhysicalNextNodeIds(bodyNode);
                 for (var j = 0; j < nextNodeIds.Count; j++) {
-                    if (loopNodeIdSet.Contains(nextNodeIds[j])) {
+                    if (loopBodyNodeIds.Contains(nextNodeIds[j])) {
                         incomingNodeIds.Add(nextNodeIds[j]);
                     }
                 }
             }
 
             var startNodeIds = new List<string>();
+            var addedStartNodeIds = new HashSet<string>(StringComparer.Ordinal);
+            var loopNodeIds = loopNode.LoopNodeIds;
             for (var i = 0; i < loopNodeIds.Count; i++) {
-                if (incomingNodeIds.Contains(loopNodeIds[i])) {
+                if (!loopBodyNodeIds.Contains(loopNodeIds[i]) || incomingNodeIds.Contains(loopNodeIds[i])) {
                     continue;
                 }
 
                 startNodeIds.Add(loopNodeIds[i]);
+                addedStartNodeIds.Add(loopNodeIds[i]);
+            }
+
+            foreach (var loopBodyNodeId in loopBodyNodeIds) {
+                if (incomingNodeIds.Contains(loopBodyNodeId) || addedStartNodeIds.Contains(loopBodyNodeId)) {
+                    continue;
+                }
+
+                startNodeIds.Add(loopBodyNodeId);
             }
 
             if (startNodeIds.Count == 0) {

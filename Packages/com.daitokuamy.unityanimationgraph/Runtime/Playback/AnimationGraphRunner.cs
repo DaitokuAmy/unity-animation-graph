@@ -4,6 +4,18 @@ using UnityEngine;
 
 namespace UnityAnimationGraph {
     /// <summary>
+    /// AnimationGraphRunner が自動 Tick する Unity 更新タイミング
+    /// </summary>
+    public enum AnimationGraphRunnerUpdateType {
+        /// <summary>Update で Tick を実行</summary>
+        Update,
+        /// <summary>LateUpdate で Tick を実行</summary>
+        LateUpdate,
+        /// <summary>自動 Tick を行わず、外部から ManualUpdate を呼ぶ</summary>
+        ManualUpdate,
+    }
+
+    /// <summary>
     /// AnimationGraphAsset を MonoBehaviour として再生するコンポーネント
     /// </summary>
     [DisallowMultipleComponent]
@@ -12,10 +24,8 @@ namespace UnityAnimationGraph {
         private AnimationGraphAsset _graphAsset;
         [SerializeField, Tooltip("OnEnable 時に自動再生する場合は有効")]
         private bool _playOnEnabled;
-        [SerializeField, Tooltip("Update で自動的に再生時間を進める場合は有効")]
-        private bool _tickAutomatically = true;
-        [SerializeField, Tooltip("逆方向に再生する場合は有効")]
-        private bool _inverse;
+        [SerializeField, Tooltip("自動 Tick の Unity 更新タイミング")]
+        private AnimationGraphRunnerUpdateType _updateType = AnimationGraphRunnerUpdateType.Update;
         [SerializeField, Tooltip("GraphAsset ごとに保持する target binding 一覧")]
         private AnimationGraphTargetBindingGroup[] _targetBindingGroups = Array.Empty<AnimationGraphTargetBindingGroup>();
 
@@ -38,19 +48,10 @@ namespace UnityAnimationGraph {
             set => _playOnEnabled = value;
         }
 
-        /// <summary>Update で自動的に再生時間を進める場合は true</summary>
-        public bool TickAutomatically {
-            get => _tickAutomatically;
-            set => _tickAutomatically = value;
-        }
-
-        /// <summary>逆方向に再生する場合は true</summary>
-        public bool Inverse {
-            get => _inverse;
-            set {
-                _inverse = value;
-                _player.Inverse = value;
-            }
+        /// <summary>自動 Tick の Unity 更新タイミング</summary>
+        public AnimationGraphRunnerUpdateType UpdateType {
+            get => _updateType;
+            set => _updateType = value;
         }
 
         /// <summary>設定中の評価コンテキスト</summary>
@@ -209,9 +210,9 @@ namespace UnityAnimationGraph {
         }
 
         /// <summary>
-        /// 指定時刻へシークして評価
+        /// 0 秒から指定時刻までを順方向に評価
         /// </summary>
-        /// <param name="time">シーク先時刻</param>
+        /// <param name="time">評価する時刻</param>
         public void Seek(float time) {
             EnsureGraphAsset();
             InitializePlayer();
@@ -219,15 +220,15 @@ namespace UnityAnimationGraph {
         }
 
         /// <summary>
-        /// 再生時間を進めて評価
+        /// ManualUpdate 設定時に再生時間を進めて評価
         /// </summary>
         /// <param name="deltaTime">進める時間</param>
-        public void Tick(float deltaTime) {
-            if (!_isInitialized || !_player.IsPlaying) {
+        public void ManualUpdate(float deltaTime) {
+            if (_updateType != AnimationGraphRunnerUpdateType.ManualUpdate) {
                 return;
             }
 
-            _player.Tick(deltaTime);
+            Tick(deltaTime);
         }
 
         /// <summary>
@@ -416,10 +417,21 @@ namespace UnityAnimationGraph {
         }
 
         /// <summary>
-        /// Unity の更新時に自動再生を進める
+        /// Unity の Update 時に自動再生を進める
         /// </summary>
         private void Update() {
-            if (!_tickAutomatically) {
+            if (_updateType != AnimationGraphRunnerUpdateType.Update) {
+                return;
+            }
+
+            Tick(Time.deltaTime);
+        }
+
+        /// <summary>
+        /// Unity の LateUpdate 時に自動再生を進める
+        /// </summary>
+        private void LateUpdate() {
+            if (_updateType != AnimationGraphRunnerUpdateType.LateUpdate) {
                 return;
             }
 
@@ -431,6 +443,18 @@ namespace UnityAnimationGraph {
         /// </summary>
         private void OnDestroy() {
             Stop();
+        }
+
+        /// <summary>
+        /// 再生時間を進めて評価
+        /// </summary>
+        /// <param name="deltaTime">進める時間</param>
+        private void Tick(float deltaTime) {
+            if (!_isInitialized || !_player.IsPlaying) {
+                return;
+            }
+
+            _player.Tick(deltaTime);
         }
 
         /// <summary>
@@ -448,7 +472,6 @@ namespace UnityAnimationGraph {
             }
 
             _player.SetContext(this);
-            _player.Inverse = _inverse;
             if (_graphAsset != null) {
                 _player.SetGraph(_graphAsset);
             }

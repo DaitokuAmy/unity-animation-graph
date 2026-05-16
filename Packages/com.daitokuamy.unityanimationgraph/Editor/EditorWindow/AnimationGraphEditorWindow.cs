@@ -38,9 +38,22 @@ namespace UnityAnimationGraph.Editor {
         /// </summary>
         [MenuItem("Window/Unity Animation Graph/Animation Graph")]
         public static void Open() {
+            Open(null);
+        }
+
+        /// <summary>
+        /// Animation Graph EditorWindow を指定 Asset で表示
+        /// </summary>
+        /// <param name="graphAsset">表示する AnimationGraphAsset</param>
+        public static void Open(AnimationGraphAsset graphAsset) {
             var window = GetWindow<AnimationGraphEditorWindow>();
             window.titleContent = new GUIContent(WindowTitle);
+            if (graphAsset != null) {
+                window.SetGraphAsset(graphAsset);
+            }
+
             window.Show();
+            window.Focus();
         }
 
         private void OnEnable() {
@@ -152,6 +165,16 @@ namespace UnityAnimationGraph.Editor {
 
         private void OnGraphAssetChanged(ChangeEvent<UnityEngine.Object> evt) {
             _graphAsset = (AnimationGraphAsset)evt.newValue;
+            EditorUtility.SetDirty(this);
+        }
+
+        private void SetGraphAsset(AnimationGraphAsset graphAsset) {
+            _graphAsset = graphAsset;
+            if (_graphAssetField != null) {
+                _graphAssetField.value = graphAsset;
+                return;
+            }
+
             EditorUtility.SetDirty(this);
         }
 

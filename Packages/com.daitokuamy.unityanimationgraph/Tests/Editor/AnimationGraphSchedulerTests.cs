@@ -109,6 +109,35 @@ namespace UnityAnimationGraph.Tests {
         }
 
         /// <summary>
+        /// LoopNode は LoopNodeIds の開始ノードから到達できる後続ノードも body として展開する
+        /// </summary>
+        [Test]
+        public void BuildSchedule_LoopNodeExpandsReachableBodyByLoopCount() {
+            using var builder = new AnimationGraphTestBuilder();
+            var startNode = builder.CreateStartNode("start", "loop");
+            var loopNode = builder.CreateNode<LoopNode>("loop", "after");
+            var bodyNode = builder.CreateActionNode("body", 1.0f, "bodyNext");
+            var bodyNextNode = builder.CreateActionNode("bodyNext", 2.0f);
+            var afterNode = builder.CreateActionNode("after", 3.0f);
+            builder.SetLoop(loopNode, 3, "body");
+            var graphAsset = builder.CreateGraph("start", startNode, loopNode, bodyNode, bodyNextNode, afterNode);
+
+            var schedule = BuildSchedule(graphAsset);
+            var bodyScheduledNodes = FindScheduledNodes(schedule, bodyNode);
+            var bodyNextScheduledNodes = FindScheduledNodes(schedule, bodyNextNode);
+
+            Assert.That(bodyScheduledNodes.Count, Is.EqualTo(3));
+            Assert.That(bodyNextScheduledNodes.Count, Is.EqualTo(3));
+            Assert.That(bodyScheduledNodes[0].StartTime, Is.EqualTo(0.0f).Within(0.0001f));
+            Assert.That(bodyNextScheduledNodes[0].StartTime, Is.EqualTo(1.0f).Within(0.0001f));
+            Assert.That(bodyScheduledNodes[1].StartTime, Is.EqualTo(3.0f).Within(0.0001f));
+            Assert.That(bodyNextScheduledNodes[1].StartTime, Is.EqualTo(4.0f).Within(0.0001f));
+            Assert.That(bodyScheduledNodes[2].StartTime, Is.EqualTo(6.0f).Within(0.0001f));
+            Assert.That(bodyNextScheduledNodes[2].StartTime, Is.EqualTo(7.0f).Within(0.0001f));
+            AssertScheduledNode(schedule, afterNode, 9.0f, 3.0f);
+        }
+
+        /// <summary>
         /// RandomSeed が有効な場合は schedule build ごとに default seed を生成する
         /// </summary>
         [Test]

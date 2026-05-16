@@ -282,6 +282,27 @@ namespace UnityAnimationGraph.Editor {
         }
 
         /// <summary>
+        /// ノードごとの検証エラーメッセージを取得
+        /// </summary>
+        /// <returns>検証エラーがあるノード ID とメッセージの対応</returns>
+        public IReadOnlyDictionary<string, string> GetNodeValidationMessages() {
+            var messagesByNodeId = new Dictionary<string, string>(StringComparer.Ordinal);
+            if (_graphAsset == null) {
+                return messagesByNodeId;
+            }
+
+            for (var i = 0; i < _nodes.Count; i++) {
+                if (_nodes[i] is not LoopNodeEditorModel loopNodeModel) {
+                    continue;
+                }
+
+                AddLoopValidationMessages(loopNodeModel, messagesByNodeId);
+            }
+
+            return messagesByNodeId;
+        }
+
+        /// <summary>
         /// 操作対象の AnimationGraphAsset の target 定義を設定
         /// </summary>
         /// <param name="definitions">設定する target 定義一覧</param>
@@ -337,7 +358,6 @@ namespace UnityAnimationGraph.Editor {
                 return false;
             }
 
-            AddUnownedNodeToConnectedLoop(outputPortKind, sourceNodeModel, targetNodeModel);
             var nodeIds = new List<string>(GetConnectedNodeIds(sourceNodeModel, outputPortKind)) {
                 targetNodeModel.NodeId,
             };
@@ -642,78 +662,8 @@ namespace UnityAnimationGraph.Editor {
                 return false;
             }
 
-            var prospectiveLoopNodeIds = new HashSet<string>(loopNodeModel.LoopNodeIds, StringComparer.Ordinal);
-            prospectiveLoopNodeIds.Add(targetNodeModel.NodeId);
-
-            var targetConnectedNodeIds = GetPhysicalConnectedNodeIds(targetNodeModel);
-            for (var i = 0; i < targetConnectedNodeIds.Count; i++) {
-                if (prospectiveLoopNodeIds.Contains(targetConnectedNodeIds[i])) {
-                    continue;
-                }
-
-                errorMessage = "Loop body node already connects outside its LoopNode";
-                return false;
-            }
-
-            for (var i = 0; i < _nodes.Count; i++) {
-                var sourceNodeModel = _nodes[i];
-                if (prospectiveLoopNodeIds.Contains(sourceNodeModel.NodeId)) {
-                    continue;
-                }
-
-                var connectedNodeIds = GetPhysicalConnectedNodeIds(sourceNodeModel);
-                for (var j = 0; j < connectedNodeIds.Count; j++) {
-                    if (connectedNodeIds[j] != targetNodeModel.NodeId) {
-                        continue;
-                    }
-
-                    errorMessage = "Loop body node already receives connections from outside its LoopNode";
-                    return false;
-                }
-            }
-
             errorMessage = string.Empty;
             return true;
-        }
-
-        /// <summary>
-        /// 通常接続で LoopNode の内外をまたぐ場合に未所属側を同じ LoopNode へ追加
-        /// </summary>
-        /// <param name="outputPortKind">接続元 output port 種別</param>
-        /// <param name="sourceNodeModel">接続元ノード Model</param>
-        /// <param name="targetNodeModel">接続先ノード Model</param>
-        private void AddUnownedNodeToConnectedLoop(AnimationGraphOutputPortKind outputPortKind, NodeEditorModel sourceNodeModel, NodeEditorModel targetNodeModel) {
-            if (outputPortKind == AnimationGraphOutputPortKind.Loop) {
-                return;
-            }
-
-            var sourceLoopOwner = FindLoopOwner(sourceNodeModel.NodeId);
-            var targetLoopOwner = FindLoopOwner(targetNodeModel.NodeId);
-            if (sourceLoopOwner != null && targetLoopOwner == null) {
-                AddNodeToLoop(sourceLoopOwner, targetNodeModel);
-                return;
-            }
-
-            if (targetLoopOwner != null && sourceLoopOwner == null) {
-                AddNodeToLoop(targetLoopOwner, sourceNodeModel);
-            }
-        }
-
-        /// <summary>
-        /// 指定した LoopNode にノードを追加
-        /// </summary>
-        /// <param name="loopNodeModel">追加先の LoopNodeEditorModel</param>
-        /// <param name="nodeModel">追加するノード Model</param>
-        private static void AddNodeToLoop(LoopNodeEditorModel loopNodeModel, NodeEditorModel nodeModel) {
-            var loopNodeIds = new List<string>(loopNodeModel.LoopNodeIds);
-            for (var i = 0; i < loopNodeIds.Count; i++) {
-                if (loopNodeIds[i] == nodeModel.NodeId) {
-                    return;
-                }
-            }
-
-            loopNodeIds.Add(nodeModel.NodeId);
-            loopNodeModel.SetLoopNodeIds(loopNodeIds);
         }
 
         /// <summary>
@@ -727,15 +677,162 @@ namespace UnityAnimationGraph.Editor {
                     continue;
                 }
 
-                var loopNodeIds = loopNodeModel.LoopNodeIds;
-                for (var j = 0; j < loopNodeIds.Count; j++) {
-                    if (loopNodeIds[j] == nodeId) {
-                        return loopNodeModel;
-                    }
+                if (ContainsLoopBodyNode(loopNodeModel, nodeId)) {
+                    return loopNodeModel;
                 }
             }
 
             return null;
+        }
+
+        private void AddLoopValidationMessages(LoopNodeEditorModel loopNodeModel, Dictionary<string, string> messagesByNodeId) {
+            var loopBodyNodeIds = BuildLoopBodyNodeIdSet(loopNodeModel, messagesByNodeId);
+            AddLoopBodyIsolationValidationMessages(loopNodeModel, loopBodyNodeIds, messagesByNodeId);
+        }
+
+        private bool ContainsLoopBodyNode(LoopNodeEditorModel loopNodeModel, string nodeId) {
+            return !string.IsNullOrEmpty(nodeId) && BuildLoopBodyNodeIdSet(loopNodeModel, null).Contains(nodeId);
+        }
+
+        private HashSet<string> BuildLoopBodyNodeIdSet(LoopNodeEditorModel loopNodeModel, Dictionary<string, string> messagesByNodeId) {
+            var loopBodyNodeIds = new HashSet<string>(StringComparer.Ordinal);
+            var nodeIdsToVisit = new Queue<string>();
+            var explicitLoopNodeIds = new HashSet<string>(StringComparer.Ordinal);
+            var loopExitNodeIds = new HashSet<string>(loopNodeModel.NextNodeIds, StringComparer.Ordinal);
+            var loopNodeIds = loopNodeModel.LoopNodeIds;
+            for (var i = 0; i < loopNodeIds.Count; i++) {
+                var loopNodeId = loopNodeIds[i];
+                if (string.IsNullOrEmpty(loopNodeId)) {
+                    AddNodeValidationMessageIfNeeded(messagesByNodeId, loopNodeModel.NodeId, $"{loopNodeModel.DisplayName} has empty loop node id");
+                    continue;
+                }
+
+                if (loopNodeId == loopNodeModel.NodeId) {
+                    AddNodeValidationMessageIfNeeded(messagesByNodeId, loopNodeModel.NodeId, $"{loopNodeModel.DisplayName} cannot contain itself");
+                    continue;
+                }
+
+                if (!explicitLoopNodeIds.Add(loopNodeId)) {
+                    AddNodeValidationMessageIfNeeded(messagesByNodeId, loopNodeModel.NodeId, $"{loopNodeModel.DisplayName} contains duplicated loop node");
+                    continue;
+                }
+
+                if (!_nodeModelsById.TryGetValue(loopNodeId, out var bodyNodeModel)) {
+                    AddNodeValidationMessageIfNeeded(messagesByNodeId, loopNodeModel.NodeId, $"{loopNodeModel.DisplayName} contains missing loop node");
+                    continue;
+                }
+
+                if (bodyNodeModel.NodeType == typeof(StartNode)) {
+                    AddNodeValidationMessageIfNeeded(messagesByNodeId, bodyNodeModel.NodeId, $"StartNode cannot be contained in {loopNodeModel.DisplayName}");
+                    continue;
+                }
+
+                AddLoopBodyNodeId(loopBodyNodeIds, nodeIdsToVisit, loopNodeId);
+            }
+
+            while (nodeIdsToVisit.Count > 0) {
+                var currentNodeId = nodeIdsToVisit.Dequeue();
+                if (!_nodeModelsById.TryGetValue(currentNodeId, out var bodyNodeModel)) {
+                    continue;
+                }
+
+                var connectedNodeIds = GetPhysicalConnectedNodeIds(bodyNodeModel);
+                for (var i = 0; i < connectedNodeIds.Count; i++) {
+                    var connectedNodeId = connectedNodeIds[i];
+                    if (string.IsNullOrEmpty(connectedNodeId)) {
+                        continue;
+                    }
+
+                    if (loopExitNodeIds.Contains(connectedNodeId)) {
+                        continue;
+                    }
+
+                    if (!_nodeModelsById.TryGetValue(connectedNodeId, out var connectedNodeModel)) {
+                        continue;
+                    }
+
+                    if (connectedNodeModel.NodeType == typeof(StartNode)) {
+                        AddNodeValidationMessageIfNeeded(messagesByNodeId, connectedNodeModel.NodeId, $"StartNode cannot be contained in {loopNodeModel.DisplayName}");
+                        continue;
+                    }
+
+                    AddLoopBodyNodeId(loopBodyNodeIds, nodeIdsToVisit, connectedNodeId);
+                }
+            }
+
+            return loopBodyNodeIds;
+        }
+
+        private void AddLoopBodyIsolationValidationMessages(LoopNodeEditorModel loopNodeModel, HashSet<string> loopBodyNodeIds, Dictionary<string, string> messagesByNodeId) {
+            var loopExitNodeIds = new HashSet<string>(loopNodeModel.NextNodeIds, StringComparer.Ordinal);
+            foreach (var loopBodyNodeId in loopBodyNodeIds) {
+                if (!_nodeModelsById.TryGetValue(loopBodyNodeId, out var bodyNodeModel)) {
+                    continue;
+                }
+
+                var connectedNodeIds = GetPhysicalConnectedNodeIds(bodyNodeModel);
+                for (var i = 0; i < connectedNodeIds.Count; i++) {
+                    if (!loopExitNodeIds.Contains(connectedNodeIds[i])) {
+                        continue;
+                    }
+
+                    AddNodeValidationMessage(messagesByNodeId, bodyNodeModel.NodeId, $"{bodyNodeModel.DisplayName} connects outside {loopNodeModel.DisplayName}");
+                    break;
+                }
+            }
+
+            for (var i = 0; i < _nodes.Count; i++) {
+                var sourceNodeModel = _nodes[i];
+                if (loopBodyNodeIds.Contains(sourceNodeModel.NodeId)) {
+                    continue;
+                }
+
+                var connectedNodeIds = GetPhysicalConnectedNodeIds(sourceNodeModel);
+                for (var j = 0; j < connectedNodeIds.Count; j++) {
+                    if (!loopBodyNodeIds.Contains(connectedNodeIds[j])) {
+                        continue;
+                    }
+
+                    AddNodeValidationMessage(messagesByNodeId, connectedNodeIds[j], $"{GetNodeDisplayName(connectedNodeIds[j])} receives connection from outside {loopNodeModel.DisplayName}");
+                }
+            }
+        }
+
+        private static void AddLoopBodyNodeId(HashSet<string> loopBodyNodeIds, Queue<string> nodeIdsToVisit, string nodeId) {
+            if (!loopBodyNodeIds.Add(nodeId)) {
+                return;
+            }
+
+            nodeIdsToVisit.Enqueue(nodeId);
+        }
+
+        private static void AddNodeValidationMessageIfNeeded(Dictionary<string, string> messagesByNodeId, string nodeId, string message) {
+            if (messagesByNodeId == null) {
+                return;
+            }
+
+            AddNodeValidationMessage(messagesByNodeId, nodeId, message);
+        }
+
+        private static void AddNodeValidationMessage(Dictionary<string, string> messagesByNodeId, string nodeId, string message) {
+            if (string.IsNullOrEmpty(nodeId) || string.IsNullOrEmpty(message)) {
+                return;
+            }
+
+            if (messagesByNodeId.TryGetValue(nodeId, out var currentMessage)) {
+                if (currentMessage.Contains(message, StringComparison.Ordinal)) {
+                    return;
+                }
+
+                messagesByNodeId[nodeId] = $"{currentMessage} {message}";
+                return;
+            }
+
+            messagesByNodeId.Add(nodeId, message);
+        }
+
+        private string GetNodeDisplayName(string nodeId) {
+            return _nodeModelsById.TryGetValue(nodeId, out var nodeModel) ? nodeModel.DisplayName : "Node";
         }
 
         /// <summary>

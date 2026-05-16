@@ -12,10 +12,8 @@ namespace UnityAnimationGraph.Editor {
         private const string GraphAssetPropertyName = "_graphAsset";
         /// <summary>AnimationGraphRunner の play on enabled フィールド名</summary>
         private const string PlayOnEnabledPropertyName = "_playOnEnabled";
-        /// <summary>AnimationGraphRunner の tick automatically フィールド名</summary>
-        private const string TickAutomaticallyPropertyName = "_tickAutomatically";
-        /// <summary>AnimationGraphRunner の inverse フィールド名</summary>
-        private const string InversePropertyName = "_inverse";
+        /// <summary>AnimationGraphRunner の update type フィールド名</summary>
+        private const string UpdateTypePropertyName = "_updateType";
         /// <summary>AnimationGraphRunner の target binding group 配列フィールド名</summary>
         private const string TargetBindingGroupsPropertyName = "_targetBindingGroups";
         /// <summary>AnimationGraphTargetBindingGroup の graph asset GUID フィールド名</summary>
@@ -51,16 +49,14 @@ namespace UnityAnimationGraph.Editor {
 
         private SerializedProperty _graphAssetProperty;
         private SerializedProperty _playOnEnabledProperty;
-        private SerializedProperty _tickAutomaticallyProperty;
-        private SerializedProperty _inverseProperty;
+        private SerializedProperty _updateTypeProperty;
         private SerializedProperty _targetBindingGroupsProperty;
         private bool _showOtherTargetBindingGroups = true;
 
         private void OnEnable() {
             _graphAssetProperty = serializedObject.FindProperty(GraphAssetPropertyName);
             _playOnEnabledProperty = serializedObject.FindProperty(PlayOnEnabledPropertyName);
-            _tickAutomaticallyProperty = serializedObject.FindProperty(TickAutomaticallyPropertyName);
-            _inverseProperty = serializedObject.FindProperty(InversePropertyName);
+            _updateTypeProperty = serializedObject.FindProperty(UpdateTypePropertyName);
             _targetBindingGroupsProperty = serializedObject.FindProperty(TargetBindingGroupsPropertyName);
         }
 
@@ -70,8 +66,7 @@ namespace UnityAnimationGraph.Editor {
 
             DrawGraphAssetProperty();
             EditorGUILayout.PropertyField(_playOnEnabledProperty);
-            EditorGUILayout.PropertyField(_tickAutomaticallyProperty);
-            EditorGUILayout.PropertyField(_inverseProperty);
+            EditorGUILayout.PropertyField(_updateTypeProperty);
 
             EnsureCurrentGraphAssetBindingGroup();
             EditorGUILayout.Space();

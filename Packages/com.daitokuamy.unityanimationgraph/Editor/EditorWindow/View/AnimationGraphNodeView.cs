@@ -16,11 +16,13 @@ namespace UnityAnimationGraph.Editor {
         private static readonly Vector2 DefaultSize = new(236.0f, 112.0f);
         private static readonly Color DetailLabelColor = new(0.56f, 0.56f, 0.56f);
         private static readonly Color DetailValueColor = new(0.86f, 0.86f, 0.86f);
+        private static readonly Color ValidationErrorColor = new(1.0f, 0.24f, 0.20f);
 
         private readonly Dictionary<AnimationGraphOutputPortKind, Port> _outputPortsByKind = new();
         private readonly Func<IReadOnlyList<AnimationGraphTargetDefinition>> _targetDefinitionsProvider;
         private readonly Func<IReadOnlyList<AnimationGraphBlackboardDefinition>> _blackboardDefinitionsProvider;
         private readonly VisualElement _detailsContainer;
+        private readonly Color _keyColor;
 
         /// <summary>表示対象の NodeEditorModel</summary>
         public NodeEditorModel NodeModel { get; }
@@ -55,8 +57,8 @@ namespace UnityAnimationGraph.Editor {
             viewDataKey = nodeModel.NodeId;
             capabilities |= Capabilities.Selectable | Capabilities.Movable | Capabilities.Deletable | Capabilities.Copiable;
 
-            var keyColor = GetKeyColor(nodeModel.NodeType);
-            ApplyKeyColor(keyColor);
+            _keyColor = GetKeyColor(nodeModel.NodeType);
+            ApplyKeyColor(_keyColor);
             ApplyTitleStyle();
 
             _detailsContainer = CreateDetailsContainer();
@@ -66,11 +68,11 @@ namespace UnityAnimationGraph.Editor {
             if (nodeModel.NodeType != typeof(StartNode)) {
                 InputPort = InstantiatePort(Orientation.Horizontal, Direction.Input, Port.Capacity.Multi, typeof(bool));
                 InputPort.portName = "In";
-                InputPort.portColor = keyColor;
+                InputPort.portColor = _keyColor;
                 inputContainer.Add(InputPort);
             }
 
-            AddOutputPorts(keyColor);
+            AddOutputPorts(_keyColor);
 
             SetPosition(new Rect(nodeModel.GraphPosition, DefaultSize));
             RefreshExpandedState();
@@ -148,6 +150,24 @@ namespace UnityAnimationGraph.Editor {
             }
 
             _detailsContainer.style.display = _detailsContainer.childCount == 0 ? DisplayStyle.None : DisplayStyle.Flex;
+        }
+
+        /// <summary>
+        /// 検証エラー表示を設定
+        /// </summary>
+        /// <param name="message">検証エラーメッセージ</param>
+        public void SetValidationMessage(string message) {
+            if (string.IsNullOrEmpty(message)) {
+                tooltip = string.Empty;
+                ApplyKeyColor(_keyColor);
+                return;
+            }
+
+            tooltip = message;
+            style.borderTopColor = ValidationErrorColor;
+            style.borderRightColor = ValidationErrorColor;
+            style.borderBottomColor = ValidationErrorColor;
+            style.borderLeftColor = ValidationErrorColor;
         }
 
         private void AddOutputPorts(Color keyColor) {
@@ -581,6 +601,7 @@ namespace UnityAnimationGraph.Editor {
             style.borderTopColor = keyColor;
             style.borderRightColor = GetSubtleColor(keyColor);
             style.borderBottomColor = GetSubtleColor(keyColor);
+            style.borderLeftColor = GetSubtleColor(keyColor);
             titleContainer.style.backgroundColor = GetTitleBackgroundColor(keyColor);
         }
 

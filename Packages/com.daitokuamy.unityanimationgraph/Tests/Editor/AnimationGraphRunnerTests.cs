@@ -23,17 +23,50 @@ namespace UnityAnimationGraph.Tests {
             try {
                 var runner = gameObject.AddComponent<AnimationGraphRunner>();
                 runner.GraphAsset = firstGraphAsset;
+                runner.UpdateType = AnimationGraphRunnerUpdateType.ManualUpdate;
 
                 var firstHandle = runner.Play();
-                runner.Tick(1.0f);
+                runner.ManualUpdate(1.0f);
                 runner.GraphAsset = secondGraphAsset;
                 var secondHandle = runner.Play();
-                runner.Tick(1.0f);
+                runner.ManualUpdate(1.0f);
 
                 Assert.That(firstActionNode.CancelCount, Is.EqualTo(1));
                 Assert.IsTrue(firstHandle.IsInterrupted);
                 Assert.That(secondActionNode.EvaluateCount, Is.EqualTo(1));
                 Assert.IsTrue(secondHandle.IsCompleted);
+            }
+            finally {
+                Object.DestroyImmediate(gameObject);
+            }
+        }
+
+        /// <summary>
+        /// ManualUpdate は ManualUpdate 設定時のみ再生時間を進める
+        /// </summary>
+        [Test]
+        public void ManualUpdate_TicksOnlyWhenUpdateTypeIsManualUpdate() {
+            using var builder = new AnimationGraphTestBuilder();
+            var startNode = builder.CreateStartNode("start", "action");
+            var actionNode = builder.CreateActionNode("action", 1.0f);
+            var graphAsset = builder.CreateGraph("start", startNode, actionNode);
+            var gameObject = new GameObject("AnimationGraphRunnerTest");
+
+            try {
+                var runner = gameObject.AddComponent<AnimationGraphRunner>();
+                runner.GraphAsset = graphAsset;
+
+                var handle = runner.Play();
+                runner.ManualUpdate(1.0f);
+
+                Assert.That(actionNode.EvaluateCount, Is.EqualTo(0));
+                Assert.IsFalse(handle.IsCompleted);
+
+                runner.UpdateType = AnimationGraphRunnerUpdateType.ManualUpdate;
+                runner.ManualUpdate(1.0f);
+
+                Assert.That(actionNode.EvaluateCount, Is.EqualTo(1));
+                Assert.IsTrue(handle.IsCompleted);
             }
             finally {
                 Object.DestroyImmediate(gameObject);

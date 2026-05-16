@@ -197,10 +197,10 @@ namespace UnityAnimationGraph.Tests {
         }
 
         /// <summary>
-        /// LoopNode に所属する ActionNode から未所属 ActionNode へ接続すると接続先も LoopNode に所属する
+        /// LoopNode に所属する ActionNode から未所属 ActionNode へ通常接続しても Loop port 接続は追加しない
         /// </summary>
         [Test]
-        public void Connect_AddsNextActionNodeToLoopWhenSourceIsLoopBody() {
+        public void Connect_DoesNotAddLoopPortConnectionWhenSourceIsLoopBody() {
             var graphAsset = CreateSavedGraphAsset();
             var model = new AnimationGraphAssetEditorModel();
             model.SetGraphAsset(graphAsset);
@@ -213,20 +213,21 @@ namespace UnityAnimationGraph.Tests {
             model.RefreshNodes();
 
             Assert.IsTrue(model.Connect(bodyNodeModel, nextNodeModel, out var errorMessage));
+            var validationMessages = model.GetNodeValidationMessages();
 
             Assert.That(errorMessage, Is.EqualTo(string.Empty));
             Assert.That(bodyNodeModel.NextNodeIds.Count, Is.EqualTo(1));
             Assert.That(bodyNodeModel.NextNodeIds[0], Is.EqualTo(nextNodeModel.NodeId));
-            Assert.That(((LoopNode)loopNode).LoopNodeIds.Count, Is.EqualTo(2));
+            Assert.That(((LoopNode)loopNode).LoopNodeIds.Count, Is.EqualTo(1));
             Assert.That(((LoopNode)loopNode).LoopNodeIds[0], Is.EqualTo(bodyNodeModel.NodeId));
-            Assert.That(((LoopNode)loopNode).LoopNodeIds[1], Is.EqualTo(nextNodeModel.NodeId));
+            Assert.IsFalse(validationMessages.ContainsKey(nextNodeModel.NodeId));
         }
 
         /// <summary>
-        /// LoopNode に取り込むと既存接続がループ外へ出るノードは接続できない
+        /// LoopNode に取り込んだノードの後続は Loop body として扱う
         /// </summary>
         [Test]
-        public void Connect_PreventsAddingLoopBodyNodeWithOutsideConnections() {
+        public void Connect_TreatsReachableNextNodesAsLoopBody() {
             var graphAsset = CreateSavedGraphAsset();
             var model = new AnimationGraphAssetEditorModel();
             model.SetGraphAsset(graphAsset);
@@ -240,11 +241,65 @@ namespace UnityAnimationGraph.Tests {
             AnimationGraphAssetUtility.SetLoopNodeIds((LoopNode)loopNode, new[] { bodyNodeModel.NodeId });
             model.RefreshNodes();
 
-            Assert.IsFalse(model.Connect(bodyNodeModel, candidateNodeModel, out var errorMessage));
+            Assert.IsTrue(model.Connect(bodyNodeModel, candidateNodeModel, out var errorMessage));
+            var validationMessages = model.GetNodeValidationMessages();
 
-            Assert.That(errorMessage, Is.EqualTo("Loop body node already connects outside its LoopNode"));
+            Assert.That(errorMessage, Is.EqualTo(string.Empty));
             Assert.That(((LoopNode)loopNode).LoopNodeIds.Count, Is.EqualTo(1));
             Assert.That(((LoopNode)loopNode).LoopNodeIds[0], Is.EqualTo(bodyNodeModel.NodeId));
+            Assert.IsFalse(validationMessages.ContainsKey(candidateNodeModel.NodeId));
+            Assert.IsFalse(validationMessages.ContainsKey(outsideNodeModel.NodeId));
+        }
+
+        /// <summary>
+        /// Loop body として到達できるノードに外側から通常接続が入る場合は検証エラーとして扱う
+        /// </summary>
+        [Test]
+        public void Connect_ReportsValidationWhenReachableLoopBodyReceivesOutsideConnection() {
+            var graphAsset = CreateSavedGraphAsset();
+            var model = new AnimationGraphAssetEditorModel();
+            model.SetGraphAsset(graphAsset);
+            model.InitializeGraph(Vector2.zero);
+            var loopNodeModel = model.AddNode<LoopNode>(Vector2.right);
+            var bodyNodeModel = model.AddNode<DelayNode>(Vector2.right * 2.0f);
+            var candidateNodeModel = model.AddNode<DelayNode>(Vector2.right * 3.0f);
+            var outsideNodeModel = model.AddNode<DelayNode>(Vector2.right * 4.0f);
+            Assert.IsTrue(graphAsset.TryGetNode(loopNodeModel.NodeId, out var loopNode));
+            Assert.IsTrue(model.Connect(outsideNodeModel, candidateNodeModel, out _));
+            AnimationGraphAssetUtility.SetLoopNodeIds((LoopNode)loopNode, new[] { bodyNodeModel.NodeId });
+            model.RefreshNodes();
+
+            Assert.IsTrue(model.Connect(bodyNodeModel, candidateNodeModel, out var errorMessage));
+            var validationMessages = model.GetNodeValidationMessages();
+
+            Assert.That(errorMessage, Is.EqualTo(string.Empty));
+            Assert.IsTrue(validationMessages.ContainsKey(candidateNodeModel.NodeId));
+            Assert.That(validationMessages[candidateNodeModel.NodeId], Does.Contain("receives connection from outside"));
+        }
+
+        /// <summary>
+        /// Loop body から LoopNode の after 側へ直接接続する場合は検証エラーとして扱う
+        /// </summary>
+        [Test]
+        public void Connect_ReportsValidationWhenLoopBodyConnectsToLoopExit() {
+            var graphAsset = CreateSavedGraphAsset();
+            var model = new AnimationGraphAssetEditorModel();
+            model.SetGraphAsset(graphAsset);
+            model.InitializeGraph(Vector2.zero);
+            var loopNodeModel = model.AddNode<LoopNode>(Vector2.right);
+            var bodyNodeModel = model.AddNode<DelayNode>(Vector2.right * 2.0f);
+            var afterNodeModel = model.AddNode<DelayNode>(Vector2.right * 3.0f);
+            Assert.IsTrue(graphAsset.TryGetNode(loopNodeModel.NodeId, out var loopNode));
+            Assert.IsTrue(model.Connect(loopNodeModel, afterNodeModel, out _));
+            AnimationGraphAssetUtility.SetLoopNodeIds((LoopNode)loopNode, new[] { bodyNodeModel.NodeId });
+            model.RefreshNodes();
+
+            Assert.IsTrue(model.Connect(bodyNodeModel, afterNodeModel, out var errorMessage));
+            var validationMessages = model.GetNodeValidationMessages();
+
+            Assert.That(errorMessage, Is.EqualTo(string.Empty));
+            Assert.IsTrue(validationMessages.ContainsKey(bodyNodeModel.NodeId));
+            Assert.That(validationMessages[bodyNodeModel.NodeId], Does.Contain("connects outside"));
         }
 
         /// <summary>

@@ -12,6 +12,7 @@ namespace UnityAnimationGraph.Editor {
     internal sealed class AnimationGraphView : GraphView {
         private readonly Dictionary<string, AnimationGraphNodeView> _nodeViewsById = new();
         private readonly Label _emptyStateLabel;
+        private readonly Label _validationLabel;
 
         private AnimationGraphAssetEditorModel _assetModel;
         private bool _isRebuilding;
@@ -71,6 +72,9 @@ namespace UnityAnimationGraph.Editor {
             };
             Add(_emptyStateLabel);
 
+            _validationLabel = CreateValidationLabel();
+            Add(_validationLabel);
+
             SetupZoom(0.05f, 2.5f);
             new ContentDragger { target = this };
             new SelectionDragger { target = this };
@@ -97,6 +101,7 @@ namespace UnityAnimationGraph.Editor {
             _isRebuilding = true;
             try {
                 RemoveGraphElements();
+                ClearValidationState();
                 _assetModel = assetModel;
                 if (assetModel == null || !assetModel.HasGraphAsset) {
                     SetEmptyState("Select an AnimationGraphAsset");
@@ -117,6 +122,8 @@ namespace UnityAnimationGraph.Editor {
                 for (var i = 0; i < nodeModels.Count; i++) {
                     AddEdgeViews(nodeModels[i]);
                 }
+
+                RefreshValidationState();
             }
             finally {
                 _isRebuilding = false;
@@ -181,6 +188,21 @@ namespace UnityAnimationGraph.Editor {
             foreach (var nodeView in _nodeViewsById.Values) {
                 nodeView.RefreshDetails();
             }
+
+            RefreshValidationState();
+        }
+
+        /// <summary>
+        /// 検証エラー表示を更新
+        /// </summary>
+        public void RefreshValidationState() {
+            var validationMessages = _assetModel?.GetNodeValidationMessages();
+            foreach (var nodeViewPair in _nodeViewsById) {
+                var message = validationMessages != null && validationMessages.TryGetValue(nodeViewPair.Key, out var nodeMessage) ? nodeMessage : string.Empty;
+                nodeViewPair.Value.SetValidationMessage(message);
+            }
+
+            SetValidationMessage(validationMessages);
         }
 
         /// <inheritdoc/>
@@ -298,6 +320,7 @@ namespace UnityAnimationGraph.Editor {
                 }
             }
 
+            RefreshValidationState();
             return graphViewChange;
         }
 
@@ -452,6 +475,31 @@ namespace UnityAnimationGraph.Editor {
             _emptyStateLabel.style.display = string.IsNullOrEmpty(message) ? DisplayStyle.None : DisplayStyle.Flex;
         }
 
+        private void ClearValidationState() {
+            foreach (var nodeView in _nodeViewsById.Values) {
+                nodeView.SetValidationMessage(string.Empty);
+            }
+
+            SetValidationMessage(null);
+        }
+
+        private void SetValidationMessage(IReadOnlyDictionary<string, string> validationMessages) {
+            if (validationMessages == null || validationMessages.Count == 0) {
+                _validationLabel.text = string.Empty;
+                _validationLabel.style.display = DisplayStyle.None;
+                return;
+            }
+
+            var firstMessage = string.Empty;
+            foreach (var validationMessage in validationMessages.Values) {
+                firstMessage = validationMessage;
+                break;
+            }
+
+            _validationLabel.text = validationMessages.Count == 1 ? firstMessage : $"{validationMessages.Count} nodes have graph errors. {firstMessage}";
+            _validationLabel.style.display = DisplayStyle.Flex;
+        }
+
         private Vector2 GetGraphPosition(Vector2 localPosition) {
             var worldPosition = worldTransform.MultiplyPoint3x4(new Vector3(localPosition.x, localPosition.y, 0.0f));
             return contentViewContainer.WorldToLocal(worldPosition);
@@ -463,6 +511,35 @@ namespace UnityAnimationGraph.Editor {
 
         private IReadOnlyList<AnimationGraphBlackboardDefinition> GetBlackboardDefinitions() {
             return _assetModel?.BlackboardDefinitions ?? Array.Empty<AnimationGraphBlackboardDefinition>();
+        }
+
+        private static Label CreateValidationLabel() {
+            return new Label {
+                pickingMode = PickingMode.Ignore,
+                style = {
+                    position = Position.Absolute,
+                    left = 8.0f,
+                    right = 8.0f,
+                    top = 8.0f,
+                    paddingLeft = 10.0f,
+                    paddingRight = 10.0f,
+                    paddingTop = 6.0f,
+                    paddingBottom = 6.0f,
+                    backgroundColor = new Color(0.45f, 0.06f, 0.05f, 0.94f),
+                    borderTopColor = new Color(0.95f, 0.25f, 0.20f),
+                    borderRightColor = new Color(0.95f, 0.25f, 0.20f),
+                    borderBottomColor = new Color(0.95f, 0.25f, 0.20f),
+                    borderLeftColor = new Color(0.95f, 0.25f, 0.20f),
+                    borderTopWidth = 1.0f,
+                    borderRightWidth = 1.0f,
+                    borderBottomWidth = 1.0f,
+                    borderLeftWidth = 1.0f,
+                    color = Color.white,
+                    unityFontStyleAndWeight = FontStyle.Bold,
+                    whiteSpace = WhiteSpace.Normal,
+                    display = DisplayStyle.None,
+                },
+            };
         }
     }
 }
