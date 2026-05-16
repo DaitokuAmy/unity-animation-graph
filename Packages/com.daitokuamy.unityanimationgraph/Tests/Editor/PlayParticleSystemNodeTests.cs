@@ -64,11 +64,11 @@ namespace UnityAnimationGraph.Tests {
         }
 
         /// <summary>
-        /// BeginPlayback で seed を ParticleSystem に反映して 0 秒に初期化する
+        /// Enter で seed を ParticleSystem に反映して 0 秒に初期化する
         /// </summary>
         [Test]
-        public void BeginPlayback_AppliesSeedAndResetsSimulation() {
-            ((INodeExecutor)_node).BeginPlayback(123, _context);
+        public void Enter_AppliesSeedAndResetsSimulation() {
+            ((INodeExecutor)_node).Enter(123, _context);
 
             Assert.IsFalse(_particleSystem.useAutoRandomSeed);
             Assert.That(_particleSystem.randomSeed, Is.EqualTo(123u));
@@ -106,7 +106,7 @@ namespace UnityAnimationGraph.Tests {
         public void Evaluate_ReturnsWhenParticleSystemIsMissing() {
             var context = new TestAnimationGraphContext();
 
-            Assert.DoesNotThrow(() => ((INodeExecutor)_node).BeginPlayback(0, context));
+            Assert.DoesNotThrow(() => ((INodeExecutor)_node).Enter(0, context));
             Assert.DoesNotThrow(() => ((INodeExecutor)_node).Evaluate(0, 0.5f, 1.0f, context));
         }
 

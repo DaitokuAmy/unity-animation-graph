@@ -28,10 +28,10 @@ namespace UnityAnimationGraph.Tests {
         }
 
         /// <summary>
-        /// BeginPlayback で TimelineAsset と Manual 更新を PlayableDirector に反映する
+        /// Enter で TimelineAsset と Manual 更新を PlayableDirector に反映する
         /// </summary>
         [Test]
-        public void BeginPlayback_ConfiguresPlayableDirectorForManualTimeline() {
+        public void Enter_ConfiguresPlayableDirectorForManualTimeline() {
             _node = ScriptableObject.CreateInstance<PlayTimelineAssetNode>();
             _timelineAsset = ScriptableObject.CreateInstance<TimelineAsset>();
             _gameObject = new GameObject("PlayableDirector");
@@ -40,7 +40,7 @@ namespace UnityAnimationGraph.Tests {
             context.SetTarget(TargetKey, playableDirector);
             SetNodeProperties(_node, TargetKey, _timelineAsset);
 
-            ((INodeExecutor)_node).BeginPlayback(0, context);
+            ((INodeExecutor)_node).Enter(0, context);
 
             Assert.That(playableDirector.playableAsset, Is.SameAs(_timelineAsset));
             Assert.That(playableDirector.timeUpdateMode, Is.EqualTo(DirectorUpdateMode.Manual));
@@ -59,7 +59,7 @@ namespace UnityAnimationGraph.Tests {
             context.SetTarget(TargetKey, playableDirector);
             SetNodeProperties(_node, TargetKey, _timelineAsset);
 
-            ((INodeExecutor)_node).BeginPlayback(0, context);
+            ((INodeExecutor)_node).Enter(0, context);
             ((INodeExecutor)_node).Evaluate(0, 1.25f, 2.0f, context);
 
             Assert.That(playableDirector.time, Is.EqualTo(1.25).Within(0.0001));
@@ -69,7 +69,7 @@ namespace UnityAnimationGraph.Tests {
         /// TimelineAsset 未設定の場合は何もしない
         /// </summary>
         [Test]
-        public void BeginPlayback_ReturnsWhenTimelineAssetIsMissing() {
+        public void Enter_ReturnsWhenTimelineAssetIsMissing() {
             _node = ScriptableObject.CreateInstance<PlayTimelineAssetNode>();
             _gameObject = new GameObject("PlayableDirector");
             var playableDirector = _gameObject.AddComponent<PlayableDirector>();
@@ -77,7 +77,7 @@ namespace UnityAnimationGraph.Tests {
             context.SetTarget(TargetKey, playableDirector);
             SetNodeProperties(_node, TargetKey, null);
 
-            ((INodeExecutor)_node).BeginPlayback(0, context);
+            ((INodeExecutor)_node).Enter(0, context);
 
             Assert.IsNull(playableDirector.playableAsset);
         }

@@ -14,6 +14,12 @@ namespace UnityAnimationGraph.Tests {
         private const string GraphPositionPropertyName = "_graphPosition";
         /// <summary>Node の後続ノード ID フィールド名</summary>
         private const string NextNodeIdsPropertyName = "_nextNodeIds";
+        /// <summary>Node の Enter シグナルフィールド名</summary>
+        private const string EnterSignalsPropertyName = "_enterSignals";
+        /// <summary>Node の Exit シグナルフィールド名</summary>
+        private const string ExitSignalsPropertyName = "_exitSignals";
+        /// <summary>Signal の ID フィールド名</summary>
+        private const string SignalIdPropertyName = "_signalId";
         /// <summary>BranchNode の false 側後続ノード ID フィールド名</summary>
         private const string FalseNodeIdsPropertyName = "_falseNodeIds";
         /// <summary>DelayNode の待機時間フィールド名</summary>
@@ -198,6 +204,47 @@ namespace UnityAnimationGraph.Tests {
         }
 
         /// <summary>
+        /// テスト用 signal を生成
+        /// </summary>
+        /// <param name="signalId">シグナル ID</param>
+        /// <param name="eventName">記録するイベント名</param>
+        /// <param name="events">イベント記録先</param>
+        /// <returns>生成した signal</returns>
+        public TestSignal CreateSignal(string signalId, string eventName = null, IList<string> events = null) {
+            var signal = ScriptableObject.CreateInstance<TestSignal>();
+            signal.name = nameof(TestSignal);
+            signal.Configure(eventName, events);
+            _objects.Add(signal);
+
+            var serializedSignal = new SerializedObject(signal);
+            serializedSignal.FindProperty(SignalIdPropertyName).stringValue = signalId;
+            serializedSignal.ApplyModifiedPropertiesWithoutUndo();
+            return signal;
+        }
+
+        /// <summary>
+        /// Node の Enter シグナル一覧を設定
+        /// </summary>
+        /// <param name="node">設定対象ノード</param>
+        /// <param name="signals">設定するシグナル一覧</param>
+        public void SetEnterSignals(Node node, params Signal[] signals) {
+            var serializedNode = new SerializedObject(node);
+            SetSignalArray(serializedNode.FindProperty(EnterSignalsPropertyName), signals);
+            serializedNode.ApplyModifiedPropertiesWithoutUndo();
+        }
+
+        /// <summary>
+        /// Node の Exit シグナル一覧を設定
+        /// </summary>
+        /// <param name="node">設定対象ノード</param>
+        /// <param name="signals">設定するシグナル一覧</param>
+        public void SetExitSignals(Node node, params Signal[] signals) {
+            var serializedNode = new SerializedObject(node);
+            SetSignalArray(serializedNode.FindProperty(ExitSignalsPropertyName), signals);
+            serializedNode.ApplyModifiedPropertiesWithoutUndo();
+        }
+
+        /// <summary>
         /// BranchNode の false 側接続を設定
         /// </summary>
         /// <param name="branchNode">設定対象 BranchNode</param>
@@ -283,6 +330,18 @@ namespace UnityAnimationGraph.Tests {
             property.arraySize = values.Count;
             for (var i = 0; i < values.Count; i++) {
                 property.GetArrayElementAtIndex(i).stringValue = values[i];
+            }
+        }
+
+        /// <summary>
+        /// SerializedProperty の Signal 配列を設定
+        /// </summary>
+        /// <param name="property">設定対象 SerializedProperty</param>
+        /// <param name="signals">設定するシグナル一覧</param>
+        private void SetSignalArray(SerializedProperty property, IReadOnlyList<Signal> signals) {
+            property.arraySize = signals.Count;
+            for (var i = 0; i < signals.Count; i++) {
+                property.GetArrayElementAtIndex(i).objectReferenceValue = signals[i];
             }
         }
     }
@@ -470,13 +529,15 @@ namespace UnityAnimationGraph.Tests {
     internal sealed class TestActionNode : ActionNode {
         private float _duration;
         private float _delay;
+        private IList<string> _events;
+        private string _eventPrefix;
 
         /// <summary>Evaluate が呼ばれた回数</summary>
         public int EvaluateCount { get; private set; }
-        /// <summary>BeginPlayback が呼ばれた回数</summary>
-        public int BeginPlaybackCount { get; private set; }
-        /// <summary>EndPlayback が呼ばれた回数</summary>
-        public int EndPlaybackCount { get; private set; }
+        /// <summary>Enter が呼ばれた回数</summary>
+        public int EnterCount { get; private set; }
+        /// <summary>Exit が呼ばれた回数</summary>
+        public int ExitCount { get; private set; }
         /// <summary>Cancel が呼ばれた回数</summary>
         public int CancelCount { get; private set; }
         /// <summary>最後に渡された localTime</summary>
@@ -485,10 +546,10 @@ namespace UnityAnimationGraph.Tests {
         public float LastDuration { get; private set; }
         /// <summary>最後に渡された seed</summary>
         public int LastSeed { get; private set; }
-        /// <summary>最後に BeginPlayback に渡された seed</summary>
-        public int LastBeginPlaybackSeed { get; private set; }
-        /// <summary>最後に EndPlayback に渡された seed</summary>
-        public int LastEndPlaybackSeed { get; private set; }
+        /// <summary>最後に Enter に渡された seed</summary>
+        public int LastEnterSeed { get; private set; }
+        /// <summary>最後に Exit に渡された seed</summary>
+        public int LastExitSeed { get; private set; }
         /// <summary>最後に Cancel に渡された seed</summary>
         public int LastCancelSeed { get; private set; }
 
@@ -502,6 +563,16 @@ namespace UnityAnimationGraph.Tests {
             _delay = delay;
         }
 
+        /// <summary>
+        /// 実行順の記録先を設定
+        /// </summary>
+        /// <param name="events">イベント記録先</param>
+        /// <param name="eventPrefix">イベント名の接頭辞</param>
+        public void ConfigureEvents(IList<string> events, string eventPrefix) {
+            _events = events;
+            _eventPrefix = eventPrefix ?? string.Empty;
+        }
+
         /// <inheritdoc/>
         protected override float CalculateDuration(int seed, IAnimationGraphContext context) {
             return _duration;
@@ -513,9 +584,10 @@ namespace UnityAnimationGraph.Tests {
         }
 
         /// <inheritdoc/>
-        protected override void BeginPlayback(int seed, IAnimationGraphContext context) {
-            BeginPlaybackCount++;
-            LastBeginPlaybackSeed = seed;
+        protected override void Enter(int seed, IAnimationGraphContext context) {
+            EnterCount++;
+            LastEnterSeed = seed;
+            RecordEvent("Enter");
         }
 
         /// <inheritdoc/>
@@ -524,18 +596,60 @@ namespace UnityAnimationGraph.Tests {
             LastSeed = seed;
             LastLocalTime = localTime;
             LastDuration = calculatedDuration;
+            RecordEvent("Evaluate");
         }
 
         /// <inheritdoc/>
-        protected override void EndPlayback(int seed, IAnimationGraphContext context) {
-            EndPlaybackCount++;
-            LastEndPlaybackSeed = seed;
+        protected override void Exit(int seed, IAnimationGraphContext context) {
+            ExitCount++;
+            LastExitSeed = seed;
+            RecordEvent("Exit");
         }
 
         /// <inheritdoc/>
         protected override void Cancel(int seed, IAnimationGraphContext context) {
             CancelCount++;
             LastCancelSeed = seed;
+        }
+
+        /// <summary>
+        /// 実行順イベントを記録
+        /// </summary>
+        /// <param name="eventName">イベント名</param>
+        private void RecordEvent(string eventName) {
+            _events?.Add($"{_eventPrefix}.{eventName}");
+        }
+    }
+
+    /// <summary>
+    /// テスト用 signal
+    /// </summary>
+    internal sealed class TestSignal : Signal {
+        private IList<string> _events;
+        private string _eventName;
+
+        /// <summary>Dispatch が呼ばれた回数</summary>
+        public int DispatchCount { get; private set; }
+        /// <summary>最後に Dispatch に渡された seed</summary>
+        public int LastSeed { get; private set; }
+
+        /// <summary>
+        /// テスト用の記録先を設定
+        /// </summary>
+        /// <param name="eventName">記録するイベント名</param>
+        /// <param name="events">イベント記録先</param>
+        public void Configure(string eventName, IList<string> events) {
+            _eventName = eventName ?? string.Empty;
+            _events = events;
+        }
+
+        /// <inheritdoc/>
+        protected override void Dispatch(int seed, IAnimationGraphContext context) {
+            DispatchCount++;
+            LastSeed = seed;
+            if (!string.IsNullOrEmpty(_eventName)) {
+                _events?.Add(_eventName);
+            }
         }
     }
 

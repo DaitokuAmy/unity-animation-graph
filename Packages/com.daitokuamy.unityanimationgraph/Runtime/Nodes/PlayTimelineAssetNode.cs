@@ -34,7 +34,7 @@ namespace UnityAnimationGraph {
         }
 
         /// <inheritdoc/>
-        protected override void BeginPlayback(int seed, IAnimationGraphContext context) {
+        protected override void Enter(int seed, IAnimationGraphContext context) {
             if (!TryResolvePlayableDirector(context, out var playableDirector)) {
                 return;
             }

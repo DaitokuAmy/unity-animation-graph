@@ -2,7 +2,8 @@
     "name": "UnityAnimationGraph",
     "rootNamespace": "",
     "references": [
-        "GUID:f06555f75b070af458a003d92f9efb00"
+        "GUID:f06555f75b070af458a003d92f9efb00",
+        "Unity.ugui"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],

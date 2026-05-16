@@ -14,7 +14,10 @@ MonoBehaviour:
   m_EditorClassIdentifier: UnityAnimationGraph::UnityAnimationGraph.PlayTimelineAssetNode
   _nodeId: 36dfbe67cf934019afb9e87d1d16e299
   _graphPosition: {x: 611, y: 94}
-  _nextNodeIds: []
+  _nextNodeIds:
+  - 30db5e79b0e344a5a91c438aaef73964
+  _enterSignals: []
+  _exitSignals: []
   _targetKey: DirectorTarget
   _timelineAsset: {fileID: 11400000, guid: d589d4e9876f18841b5a554addfb6a6f, type: 2}
 --- !u!114 &-7426020645211944844
@@ -33,6 +36,8 @@ MonoBehaviour:
   _graphPosition: {x: 407, y: 258}
   _nextNodeIds:
   - 41d25952d3a446a28459a65d3b554092
+  _enterSignals: []
+  _exitSignals: []
   _joinType: 0
 --- !u!114 &-6472111014902719228
 MonoBehaviour:
@@ -49,6 +54,8 @@ MonoBehaviour:
   _nodeId: 26dad5b4a5404443b9997d7bb79417f0
   _graphPosition: {x: -142, y: 301}
   _nextNodeIds: []
+  _enterSignals: []
+  _exitSignals: []
   _falseNodeIds: []
   _flagKey: IsPrimary
   _expectedValue: 1
@@ -68,6 +75,8 @@ MonoBehaviour:
   _graphPosition: {x: 253, y: 96}
   _nextNodeIds:
   - 4845ed8b33d14f938a3596ad53090352
+  _enterSignals: []
+  _exitSignals: []
   _delay: 2
 --- !u!114 &-4527490929091549941
 MonoBehaviour:
@@ -85,6 +94,8 @@ MonoBehaviour:
   _graphPosition: {x: 253, y: 376}
   _nextNodeIds:
   - 1f72a500682548af99ce3c86253fbe50
+  _enterSignals: []
+  _exitSignals: []
   _targetKey: MoveTarget
   _duration: 1
   _delay: 0
@@ -107,6 +118,8 @@ MonoBehaviour:
   _nextNodeIds:
   - 0de2b523ffad40bfa7cdc484761617a7
   - f3b2d52a23ac495b8aa69a0dda859837
+  _enterSignals: []
+  _exitSignals: []
   _loopCount: 3
   _loopNodeIds:
   - b636d951cb2442acaf2dbccd55a3baab
@@ -127,11 +140,53 @@ MonoBehaviour:
   _graphPosition: {x: 95, y: 376}
   _nextNodeIds:
   - ce704b898d754759bd96731272bd19f8
+  _enterSignals: []
+  _exitSignals: []
   _targetKey: MoveTarget
   _duration: 1
   _delay: 0
   _from: {x: 0, y: 0, z: 0}
   _to: {x: 0, y: 5, z: 0}
+--- !u!114 &-1388851978294385070
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 8216a11a4768450db4de71c16c16d3b2, type: 3}
+  m_Name: TweenTransformRotationNode
+  m_EditorClassIdentifier: UnityAnimationGraph::UnityAnimationGraph.TweenTransformRotationNode
+  _nodeId: 30db5e79b0e344a5a91c438aaef73964
+  _graphPosition: {x: 808, y: 94}
+  _nextNodeIds:
+  - 87a179028eec4f5ba589d08ac9052dc1
+  _enterSignals: []
+  _exitSignals: []
+  _targetKey: RotateTarget
+  _duration: 1
+  _delay: 0
+  _tween:
+    _ease:
+      _mode: 0
+      _easeType: 1
+      _animationCurve:
+        serializedVersion: 2
+        m_Curve: []
+        m_PreInfinity: 2
+        m_PostInfinity: 2
+        m_RotationOrder: 4
+    _before:
+      _source: 0
+      _blackboardKey: 
+      _value: {x: 0, y: 0, z: 0}
+    _after:
+      _source: 1
+      _blackboardKey: TargetAngle
+      _value: {x: 0, y: 90, z: 0}
+  _space: 1
 --- !u!114 &-1064402391938092031
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -147,6 +202,8 @@ MonoBehaviour:
   _nodeId: 41d25952d3a446a28459a65d3b554092
   _graphPosition: {x: 546, y: 256}
   _nextNodeIds: []
+  _enterSignals: []
+  _exitSignals: []
   _targetKey: ColorTarget
   _duration: 0.5
   _delay: 0
@@ -168,6 +225,8 @@ MonoBehaviour:
   _graphPosition: {x: 95, y: 256}
   _nextNodeIds:
   - 1f72a500682548af99ce3c86253fbe50
+  _enterSignals: []
+  _exitSignals: []
   _targetKey: ColorTarget
   _duration: 0.5
   _delay: 0
@@ -203,6 +262,8 @@ MonoBehaviour:
   - {fileID: -1563823818385396252}
   - {fileID: -1064402391938092031}
   - {fileID: -8224036317216257604}
+  - {fileID: -1388851978294385070}
+  - {fileID: 7115547045294773654}
   _targetDefinitions:
   - _key: MoveTarget
     _monoScriptGuid: 00000000000000000000000000000001
@@ -213,14 +274,14 @@ MonoBehaviour:
   - _key: DirectorTarget
     _monoScriptGuid: 00000000000000000000000000000010
   _blackboardDefinitions:
-  - _key: TargetPos1
+  - _key: TargetAngle
     _valueType: 5
     _defaultBoolValue: 0
     _defaultIntValue: 0
     _defaultFloatValue: 0
     _defaultStringValue: 
     _defaultVector2Value: {x: 0, y: 0}
-    _defaultVector3Value: {x: 0, y: 10, z: 0}
+    _defaultVector3Value: {x: 0, y: 0, z: 180}
     _defaultColorValue: {r: 0, g: 0, b: 0, a: 0}
   - _key: TargetColor1
     _valueType: 6
@@ -256,6 +317,8 @@ MonoBehaviour:
   _graphPosition: {x: 457, y: 94}
   _nextNodeIds:
   - 36dfbe67cf934019afb9e87d1d16e299
+  _enterSignals: []
+  _exitSignals: []
   _targetKey: MoveTarget
   _duration: 2
   _delay: 0
@@ -277,6 +340,47 @@ MonoBehaviour:
   _graphPosition: {x: -263, y: 135}
   _nextNodeIds:
   - 872db1a967624136bd3828e7016c9db8
+  _enterSignals: []
+  _exitSignals: []
+--- !u!114 &7115547045294773654
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 8216a11a4768450db4de71c16c16d3b2, type: 3}
+  m_Name: TweenTransformRotationNode
+  m_EditorClassIdentifier: UnityAnimationGraph::UnityAnimationGraph.TweenTransformRotationNode
+  _nodeId: 87a179028eec4f5ba589d08ac9052dc1
+  _graphPosition: {x: 989, y: 94}
+  _nextNodeIds: []
+  _enterSignals: []
+  _exitSignals: []
+  _targetKey: RotateTarget
+  _duration: 1
+  _delay: 0
+  _tween:
+    _ease:
+      _mode: 0
+      _easeType: 1
+      _animationCurve:
+        serializedVersion: 2
+        m_Curve: []
+        m_PreInfinity: 2
+        m_PostInfinity: 2
+        m_RotationOrder: 4
+    _before:
+      _source: 1
+      _blackboardKey: TargetAngle
+      _value: {x: 0, y: 0, z: 0}
+    _after:
+      _source: 0
+      _blackboardKey: TargetAngle
+      _value: {x: 0, y: 0, z: 0}
+  _space: 1
 --- !u!114 &7246135758792466407
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -293,6 +397,8 @@ MonoBehaviour:
   _graphPosition: {x: 104, y: 94}
   _nextNodeIds:
   - 9e13660fc054402a884fd67df1c766aa
+  _enterSignals: []
+  _exitSignals: []
   _targetKey: MoveTarget
   _duration: 1
   _delay: 0
@@ -313,6 +419,8 @@ MonoBehaviour:
   _nodeId: f3b2d52a23ac495b8aa69a0dda859837
   _graphPosition: {x: 104, y: -38}
   _nextNodeIds: []
+  _enterSignals: []
+  _exitSignals: []
   _targetKey: ColorTarget
   _duration: 3
   _delay: 0

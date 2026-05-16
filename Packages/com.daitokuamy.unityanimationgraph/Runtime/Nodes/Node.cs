@@ -13,6 +13,10 @@ namespace UnityAnimationGraph {
         private Vector2 _graphPosition;
         [SerializeField, Tooltip("後続ノード ID の一覧"), HideInInspector]
         private string[] _nextNodeIds = Array.Empty<string>();
+        [SerializeField, Tooltip("ノード開始時に通知するシグナル一覧"), HideInInspector]
+        private Signal[] _enterSignals = Array.Empty<Signal>();
+        [SerializeField, Tooltip("ノード終了時に通知するシグナル一覧"), HideInInspector]
+        private Signal[] _exitSignals = Array.Empty<Signal>();
 
         /// <summary>グラフ内で一意なノード ID</summary>
         public string NodeId => _nodeId;
@@ -20,6 +24,10 @@ namespace UnityAnimationGraph {
         public Vector2 GraphPosition => _graphPosition;
         /// <summary>後続ノード ID の一覧</summary>
         public IReadOnlyList<string> NextNodeIds => _nextNodeIds ?? Array.Empty<string>();
+        /// <summary>ノード開始時に通知するシグナル一覧</summary>
+        public IReadOnlyList<Signal> EnterSignals => _enterSignals ?? Array.Empty<Signal>();
+        /// <summary>ノード終了時に通知するシグナル一覧</summary>
+        public IReadOnlyList<Signal> ExitSignals => _exitSignals ?? Array.Empty<Signal>();
 
         /// <inheritdoc/>
         float INodeExecutor.CalculateDuration(int seed, IAnimationGraphContext context) {
@@ -32,8 +40,8 @@ namespace UnityAnimationGraph {
         }
 
         /// <inheritdoc/>
-        void INodeExecutor.BeginPlayback(int seed, IAnimationGraphContext context) {
-            BeginPlayback(seed, context);
+        void INodeExecutor.Enter(int seed, IAnimationGraphContext context) {
+            Enter(seed, context);
         }
 
         /// <inheritdoc/>
@@ -42,8 +50,8 @@ namespace UnityAnimationGraph {
         }
 
         /// <inheritdoc/>
-        void INodeExecutor.EndPlayback(int seed, IAnimationGraphContext context) {
-            EndPlayback(seed, context);
+        void INodeExecutor.Exit(int seed, IAnimationGraphContext context) {
+            Exit(seed, context);
         }
 
         /// <inheritdoc/>
@@ -77,19 +85,19 @@ namespace UnityAnimationGraph {
         protected abstract void Evaluate(int seed, float localTime, float calculatedDuration, IAnimationGraphContext context);
 
         /// <summary>
-        /// 再生開始時の初期化を行う
+        /// ノード開始時の処理を行う
         /// </summary>
         /// <param name="seed">評価に使用するシード</param>
         /// <param name="context">評価コンテキスト</param>
-        protected virtual void BeginPlayback(int seed, IAnimationGraphContext context) {
+        protected virtual void Enter(int seed, IAnimationGraphContext context) {
         }
 
         /// <summary>
-        /// 再生終了時の後処理を行う
+        /// ノード終了時の処理を行う
         /// </summary>
         /// <param name="seed">評価に使用するシード</param>
         /// <param name="context">評価コンテキスト</param>
-        protected virtual void EndPlayback(int seed, IAnimationGraphContext context) {
+        protected virtual void Exit(int seed, IAnimationGraphContext context) {
         }
 
         /// <summary>

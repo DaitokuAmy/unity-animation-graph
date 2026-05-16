@@ -6,7 +6,7 @@ namespace UnityAnimationGraph {
     /// bool フラグの値に応じて進行先を選ぶ分岐ノード
     /// </summary>
     public sealed class FlagBranchNode : BranchNode {
-        [SerializeField, AnimationGraphBlackboardKey(AnimationGraphValueType.Bool), Tooltip("判定に使うフラグキー")]
+        [SerializeField, BlackboardKey(AnimationGraphValueType.Bool), Tooltip("判定に使うフラグキー")]
         private string _flagKey = string.Empty;
         [SerializeField, Tooltip("true 側へ進む期待値")]
         private bool _expectedValue = true;

@@ -68,6 +68,7 @@ namespace UnityAnimationGraph {
             _schedule = null;
             _currentTime = 0.0f;
             _state = AnimationGraphPlayerState.Stopped;
+            ClearActiveNodes();
         }
 
         /// <summary>
@@ -84,6 +85,7 @@ namespace UnityAnimationGraph {
             _schedule = null;
             _currentTime = 0.0f;
             _state = AnimationGraphPlayerState.Stopped;
+            ClearActiveNodes();
         }
 
         /// <summary>
@@ -94,6 +96,7 @@ namespace UnityAnimationGraph {
             EnsureReady();
             _schedule = _scheduler.BuildSchedule(_context, overrideSeed);
             _currentTime = Mathf.Clamp(_currentTime, 0.0f, Duration);
+            ClearActiveNodes();
         }
 
         /// <summary>
@@ -104,12 +107,12 @@ namespace UnityAnimationGraph {
             EnsureSchedule();
             if (IsEndTime(_currentTime)) {
                 _currentTime = 0.0f;
+                ClearActiveNodes();
             }
 
             if (_playStatus != PlayStatus.Playing) {
                 _playVersion++;
                 _playContinuation = null;
-                BeginPlaybackScheduledNodes();
                 _playStatus = PlayStatus.Playing;
             }
 
@@ -143,6 +146,7 @@ namespace UnityAnimationGraph {
         /// <param name="time">評価する時刻</param>
         public void Seek(float time) {
             EnsureSchedule();
+            ClearActiveNodes();
             _currentTime = Mathf.Clamp(time, 0.0f, Duration);
             EvaluateCurrentTime(_currentTime, true, 0.0f);
             if (_state == AnimationGraphPlayerState.Playing && IsEndTime(_currentTime)) {
@@ -271,7 +275,6 @@ namespace UnityAnimationGraph {
                 ClearActiveNodes();
             }
 
-            EndPlaybackScheduledNodes();
             _playStatus = playStatus;
             var continuation = _playContinuation;
             _playContinuation = null;
@@ -296,28 +299,6 @@ namespace UnityAnimationGraph {
         private void ClearActiveNodes() {
             _activeScheduledNodes.Clear();
             _nextActiveScheduledNodes.Clear();
-        }
-
-        /// <summary>
-        /// schedule 内の全ノードへ再生開始を通知
-        /// </summary>
-        private void BeginPlaybackScheduledNodes() {
-            var nodes = _schedule.Nodes;
-            for (var i = 0; i < nodes.Count; i++) {
-                var scheduledNode = nodes[i];
-                ((INodeExecutor)scheduledNode.Node).BeginPlayback(scheduledNode.Seed, _context);
-            }
-        }
-
-        /// <summary>
-        /// schedule 内の全ノードへ再生終了を通知
-        /// </summary>
-        private void EndPlaybackScheduledNodes() {
-            var nodes = _schedule.Nodes;
-            for (var i = 0; i < nodes.Count; i++) {
-                var scheduledNode = nodes[i];
-                ((INodeExecutor)scheduledNode.Node).EndPlayback(scheduledNode.Seed, _context);
-            }
         }
 
         /// <summary>
@@ -346,18 +327,37 @@ namespace UnityAnimationGraph {
         /// <param name="includeCrossedNodes">通過した node の端時刻も評価する場合は true</param>
         /// <param name="previousTime">直前時刻</param>
         private void EvaluateScheduledNodeAtCurrentTime(ScheduledNode scheduledNode, float currentTime, bool includeCrossedNodes, float previousTime) {
-            if (IsActive(scheduledNode, currentTime, includeCrossedNodes, previousTime)) {
-                EvaluateScheduledNode(scheduledNode, CalculateLocalTime(scheduledNode, currentTime));
-                if (scheduledNode.Duration > TimeComparisonEpsilon) {
-                    _nextActiveScheduledNodes.Add(scheduledNode);
-                }
-
+            var wasActive = IsRecordedActive(scheduledNode);
+            var isActive = IsActive(scheduledNode, currentTime, includeCrossedNodes, previousTime);
+            var isCrossedEndTime = IsCrossedEndTime(scheduledNode, currentTime, includeCrossedNodes, previousTime);
+            if (!isActive && !isCrossedEndTime) {
                 return;
             }
 
-            if (IsCrossedEndTime(scheduledNode, currentTime, includeCrossedNodes, previousTime)) {
-                EvaluateScheduledNode(scheduledNode, scheduledNode.Duration);
+            if (!wasActive && IsCrossedStartTime(scheduledNode, currentTime, includeCrossedNodes, previousTime)) {
+                EnterScheduledNode(scheduledNode);
             }
+
+            var localTime = isActive ? CalculateLocalTime(scheduledNode, currentTime) : scheduledNode.Duration;
+            EvaluateScheduledNode(scheduledNode, localTime);
+
+            if (ShouldExitScheduledNode(scheduledNode, currentTime, includeCrossedNodes, previousTime)) {
+                ExitScheduledNode(scheduledNode);
+                return;
+            }
+
+            if (ShouldRemainActive(scheduledNode, currentTime)) {
+                _nextActiveScheduledNodes.Add(scheduledNode);
+            }
+        }
+
+        /// <summary>
+        /// scheduled node が前回評価後も active として記録されていたか判定
+        /// </summary>
+        /// <param name="scheduledNode">判定対象の scheduled node</param>
+        /// <returns>active として記録されていた場合は true</returns>
+        private bool IsRecordedActive(ScheduledNode scheduledNode) {
+            return _activeScheduledNodes.Contains(scheduledNode);
         }
 
         /// <summary>
@@ -397,6 +397,53 @@ namespace UnityAnimationGraph {
         }
 
         /// <summary>
+        /// 前回時刻と今回時刻の間で node の開始時刻に到達したか判定
+        /// </summary>
+        /// <param name="scheduledNode">判定対象の scheduled node</param>
+        /// <param name="currentTime">判定時刻</param>
+        /// <param name="includeCrossedNodes">通過した node の端時刻も評価する場合は true</param>
+        /// <param name="previousTime">直前時刻</param>
+        /// <returns>開始時刻に到達した場合は true</returns>
+        private bool IsCrossedStartTime(ScheduledNode scheduledNode, float currentTime, bool includeCrossedNodes, float previousTime) {
+            if (Mathf.Abs(currentTime - scheduledNode.StartTime) <= TimeComparisonEpsilon) {
+                return true;
+            }
+
+            return includeCrossedNodes && ContainsTimeBetween(previousTime, currentTime, scheduledNode.StartTime);
+        }
+
+        /// <summary>
+        /// scheduled node を今回評価後も active として保持するか判定
+        /// </summary>
+        /// <param name="scheduledNode">判定対象の scheduled node</param>
+        /// <param name="currentTime">評価時刻</param>
+        /// <returns>active として保持する場合は true</returns>
+        private bool ShouldRemainActive(ScheduledNode scheduledNode, float currentTime) {
+            return scheduledNode.Duration > TimeComparisonEpsilon
+                && scheduledNode.StartTime - TimeComparisonEpsilon <= currentTime
+                && currentTime < scheduledNode.EndTime - TimeComparisonEpsilon;
+        }
+
+        /// <summary>
+        /// scheduled node を今回評価後に終了させるか判定
+        /// </summary>
+        /// <param name="scheduledNode">判定対象の scheduled node</param>
+        /// <param name="currentTime">評価時刻</param>
+        /// <param name="includeCrossedNodes">通過した node の端時刻も評価する場合は true</param>
+        /// <param name="previousTime">直前時刻</param>
+        /// <returns>終了させる場合は true</returns>
+        private bool ShouldExitScheduledNode(ScheduledNode scheduledNode, float currentTime, bool includeCrossedNodes, float previousTime) {
+            if (scheduledNode.Duration <= TimeComparisonEpsilon) {
+                return true;
+            }
+
+            return currentTime >= scheduledNode.EndTime - TimeComparisonEpsilon
+                || includeCrossedNodes
+                && previousTime < scheduledNode.EndTime - TimeComparisonEpsilon
+                && scheduledNode.EndTime <= currentTime + TimeComparisonEpsilon;
+        }
+
+        /// <summary>
         /// 指定時刻が 2 つの時刻の間に含まれるか判定
         /// </summary>
         /// <param name="from">片方の時刻</param>
@@ -430,6 +477,40 @@ namespace UnityAnimationGraph {
         private void EvaluateScheduledNode(ScheduledNode scheduledNode, float localTime) {
             var executor = (INodeExecutor)scheduledNode.Node;
             executor.Evaluate(scheduledNode.Seed, localTime, scheduledNode.Duration, _context);
+        }
+
+        /// <summary>
+        /// scheduled node の開始処理を実行
+        /// </summary>
+        /// <param name="scheduledNode">開始する scheduled node</param>
+        private void EnterScheduledNode(ScheduledNode scheduledNode) {
+            DispatchSignals(scheduledNode.Node.EnterSignals, scheduledNode.Seed);
+            ((INodeExecutor)scheduledNode.Node).Enter(scheduledNode.Seed, _context);
+        }
+
+        /// <summary>
+        /// scheduled node の終了処理を実行
+        /// </summary>
+        /// <param name="scheduledNode">終了する scheduled node</param>
+        private void ExitScheduledNode(ScheduledNode scheduledNode) {
+            ((INodeExecutor)scheduledNode.Node).Exit(scheduledNode.Seed, _context);
+            DispatchSignals(scheduledNode.Node.ExitSignals, scheduledNode.Seed);
+        }
+
+        /// <summary>
+        /// シグナル一覧を通知
+        /// </summary>
+        /// <param name="signals">通知するシグナル一覧</param>
+        /// <param name="seed">評価に使用するシード</param>
+        private void DispatchSignals(IReadOnlyList<Signal> signals, int seed) {
+            for (var i = 0; i < signals.Count; i++) {
+                var signal = signals[i];
+                if (signal == null) {
+                    continue;
+                }
+
+                ((ISignalExecutor)signal).Dispatch(seed, _context);
+            }
         }
 
         /// <summary>

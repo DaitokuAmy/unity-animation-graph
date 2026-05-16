@@ -1,4 +1,5 @@
 using System.Collections;
+using System.Collections.Generic;
 using System.Threading.Tasks;
 using NUnit.Framework;
 
@@ -129,10 +130,10 @@ namespace UnityAnimationGraph.Tests {
         }
 
         /// <summary>
-        /// Play は schedule 内の全ノードに再生開始を通知する
+        /// Tick は node が active になったときに Enter を一度だけ呼ぶ
         /// </summary>
         [Test]
-        public void Play_CallsBeginPlaybackForScheduledNodes() {
+        public void Tick_CallsEnterOnceWhenNodeBecomesActive() {
             using var builder = new AnimationGraphTestBuilder();
             var startNode = builder.CreateStartNode("start", "action");
             var actionNode = builder.CreateActionNode("action", 1.0f);
@@ -140,17 +141,21 @@ namespace UnityAnimationGraph.Tests {
             var player = CreatePlayer(graphAsset);
 
             player.Play();
+            Assert.That(actionNode.EnterCount, Is.EqualTo(0));
+
+            player.Tick(0.5f);
             player.Pause();
             player.Play();
+            player.Tick(0.25f);
 
-            Assert.That(actionNode.BeginPlaybackCount, Is.EqualTo(1));
+            Assert.That(actionNode.EnterCount, Is.EqualTo(1));
         }
 
         /// <summary>
-        /// 自然完了時は schedule 内の全ノードに再生終了を通知する
+        /// Tick は node が自然終了したときに Exit を呼ぶ
         /// </summary>
         [Test]
-        public void Tick_CallsEndPlaybackForScheduledNodesOnNaturalCompletion() {
+        public void Tick_CallsExitWhenNodeNaturallyEnds() {
             using var builder = new AnimationGraphTestBuilder();
             var startNode = builder.CreateStartNode("start", "action");
             var actionNode = builder.CreateActionNode("action", 1.0f);
@@ -160,8 +165,55 @@ namespace UnityAnimationGraph.Tests {
             player.Play();
             player.Tick(1.0f);
 
-            Assert.That(actionNode.EndPlaybackCount, Is.EqualTo(1));
-            Assert.That(actionNode.LastEndPlaybackSeed, Is.EqualTo(actionNode.LastSeed));
+            Assert.That(actionNode.EnterCount, Is.EqualTo(1));
+            Assert.That(actionNode.ExitCount, Is.EqualTo(1));
+            Assert.That(actionNode.LastExitSeed, Is.EqualTo(actionNode.LastSeed));
+        }
+
+        /// <summary>
+        /// Enter シグナルは node の Enter と Evaluate より前に通知される
+        /// </summary>
+        [Test]
+        public void Tick_DispatchesEnterSignalsBeforeNodeProcessing() {
+            using var builder = new AnimationGraphTestBuilder();
+            var events = new List<string>();
+            var startNode = builder.CreateStartNode("start", "action");
+            var actionNode = builder.CreateActionNode("action", 1.0f);
+            actionNode.ConfigureEvents(events, "node");
+            var enterSignal = builder.CreateSignal("enter", "signal.Enter", events);
+            builder.SetEnterSignals(actionNode, enterSignal);
+            var graphAsset = builder.CreateGraph("start", startNode, actionNode);
+            var player = CreatePlayer(graphAsset);
+
+            player.Play();
+            player.Tick(0.5f);
+
+            CollectionAssert.AreEqual(new[] { "signal.Enter", "node.Enter", "node.Evaluate" }, events);
+            Assert.That(enterSignal.DispatchCount, Is.EqualTo(1));
+            Assert.That(enterSignal.LastSeed, Is.EqualTo(actionNode.LastSeed));
+        }
+
+        /// <summary>
+        /// Exit シグナルは node の Evaluate と Exit より後に通知される
+        /// </summary>
+        [Test]
+        public void Tick_DispatchesExitSignalsAfterNodeProcessing() {
+            using var builder = new AnimationGraphTestBuilder();
+            var events = new List<string>();
+            var startNode = builder.CreateStartNode("start", "action");
+            var actionNode = builder.CreateActionNode("action", 1.0f);
+            actionNode.ConfigureEvents(events, "node");
+            var exitSignal = builder.CreateSignal("exit", "signal.Exit", events);
+            builder.SetExitSignals(actionNode, exitSignal);
+            var graphAsset = builder.CreateGraph("start", startNode, actionNode);
+            var player = CreatePlayer(graphAsset);
+
+            player.Play();
+            player.Tick(1.0f);
+
+            CollectionAssert.AreEqual(new[] { "node.Enter", "node.Evaluate", "node.Exit", "signal.Exit" }, events);
+            Assert.That(exitSignal.DispatchCount, Is.EqualTo(1));
+            Assert.That(exitSignal.LastSeed, Is.EqualTo(actionNode.LastSeed));
         }
 
         /// <summary>
@@ -184,8 +236,8 @@ namespace UnityAnimationGraph.Tests {
             Assert.That(runningNode.LastCancelSeed, Is.EqualTo(runningNode.LastSeed));
             Assert.That(futureNode.EvaluateCount, Is.EqualTo(0));
             Assert.That(futureNode.CancelCount, Is.EqualTo(0));
-            Assert.That(runningNode.EndPlaybackCount, Is.EqualTo(1));
-            Assert.That(futureNode.EndPlaybackCount, Is.EqualTo(1));
+            Assert.That(runningNode.ExitCount, Is.EqualTo(0));
+            Assert.That(futureNode.ExitCount, Is.EqualTo(0));
             Assert.IsTrue(handle.IsDone);
             Assert.IsTrue(handle.IsInterrupted);
             Assert.IsFalse(handle.IsCompleted);
@@ -234,8 +286,8 @@ namespace UnityAnimationGraph.Tests {
             Assert.That(secondNode.LastLocalTime, Is.EqualTo(2.0f).Within(0.0001f));
             Assert.That(firstNode.CancelCount, Is.EqualTo(0));
             Assert.That(secondNode.CancelCount, Is.EqualTo(0));
-            Assert.That(firstNode.EndPlaybackCount, Is.EqualTo(1));
-            Assert.That(secondNode.EndPlaybackCount, Is.EqualTo(1));
+            Assert.That(firstNode.ExitCount, Is.EqualTo(1));
+            Assert.That(secondNode.ExitCount, Is.EqualTo(1));
             Assert.IsTrue(handle.IsDone);
             Assert.IsTrue(handle.IsCompleted);
             Assert.IsFalse(handle.IsInterrupted);
@@ -257,7 +309,7 @@ namespace UnityAnimationGraph.Tests {
             var completed = handle.Complete();
 
             Assert.IsFalse(completed);
-            Assert.That(actionNode.EndPlaybackCount, Is.EqualTo(1));
+            Assert.That(actionNode.ExitCount, Is.EqualTo(1));
         }
 
         /// <summary>
