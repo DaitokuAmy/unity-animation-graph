@@ -17,7 +17,7 @@ namespace UnityAnimationGraph {
                 throw new InvalidOperationException($"FlagBranchNode '{NodeId}' has empty flag key");
             }
 
-            if (!context.TryGetBlackboardValue<bool>(_flagKey, out var value)) {
+            if (!context.TryGetBlackboardValue(_flagKey, out bool value)) {
                 throw new InvalidOperationException($"FlagBranchNode '{NodeId}' could not resolve flag '{_flagKey}'");
             }
 

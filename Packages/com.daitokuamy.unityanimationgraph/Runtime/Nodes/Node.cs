@@ -7,11 +7,11 @@ namespace UnityAnimationGraph {
     /// Animation Graph を構成するノードの基底クラス
     /// </summary>
     public abstract class Node : ScriptableObject, INodeExecutor {
-        [SerializeField, HideInInspector]
+        [SerializeField, Tooltip("グラフ内で一意なノード ID"), HideInInspector]
         private string _nodeId = string.Empty;
-        [SerializeField, HideInInspector]
+        [SerializeField, Tooltip("エディタ上のノード位置"), HideInInspector]
         private Vector2 _graphPosition;
-        [SerializeField, HideInInspector]
+        [SerializeField, Tooltip("後続ノード ID の一覧"), HideInInspector]
         private string[] _nextNodeIds = Array.Empty<string>();
 
         /// <summary>グラフ内で一意なノード ID</summary>

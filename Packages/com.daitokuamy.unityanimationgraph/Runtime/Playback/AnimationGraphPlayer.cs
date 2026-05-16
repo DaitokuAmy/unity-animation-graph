@@ -51,17 +51,18 @@ namespace UnityAnimationGraph {
         public float CurrentTime => _currentTime;
         /// <summary>スケジュール全体の長さ</summary>
         public float Duration => _schedule?.Duration ?? 0.0f;
+        /// <summary>Tick の deltaTime に乗算する再生速度</summary>
+        public float TimeScale { get; set; } = 1.0f;
 
         /// <summary>
         /// 再生する AnimationGraphAsset を設定
         /// </summary>
-        /// <param name="graphAsset">再生する AnimationGraphAsset</param>
+        /// <param name="graphAsset">再生する AnimationGraphAsset。null の場合は設定を解除</param>
         public void SetGraph(AnimationGraphAsset graphAsset) {
-            if (graphAsset == null) {
-                throw new ArgumentNullException(nameof(graphAsset));
+            if (graphAsset != null) {
+                _scheduler.SetGraph(graphAsset);
             }
 
-            _scheduler.SetGraph(graphAsset);
             CompleteCurrentPlay(PlayStatus.Interrupted);
             _graphAsset = graphAsset;
             _schedule = null;
@@ -160,7 +161,8 @@ namespace UnityAnimationGraph {
 
             EnsureSchedule();
             var previousTime = _currentTime;
-            _currentTime = Mathf.Clamp(_currentTime + Mathf.Max(0.0f, deltaTime), 0.0f, Duration);
+            var scaledDeltaTime = Mathf.Max(0.0f, deltaTime * TimeScale);
+            _currentTime = Mathf.Clamp(_currentTime + scaledDeltaTime, 0.0f, Duration);
             EvaluateCurrentTime(_currentTime, true, previousTime);
             if (IsEndTime(_currentTime)) {
                 _state = AnimationGraphPlayerState.Stopped;

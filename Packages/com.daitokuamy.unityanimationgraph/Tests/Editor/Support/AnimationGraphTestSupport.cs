@@ -22,12 +22,36 @@ namespace UnityAnimationGraph.Tests {
         private const string RepeatNodeIdPropertyName = "_repeatNodeId";
         /// <summary>JoinNode の合流方法フィールド名</summary>
         private const string JoinTypePropertyName = "_joinType";
+        /// <summary>AnimationGraphAsset の asset GUID フィールド名</summary>
+        private const string AssetGuidPropertyName = "_assetGuid";
         /// <summary>AnimationGraphAsset のグラフシードフィールド名</summary>
         private const string GraphSeedPropertyName = "_graphSeed";
         /// <summary>AnimationGraphAsset の開始ノード ID フィールド名</summary>
         private const string StartNodeIdPropertyName = "_startNodeId";
         /// <summary>AnimationGraphAsset のノード配列フィールド名</summary>
         private const string NodesPropertyName = "_nodes";
+        /// <summary>AnimationGraphAsset の target 定義配列フィールド名</summary>
+        private const string TargetDefinitionsPropertyName = "_targetDefinitions";
+        /// <summary>AnimationGraphAsset の Blackboard 定義配列フィールド名</summary>
+        private const string BlackboardDefinitionsPropertyName = "_blackboardDefinitions";
+        /// <summary>schema 定義の key フィールド名</summary>
+        private const string KeyPropertyName = "_key";
+        /// <summary>Blackboard 定義の value type フィールド名</summary>
+        private const string ValueTypePropertyName = "_valueType";
+        /// <summary>Blackboard 定義の bool default value フィールド名</summary>
+        private const string DefaultBoolValuePropertyName = "_defaultBoolValue";
+        /// <summary>Blackboard 定義の int default value フィールド名</summary>
+        private const string DefaultIntValuePropertyName = "_defaultIntValue";
+        /// <summary>Blackboard 定義の float default value フィールド名</summary>
+        private const string DefaultFloatValuePropertyName = "_defaultFloatValue";
+        /// <summary>Blackboard 定義の string default value フィールド名</summary>
+        private const string DefaultStringValuePropertyName = "_defaultStringValue";
+        /// <summary>Blackboard 定義の Vector2 default value フィールド名</summary>
+        private const string DefaultVector2ValuePropertyName = "_defaultVector2Value";
+        /// <summary>Blackboard 定義の Vector3 default value フィールド名</summary>
+        private const string DefaultVector3ValuePropertyName = "_defaultVector3Value";
+        /// <summary>Blackboard 定義の Color default value フィールド名</summary>
+        private const string DefaultColorValuePropertyName = "_defaultColorValue";
 
         private readonly List<UnityEngine.Object> _objects = new();
 
@@ -43,6 +67,7 @@ namespace UnityAnimationGraph.Tests {
             _objects.Add(graphAsset);
 
             var serializedGraph = new SerializedObject(graphAsset);
+            serializedGraph.FindProperty(AssetGuidPropertyName).stringValue = Guid.NewGuid().ToString("N");
             serializedGraph.FindProperty(GraphSeedPropertyName).intValue = 12345;
             serializedGraph.FindProperty(StartNodeIdPropertyName).stringValue = startNodeId;
             var nodesProperty = serializedGraph.FindProperty(NodesPropertyName);
@@ -53,6 +78,47 @@ namespace UnityAnimationGraph.Tests {
 
             serializedGraph.ApplyModifiedPropertiesWithoutUndo();
             return graphAsset;
+        }
+
+        /// <summary>
+        /// AnimationGraphAsset の target 定義を設定
+        /// </summary>
+        /// <param name="graphAsset">設定対象の AnimationGraphAsset</param>
+        /// <param name="keys">設定する target key 一覧</param>
+        public void SetTargetDefinitions(AnimationGraphAsset graphAsset, params string[] keys) {
+            var serializedGraph = new SerializedObject(graphAsset);
+            var definitionsProperty = serializedGraph.FindProperty(TargetDefinitionsPropertyName);
+            definitionsProperty.arraySize = keys.Length;
+            for (var i = 0; i < keys.Length; i++) {
+                definitionsProperty.GetArrayElementAtIndex(i).FindPropertyRelative(KeyPropertyName).stringValue = keys[i];
+            }
+
+            serializedGraph.ApplyModifiedPropertiesWithoutUndo();
+        }
+
+        /// <summary>
+        /// AnimationGraphAsset の Blackboard 定義を設定
+        /// </summary>
+        /// <param name="graphAsset">設定対象の AnimationGraphAsset</param>
+        /// <param name="definitions">設定する Blackboard 定義一覧</param>
+        public void SetBlackboardDefinitions(AnimationGraphAsset graphAsset, params AnimationGraphBlackboardDefinition[] definitions) {
+            var serializedGraph = new SerializedObject(graphAsset);
+            var definitionsProperty = serializedGraph.FindProperty(BlackboardDefinitionsPropertyName);
+            definitionsProperty.arraySize = definitions.Length;
+            for (var i = 0; i < definitions.Length; i++) {
+                var definitionProperty = definitionsProperty.GetArrayElementAtIndex(i);
+                definitionProperty.FindPropertyRelative(KeyPropertyName).stringValue = definitions[i].Key;
+                definitionProperty.FindPropertyRelative(ValueTypePropertyName).enumValueIndex = (int)definitions[i].ValueType;
+                definitionProperty.FindPropertyRelative(DefaultBoolValuePropertyName).boolValue = definitions[i].DefaultBoolValue;
+                definitionProperty.FindPropertyRelative(DefaultIntValuePropertyName).intValue = definitions[i].DefaultIntValue;
+                definitionProperty.FindPropertyRelative(DefaultFloatValuePropertyName).floatValue = definitions[i].DefaultFloatValue;
+                definitionProperty.FindPropertyRelative(DefaultStringValuePropertyName).stringValue = definitions[i].DefaultStringValue;
+                definitionProperty.FindPropertyRelative(DefaultVector2ValuePropertyName).vector2Value = definitions[i].DefaultVector2Value;
+                definitionProperty.FindPropertyRelative(DefaultVector3ValuePropertyName).vector3Value = definitions[i].DefaultVector3Value;
+                definitionProperty.FindPropertyRelative(DefaultColorValuePropertyName).colorValue = definitions[i].DefaultColorValue;
+            }
+
+            serializedGraph.ApplyModifiedPropertiesWithoutUndo();
         }
 
         /// <summary>
@@ -179,12 +245,65 @@ namespace UnityAnimationGraph.Tests {
         private readonly Dictionary<string, object> _blackboardValues = new(StringComparer.Ordinal);
 
         /// <summary>
-        /// Blackboard 値を設定
+        /// bool Blackboard 値を設定
         /// </summary>
         /// <param name="key">Blackboard キー</param>
-        /// <param name="value">設定する値</param>
-        /// <typeparam name="T">設定する値の型</typeparam>
-        public void SetBlackboardValue<T>(string key, T value) {
+        /// <param name="value">設定する bool 値</param>
+        public void SetBlackboardValue(string key, bool value) {
+            _blackboardValues[key] = value;
+        }
+
+        /// <summary>
+        /// int Blackboard 値を設定
+        /// </summary>
+        /// <param name="key">Blackboard キー</param>
+        /// <param name="value">設定する int 値</param>
+        public void SetBlackboardValue(string key, int value) {
+            _blackboardValues[key] = value;
+        }
+
+        /// <summary>
+        /// float Blackboard 値を設定
+        /// </summary>
+        /// <param name="key">Blackboard キー</param>
+        /// <param name="value">設定する float 値</param>
+        public void SetBlackboardValue(string key, float value) {
+            _blackboardValues[key] = value;
+        }
+
+        /// <summary>
+        /// string Blackboard 値を設定
+        /// </summary>
+        /// <param name="key">Blackboard キー</param>
+        /// <param name="value">設定する string 値</param>
+        public void SetBlackboardValue(string key, string value) {
+            _blackboardValues[key] = value ?? string.Empty;
+        }
+
+        /// <summary>
+        /// Vector2 Blackboard 値を設定
+        /// </summary>
+        /// <param name="key">Blackboard キー</param>
+        /// <param name="value">設定する Vector2 値</param>
+        public void SetBlackboardValue(string key, Vector2 value) {
+            _blackboardValues[key] = value;
+        }
+
+        /// <summary>
+        /// Vector3 Blackboard 値を設定
+        /// </summary>
+        /// <param name="key">Blackboard キー</param>
+        /// <param name="value">設定する Vector3 値</param>
+        public void SetBlackboardValue(string key, Vector3 value) {
+            _blackboardValues[key] = value;
+        }
+
+        /// <summary>
+        /// Color Blackboard 値を設定
+        /// </summary>
+        /// <param name="key">Blackboard キー</param>
+        /// <param name="value">設定する Color 値</param>
+        public void SetBlackboardValue(string key, Color value) {
             _blackboardValues[key] = value;
         }
 
@@ -200,8 +319,74 @@ namespace UnityAnimationGraph.Tests {
         }
 
         /// <inheritdoc/>
-        public bool TryGetBlackboardValue<T>(string key, out T value) {
-            if (_blackboardValues.TryGetValue(key, out var objectValue) && objectValue is T typedValue) {
+        public bool TryGetBlackboardValue(string key, out bool value) {
+            if (_blackboardValues.TryGetValue(key, out var objectValue) && objectValue is bool typedValue) {
+                value = typedValue;
+                return true;
+            }
+
+            value = default;
+            return false;
+        }
+
+        /// <inheritdoc/>
+        public bool TryGetBlackboardValue(string key, out int value) {
+            if (_blackboardValues.TryGetValue(key, out var objectValue) && objectValue is int typedValue) {
+                value = typedValue;
+                return true;
+            }
+
+            value = default;
+            return false;
+        }
+
+        /// <inheritdoc/>
+        public bool TryGetBlackboardValue(string key, out float value) {
+            if (_blackboardValues.TryGetValue(key, out var objectValue) && objectValue is float typedValue) {
+                value = typedValue;
+                return true;
+            }
+
+            value = default;
+            return false;
+        }
+
+        /// <inheritdoc/>
+        public bool TryGetBlackboardValue(string key, out string value) {
+            if (_blackboardValues.TryGetValue(key, out var objectValue) && objectValue is string typedValue) {
+                value = typedValue;
+                return true;
+            }
+
+            value = default;
+            return false;
+        }
+
+        /// <inheritdoc/>
+        public bool TryGetBlackboardValue(string key, out Vector2 value) {
+            if (_blackboardValues.TryGetValue(key, out var objectValue) && objectValue is Vector2 typedValue) {
+                value = typedValue;
+                return true;
+            }
+
+            value = default;
+            return false;
+        }
+
+        /// <inheritdoc/>
+        public bool TryGetBlackboardValue(string key, out Vector3 value) {
+            if (_blackboardValues.TryGetValue(key, out var objectValue) && objectValue is Vector3 typedValue) {
+                value = typedValue;
+                return true;
+            }
+
+            value = default;
+            return false;
+        }
+
+        /// <inheritdoc/>
+        public bool TryGetBlackboardValue(string key, out Color value) {
+            if (_blackboardValues.TryGetValue(key, out var objectValue) && objectValue is Color typedValue) {
                 value = typedValue;
                 return true;
             }

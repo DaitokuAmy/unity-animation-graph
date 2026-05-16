@@ -7,7 +7,7 @@ namespace UnityAnimationGraph {
     public sealed class RepeatNode : ControlNode {
         [SerializeField, Min(1), Tooltip("合計実行回数")]
         private int _repeatCount = 1;
-        [SerializeField, HideInInspector]
+        [SerializeField, Tooltip("繰り返し時に戻るノード ID"), HideInInspector]
         private string _repeatNodeId = string.Empty;
 
         /// <summary>body の合計実行回数</summary>

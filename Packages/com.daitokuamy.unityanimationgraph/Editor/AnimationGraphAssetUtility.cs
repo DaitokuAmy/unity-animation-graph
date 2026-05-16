@@ -17,12 +17,18 @@ namespace UnityAnimationGraph.Editor {
         private const string FalseNodeIdsPropertyName = "_falseNodeIds";
         /// <summary>RepeatNode の戻り先ノード ID フィールド名</summary>
         private const string RepeatNodeIdPropertyName = "_repeatNodeId";
+        /// <summary>AnimationGraphAsset の asset GUID フィールド名</summary>
+        private const string AssetGuidPropertyName = "_assetGuid";
         /// <summary>AnimationGraphAsset のグラフシードフィールド名</summary>
         private const string GraphSeedPropertyName = "_graphSeed";
         /// <summary>AnimationGraphAsset の開始ノード ID フィールド名</summary>
         private const string StartNodeIdPropertyName = "_startNodeId";
         /// <summary>AnimationGraphAsset のノード配列フィールド名</summary>
         private const string NodesPropertyName = "_nodes";
+        /// <summary>AnimationGraphAsset の target 定義配列フィールド名</summary>
+        private const string TargetDefinitionsPropertyName = "_targetDefinitions";
+        /// <summary>AnimationGraphAsset の Blackboard 定義配列フィールド名</summary>
+        private const string BlackboardDefinitionsPropertyName = "_blackboardDefinitions";
 
         /// <summary>
         /// AnimationGraphAsset を初期状態に戻す
@@ -54,6 +60,7 @@ namespace UnityAnimationGraph.Editor {
                 ClearGraphReferences(graphAsset);
                 var startNode = AddNode(graphAsset, typeof(StartNode), startNodePosition);
                 var serializedGraph = new SerializedObject(graphAsset);
+                serializedGraph.FindProperty(AssetGuidPropertyName).stringValue = GetAssetGuid(graphAsset);
                 serializedGraph.FindProperty(GraphSeedPropertyName).intValue = BitConverter.ToInt32(Guid.NewGuid().ToByteArray(), 0);
                 serializedGraph.FindProperty(StartNodeIdPropertyName).stringValue = startNode.NodeId;
                 serializedGraph.ApplyModifiedProperties();
@@ -303,14 +310,26 @@ namespace UnityAnimationGraph.Editor {
         }
 
         /// <summary>
-        /// AnimationGraphAsset のノード参照を空に戻す
+        /// AnimationGraphAsset のノード参照と schema を空に戻す
         /// </summary>
         /// <param name="graphAsset">初期化対象の AnimationGraphAsset</param>
         private static void ClearGraphReferences(AnimationGraphAsset graphAsset) {
             var serializedGraph = new SerializedObject(graphAsset);
             serializedGraph.FindProperty(StartNodeIdPropertyName).stringValue = string.Empty;
             serializedGraph.FindProperty(NodesPropertyName).arraySize = 0;
+            serializedGraph.FindProperty(TargetDefinitionsPropertyName).arraySize = 0;
+            serializedGraph.FindProperty(BlackboardDefinitionsPropertyName).arraySize = 0;
             serializedGraph.ApplyModifiedProperties();
+        }
+
+        /// <summary>
+        /// AnimationGraphAsset の Unity asset GUID を取得
+        /// </summary>
+        /// <param name="graphAsset">取得対象の AnimationGraphAsset</param>
+        /// <returns>Unity asset GUID</returns>
+        private static string GetAssetGuid(AnimationGraphAsset graphAsset) {
+            var assetPath = AssetDatabase.GetAssetPath(graphAsset);
+            return string.IsNullOrEmpty(assetPath) ? string.Empty : AssetDatabase.AssetPathToGUID(assetPath);
         }
 
         /// <summary>

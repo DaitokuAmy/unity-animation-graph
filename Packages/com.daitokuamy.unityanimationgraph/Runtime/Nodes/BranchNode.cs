@@ -7,7 +7,7 @@ namespace UnityAnimationGraph {
     /// 条件に応じて進行先を選ぶ分岐ノード
     /// </summary>
     public abstract class BranchNode : ControlNode {
-        [SerializeField, HideInInspector]
+        [SerializeField, Tooltip("false の場合に進むノード ID 一覧"), HideInInspector]
         private string[] _falseNodeIds = Array.Empty<string>();
 
         /// <summary>true の場合に進むノード ID 一覧</summary>

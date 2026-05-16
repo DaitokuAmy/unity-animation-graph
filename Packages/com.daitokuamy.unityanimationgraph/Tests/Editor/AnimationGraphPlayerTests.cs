@@ -34,6 +34,26 @@ namespace UnityAnimationGraph.Tests {
         }
 
         /// <summary>
+        /// Tick は deltaTime に TimeScale を乗算して再生時間を進める
+        /// </summary>
+        [Test]
+        public void Tick_AdvancesTimeWithTimeScale() {
+            using var builder = new AnimationGraphTestBuilder();
+            var startNode = builder.CreateStartNode("start", "action");
+            var actionNode = builder.CreateActionNode("action", 2.0f);
+            var graphAsset = builder.CreateGraph("start", startNode, actionNode);
+            var player = CreatePlayer(graphAsset);
+
+            Assert.That(player.TimeScale, Is.EqualTo(1.0f));
+            player.TimeScale = 0.5f;
+            player.Play();
+            player.Tick(1.0f);
+
+            Assert.That(player.CurrentTime, Is.EqualTo(0.5f).Within(0.0001f));
+            Assert.That(actionNode.LastLocalTime, Is.EqualTo(0.5f).Within(0.0001f));
+        }
+
+        /// <summary>
         /// Stop は直前に active だった non-zero duration node だけをキャンセルする
         /// </summary>
         [Test]
