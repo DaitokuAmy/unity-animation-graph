@@ -1,11 +1,12 @@
 using UnityEngine;
+using UnityEngine.UI;
 
 namespace UnityAnimationGraph {
     /// <summary>
-    /// SpriteRenderer の Color を Tween するノード
+    /// Graphic の color を Tween するノード
     /// </summary>
-    [AnimationGraphNode("Tween Sprite Renderer Color", "Built-in/Tween/Sprite Renderer/Color")]
-    public sealed class TweenSpriteRendererColorNode : TweenColorNode<SpriteRenderer> {
+    [NodeInfo("Tween Graphic Color", "Built-in/Tween/UI/Graphic Color")]
+    public sealed class TweenGraphicColorNode : TweenColorNode<Graphic> {
         [SerializeField, Tooltip("Color Tween 設定")]
         private ColorTween _tween = new(Color.white, Color.red);
 
@@ -15,7 +16,7 @@ namespace UnityAnimationGraph {
         protected override ColorTween TweenSettings => _tween;
 
         /// <inheritdoc/>
-        protected override void ApplyValue(SpriteRenderer target, Color value) {
+        protected override void ApplyValue(Graphic target, Color value) {
             target.color = _tween.ApplyIgnoreMask(value, target.color);
         }
     }

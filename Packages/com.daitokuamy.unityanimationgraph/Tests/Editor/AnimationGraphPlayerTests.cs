@@ -82,7 +82,7 @@ namespace UnityAnimationGraph.Tests {
         }
 
         /// <summary>
-        /// Seek は 0 秒から指定時刻までを順方向に評価する
+        /// Seek は現在の評価状態を戻してから 0 秒から指定時刻までを順方向に評価する
         /// </summary>
         [Test]
         public void Seek_EvaluatesFromStartToTargetTime() {
@@ -104,9 +104,62 @@ namespace UnityAnimationGraph.Tests {
             player.Seek(0.5f);
 
             Assert.That(player.CurrentTime, Is.EqualTo(0.5f).Within(0.0001f));
-            Assert.That(firstNode.EvaluateCount, Is.EqualTo(2));
+            Assert.That(firstNode.EvaluateCount, Is.EqualTo(3));
             Assert.That(firstNode.LastLocalTime, Is.EqualTo(0.5f).Within(0.0001f));
+            Assert.That(secondNode.EvaluateCount, Is.EqualTo(2));
+            Assert.That(secondNode.LastLocalTime, Is.EqualTo(0.0f).Within(0.0001f));
+        }
+
+        /// <summary>
+        /// Seek は直前時刻までに評価済みの node を逆順に初期 localTime へ戻す
+        /// </summary>
+        [Test]
+        public void Seek_ResetsEvaluatedNodesToStartInReverseOrder() {
+            using var builder = new AnimationGraphTestBuilder();
+            var events = new List<string>();
+            var startNode = builder.CreateStartNode("start", "first");
+            var firstNode = builder.CreateActionNode("first", 1.0f, "second");
+            var secondNode = builder.CreateActionNode("second", 2.0f);
+            firstNode.ConfigureEvents(events, "first");
+            secondNode.ConfigureEvents(events, "second");
+            var graphAsset = builder.CreateGraph("start", startNode, firstNode, secondNode);
+            var player = CreatePlayer(graphAsset);
+
+            player.Seek(2.0f);
+            events.Clear();
+
+            player.Seek(0.5f);
+
+            Assert.That(events[0], Is.EqualTo("second.Evaluate"));
+            Assert.That(events[1], Is.EqualTo("first.Evaluate"));
+            Assert.That(secondNode.LastLocalTime, Is.EqualTo(0.0f).Within(0.0001f));
+            Assert.That(firstNode.LastLocalTime, Is.EqualTo(0.5f).Within(0.0001f));
+        }
+
+        /// <summary>
+        /// RebuildSchedule は GraphAsset の構造変更を反映する
+        /// </summary>
+        [Test]
+        public void RebuildSchedule_RefreshesGraphStructure() {
+            using var builder = new AnimationGraphTestBuilder();
+            var startNode = builder.CreateStartNode("start", "first");
+            var firstNode = builder.CreateActionNode("first", 1.0f);
+            var graphAsset = builder.CreateGraph("start", startNode, firstNode);
+            var player = CreatePlayer(graphAsset);
+
+            player.RebuildSchedule();
+            Assert.That(player.Duration, Is.EqualTo(1.0f).Within(0.0001f));
+
+            var secondNode = builder.CreateActionNode("second", 2.0f);
+            builder.SetNextNodeIds(firstNode, "second");
+            builder.SetNodes(graphAsset, startNode, firstNode, secondNode);
+
+            player.RebuildSchedule();
+            player.Seek(2.0f);
+
+            Assert.That(player.Duration, Is.EqualTo(3.0f).Within(0.0001f));
             Assert.That(secondNode.EvaluateCount, Is.EqualTo(1));
+            Assert.That(secondNode.LastLocalTime, Is.EqualTo(1.0f).Within(0.0001f));
         }
 
         /// <summary>

@@ -13,6 +13,10 @@ namespace UnityAnimationGraph {
         private Vector2 _graphPosition;
         [SerializeField, Tooltip("後続ノード ID の一覧"), HideInInspector]
         private string[] _nextNodeIds = Array.Empty<string>();
+        [SerializeField, Tooltip("Enter シグナル用の出力 Port を GraphView に表示する")]
+        private bool _enableEnterSignalPort;
+        [SerializeField, Tooltip("Exit シグナル用の出力 Port を GraphView に表示する")]
+        private bool _enableExitSignalPort;
         [SerializeField, Tooltip("ノード開始時に通知するシグナル一覧"), HideInInspector]
         private Signal[] _enterSignals = Array.Empty<Signal>();
         [SerializeField, Tooltip("ノード終了時に通知するシグナル一覧"), HideInInspector]
@@ -24,6 +28,10 @@ namespace UnityAnimationGraph {
         public Vector2 GraphPosition => _graphPosition;
         /// <summary>後続ノード ID の一覧</summary>
         public IReadOnlyList<string> NextNodeIds => _nextNodeIds ?? Array.Empty<string>();
+        /// <summary>Enter シグナル用の出力 Port を GraphView に表示する場合は true</summary>
+        public bool EnableEnterSignalPort => _enableEnterSignalPort;
+        /// <summary>Exit シグナル用の出力 Port を GraphView に表示する場合は true</summary>
+        public bool EnableExitSignalPort => _enableExitSignalPort;
         /// <summary>ノード開始時に通知するシグナル一覧</summary>
         public IReadOnlyList<Signal> EnterSignals => _enterSignals ?? Array.Empty<Signal>();
         /// <summary>ノード終了時に通知するシグナル一覧</summary>

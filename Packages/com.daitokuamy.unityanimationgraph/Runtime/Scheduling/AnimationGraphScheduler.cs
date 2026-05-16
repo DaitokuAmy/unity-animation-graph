@@ -265,7 +265,6 @@ namespace UnityAnimationGraph {
                     throw new InvalidOperationException($"Cycle detected at node '{node.NodeId}'");
                 }
 
-                ValidateOutputCount(node);
                 VisitNodeIds(node, node.NextNodeIds);
                 if (node is BranchNode branchNode) {
                     VisitNodeIds(node, branchNode.FalseNodeIds);
@@ -292,18 +291,6 @@ namespace UnityAnimationGraph {
 
                     Visit(node);
                 }
-            }
-
-            void ValidateOutputCount(Node node) {
-                if (node.NextNodeIds.Count <= 1) {
-                    return;
-                }
-
-                if (node is DelayNode || node is BranchNode || node is LoopNode) {
-                    return;
-                }
-
-                throw new InvalidOperationException($"Node '{node.NodeId}' has multiple outputs but is not DelayNode, BranchNode, or LoopNode");
             }
 
             HashSet<string> ValidateLoopNode(LoopNode loopNode) {

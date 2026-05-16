@@ -4,7 +4,7 @@ namespace UnityAnimationGraph {
     /// <summary>
     /// Camera の fieldOfView を Tween するノード
     /// </summary>
-    [AnimationGraphNode("Tween Camera Field Of View", "Built-in/Tween/Camera/Field Of View")]
+    [NodeInfo("Tween Camera Field Of View", "Built-in/Tween/Camera/Field Of View")]
     public sealed class TweenCameraFieldOfViewNode : TweenFloatNode<Camera> {
         [SerializeField, Tooltip("FieldOfView Tween 設定")]
         private FloatTween _tween = new(60.0f, 45.0f);

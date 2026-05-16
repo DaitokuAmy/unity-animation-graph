@@ -94,6 +94,7 @@ namespace UnityAnimationGraph {
         /// <param name="overrideSeed">グラフのシードを一時的に上書きする値</param>
         public void RebuildSchedule(int? overrideSeed = null) {
             EnsureReady();
+            _scheduler.SetGraph(_graphAsset);
             _schedule = _scheduler.BuildSchedule(_context, overrideSeed);
             _currentTime = Mathf.Clamp(_currentTime, 0.0f, Duration);
             ClearActiveNodes();
@@ -141,11 +142,12 @@ namespace UnityAnimationGraph {
         }
 
         /// <summary>
-        /// 0 秒から指定時刻までを順方向に評価
+        /// 現在の評価状態を 0 秒へ戻してから、0 秒から指定時刻までを順方向に評価
         /// </summary>
         /// <param name="time">評価する時刻</param>
         public void Seek(float time) {
             EnsureSchedule();
+            ResetEvaluatedNodesToStart(_currentTime);
             ClearActiveNodes();
             _currentTime = Mathf.Clamp(time, 0.0f, Duration);
             EvaluateCurrentTime(_currentTime, true, 0.0f);
@@ -299,6 +301,26 @@ namespace UnityAnimationGraph {
         private void ClearActiveNodes() {
             _activeScheduledNodes.Clear();
             _nextActiveScheduledNodes.Clear();
+        }
+
+        /// <summary>
+        /// 指定時刻までに評価済みの node を逆順に初期 localTime で評価
+        /// </summary>
+        /// <param name="fromTime">巻き戻しを開始する時刻</param>
+        private void ResetEvaluatedNodesToStart(float fromTime) {
+            if (_schedule == null || fromTime <= TimeComparisonEpsilon) {
+                return;
+            }
+
+            var nodes = _schedule.Nodes;
+            for (var i = nodes.Count - 1; i >= 0; i--) {
+                var scheduledNode = nodes[i];
+                if (scheduledNode.StartTime > fromTime + TimeComparisonEpsilon) {
+                    continue;
+                }
+
+                EvaluateScheduledNode(scheduledNode, 0.0f);
+            }
         }
 
         /// <summary>

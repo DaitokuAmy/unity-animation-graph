@@ -4,7 +4,7 @@ namespace UnityAnimationGraph {
     /// <summary>
     /// ParticleSystem を手動シミュレーションで再生するノード
     /// </summary>
-    [AnimationGraphNode("Play Particle System", "Built-in/Play Particle System")]
+    [NodeInfo("Play Particle System", "Built-in/Play Particle System")]
     public sealed class PlayParticleSystemNode : ActionNode {
         [SerializeField, Min(0.0f), Tooltip("ParticleSystem の duration とノード実行時間を同期する値。0 の場合は ParticleSystem の duration を使用")]
         private float _duration;
@@ -37,13 +37,13 @@ namespace UnityAnimationGraph {
                 return;
             }
 
+            particleSystem.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
             ApplySeed(particleSystem, seed);
 
             if (Duration > 0.0f) {
                 SyncDuration(particleSystem, Duration);
             }
 
-            particleSystem.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
             particleSystem.Simulate(0.0f, true, true, true);
         }
 
@@ -53,14 +53,14 @@ namespace UnityAnimationGraph {
                 return;
             }
 
-            ApplySeed(particleSystem, seed);
-
             var duration = ResolveSynchronizedDuration(particleSystem, calculatedDuration);
-            SyncDuration(particleSystem, duration);
-
             var simulationTime = Mathf.Max(0.0f, localTime);
             if (duration > 0.0f) {
                 simulationTime = Mathf.Min(simulationTime, duration);
+            }
+
+            if (simulationTime <= 0.0f) {
+                particleSystem.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
             }
 
             particleSystem.Simulate(simulationTime, true, true, true);

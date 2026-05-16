@@ -14,6 +14,10 @@ namespace UnityAnimationGraph.Editor {
         private const float DefaultSidePanelWidth = 320.0f;
         private const float DefaultSchemaPanelHeight = 280.0f;
         private const float HeaderGraphAssetFieldWidth = 320.0f;
+        private const float PreviewSourceFieldWidth = 260.0f;
+        private const float PreviewSliderWidth = 240.0f;
+        private const float PreviewTimeLabelWidth = 92.0f;
+        private const float PreviewIconButtonWidth = 28.0f;
         private const float MinGraphViewWidth = 240.0f;
         private const float MinInspectorPanelHeight = 160.0f;
         private const float MinSchemaPanelHeight = 180.0f;
@@ -56,15 +60,30 @@ namespace UnityAnimationGraph.Editor {
             window.Focus();
         }
 
+        /// <summary>
+        /// Window 有効化時にタイトルを初期化
+        /// </summary>
         private void OnEnable() {
             titleContent = new GUIContent(WindowTitle);
         }
 
+        /// <summary>
+        /// Window 無効化時に Presenter を解放
+        /// </summary>
         private void OnDisable() {
             ClearPresenter();
-            _presenter = null;
         }
 
+        /// <summary>
+        /// Window 破棄時に Presenter を解放
+        /// </summary>
+        private void OnDestroy() {
+            ClearPresenter();
+        }
+
+        /// <summary>
+        /// Window の UI を構築
+        /// </summary>
         private void CreateGUI() {
             ClearPresenter();
             rootVisualElement.Clear();
@@ -77,8 +96,9 @@ namespace UnityAnimationGraph.Editor {
             var schemaView = new AnimationGraphSchemaView();
             var graphView = new AnimationGraphView();
             var inspectorView = new AnimationGraphInspectorView();
+            var previewControls = CreatePreviewControls(out var previewSourceField, out var previewPlayButton, out var previewStopButton, out var previewTimeSlider, out var previewTimeLabel);
             var footerLabel = CreateFooter();
-            var body = CreateBody(schemaView, graphView, inspectorView);
+            var body = CreateBody(schemaView, graphView, previewControls, inspectorView);
 
             rootVisualElement.style.flexDirection = FlexDirection.Column;
             rootVisualElement.Add(header);
@@ -87,9 +107,25 @@ namespace UnityAnimationGraph.Editor {
 
             _presenter = new AnimationGraphEditorPresenter();
             _presenter.InspectedNodeIdsChanged += OnInspectedNodeIdsChanged;
-            _presenter.Initialize(graphAssetField, schemaView, graphView, inspectorView, footerLabel, _inspectedNodeIds);
+            _presenter.Initialize(
+                graphAssetField,
+                previewSourceField,
+                previewPlayButton,
+                previewStopButton,
+                previewTimeSlider,
+                previewTimeLabel,
+                schemaView,
+                graphView,
+                inspectorView,
+                footerLabel,
+                _inspectedNodeIds);
         }
 
+        /// <summary>
+        /// Header toolbar を作成
+        /// </summary>
+        /// <param name="graphAssetField">GraphAsset 選択 field</param>
+        /// <returns>Header toolbar</returns>
         private static VisualElement CreateHeader(out ObjectField graphAssetField) {
             var header = new Toolbar();
             header.style.flexShrink = 0.0f;
@@ -111,7 +147,98 @@ namespace UnityAnimationGraph.Editor {
             return header;
         }
 
-        private VisualElement CreateBody(AnimationGraphSchemaView schemaView, AnimationGraphView graphView, AnimationGraphInspectorView inspectorView) {
+        /// <summary>
+        /// GraphView 下部に表示する Preview 操作領域を作成
+        /// </summary>
+        /// <param name="previewSourceField">Preview source 表示 field</param>
+        /// <param name="previewPlayButton">Preview 再生ボタン</param>
+        /// <param name="previewStopButton">Preview 停止ボタン</param>
+        /// <param name="previewTimeSlider">Preview seek slider</param>
+        /// <param name="previewTimeLabel">Preview time label</param>
+        /// <returns>Preview 操作領域</returns>
+        private VisualElement CreatePreviewControls(
+            out ObjectField previewSourceField,
+            out ToolbarButton previewPlayButton,
+            out ToolbarButton previewStopButton,
+            out Slider previewTimeSlider,
+            out Label previewTimeLabel) {
+            var controls = new VisualElement {
+                style = {
+                    flexDirection = FlexDirection.Column,
+                    flexShrink = 0.0f,
+                },
+            };
+            var sourceRow = new Toolbar();
+            sourceRow.style.flexShrink = 0.0f;
+            var playbackRow = new Toolbar();
+            playbackRow.style.flexShrink = 0.0f;
+
+            previewSourceField = new ObjectField("Preview Source") {
+                objectType = typeof(AnimationGraphRunner),
+                allowSceneObjects = true,
+                tooltip = "Current preview source Runner",
+            };
+            previewSourceField.SetEnabled(false);
+            previewSourceField.style.minWidth = PreviewSourceFieldWidth;
+            previewSourceField.style.flexGrow = 1.0f;
+            previewSourceField.style.marginRight = 4.0f;
+            sourceRow.Add(previewSourceField);
+            previewPlayButton = new ToolbarButton {
+                tooltip = "Play preview",
+            };
+            previewStopButton = new ToolbarButton {
+                tooltip = "Stop preview and restore sampled values",
+            };
+            ConfigurePreviewIconButton(previewPlayButton);
+            ConfigurePreviewIconButton(previewStopButton);
+            previewTimeSlider = new Slider {
+                lowValue = 0.0f,
+                highValue = 0.0f,
+                value = 0.0f,
+                tooltip = "Preview time",
+            };
+            previewTimeSlider.style.minWidth = PreviewSliderWidth;
+            previewTimeSlider.style.flexGrow = 1.0f;
+            previewTimeLabel = new Label("0.00 / 0.00s") {
+                tooltip = "Preview time",
+            };
+            previewTimeLabel.style.width = PreviewTimeLabelWidth;
+            previewTimeLabel.style.minWidth = PreviewTimeLabelWidth;
+            previewTimeLabel.style.unityTextAlign = TextAnchor.MiddleRight;
+            previewTimeLabel.style.marginLeft = 4.0f;
+            previewTimeLabel.style.marginRight = 4.0f;
+            playbackRow.Add(previewPlayButton);
+            playbackRow.Add(previewStopButton);
+            playbackRow.Add(previewTimeSlider);
+            playbackRow.Add(previewTimeLabel);
+            controls.Add(sourceRow);
+            controls.Add(playbackRow);
+
+            return controls;
+        }
+
+        /// <summary>
+        /// Preview 用 icon button の寸法と配置を設定
+        /// </summary>
+        /// <param name="button">設定する button</param>
+        private void ConfigurePreviewIconButton(ToolbarButton button) {
+            button.style.width = PreviewIconButtonWidth;
+            button.style.minWidth = PreviewIconButtonWidth;
+            button.style.maxWidth = PreviewIconButtonWidth;
+            button.style.flexShrink = 0.0f;
+            button.style.alignItems = Align.Center;
+            button.style.justifyContent = Justify.Center;
+        }
+
+        /// <summary>
+        /// GraphView、Preview 操作領域、Inspector、Schema を含む Body を作成
+        /// </summary>
+        /// <param name="schemaView">Schema view</param>
+        /// <param name="graphView">Graph view</param>
+        /// <param name="previewControls">Preview 操作領域</param>
+        /// <param name="inspectorView">Inspector view</param>
+        /// <returns>Body 領域</returns>
+        private VisualElement CreateBody(AnimationGraphSchemaView schemaView, AnimationGraphView graphView, VisualElement previewControls, AnimationGraphInspectorView inspectorView) {
             var body = new TwoPaneSplitView(1, Mathf.Max(MinSidePanelWidth, _sidePanelWidth), TwoPaneSplitViewOrientation.Horizontal) {
                 style = {
                     flexGrow = 1.0f,
@@ -137,6 +264,14 @@ namespace UnityAnimationGraph.Editor {
 
             graphView.style.flexGrow = 1.0f;
             graphView.style.minWidth = MinGraphViewWidth;
+            var graphPanel = new VisualElement {
+                style = {
+                    flexDirection = FlexDirection.Column,
+                    flexGrow = 1.0f,
+                    minWidth = MinGraphViewWidth,
+                    minHeight = 0.0f,
+                },
+            };
             inspectorView.style.flexGrow = 1.0f;
             inspectorView.style.minHeight = MinInspectorPanelHeight;
             inspectorView.style.borderLeftWidth = 0.0f;
@@ -149,7 +284,9 @@ namespace UnityAnimationGraph.Editor {
             _sidePanel.Add(sideSplitView);
             _schemaPanel.RegisterCallback<GeometryChangedEvent>(OnSchemaPanelGeometryChanged);
             _sidePanel.RegisterCallback<GeometryChangedEvent>(OnSidePanelGeometryChanged);
-            body.Add(graphView);
+            graphPanel.Add(graphView);
+            graphPanel.Add(previewControls);
+            body.Add(graphPanel);
             body.Add(_sidePanel);
             return body;
         }
@@ -187,6 +324,9 @@ namespace UnityAnimationGraph.Editor {
             EditorUtility.SetDirty(this);
         }
 
+        /// <summary>
+        /// Presenter と View callback を解放
+        /// </summary>
         private void ClearPresenter() {
             if (_schemaPanel != null) {
                 _schemaPanel.UnregisterCallback<GeometryChangedEvent>(OnSchemaPanelGeometryChanged);
@@ -209,6 +349,7 @@ namespace UnityAnimationGraph.Editor {
 
             _presenter.InspectedNodeIdsChanged -= OnInspectedNodeIdsChanged;
             _presenter.Dispose();
+            _presenter = null;
         }
 
         private void OnSidePanelGeometryChanged(GeometryChangedEvent evt) {

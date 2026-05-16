@@ -4,7 +4,7 @@ namespace UnityAnimationGraph {
     /// <summary>
     /// Light の intensity を Tween するノード
     /// </summary>
-    [AnimationGraphNode("Tween Light Intensity", "Built-in/Tween/Light/Intensity")]
+    [NodeInfo("Tween Light Intensity", "Built-in/Tween/Light/Intensity")]
     public sealed class TweenLightIntensityNode : TweenFloatNode<Light> {
         [SerializeField, Tooltip("Intensity Tween 設定")]
         private FloatTween _tween = new(0.0f, 1.0f);

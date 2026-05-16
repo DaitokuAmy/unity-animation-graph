@@ -105,6 +105,22 @@ namespace UnityAnimationGraph.Tests {
         }
 
         /// <summary>
+        /// AnimationGraphAsset の Node 一覧を設定
+        /// </summary>
+        /// <param name="graphAsset">設定対象の AnimationGraphAsset</param>
+        /// <param name="nodes">設定する node 一覧</param>
+        public void SetNodes(AnimationGraphAsset graphAsset, params Node[] nodes) {
+            var serializedGraph = new SerializedObject(graphAsset);
+            var nodesProperty = serializedGraph.FindProperty(NodesPropertyName);
+            nodesProperty.arraySize = nodes.Length;
+            for (var i = 0; i < nodes.Length; i++) {
+                nodesProperty.GetArrayElementAtIndex(i).objectReferenceValue = nodes[i];
+            }
+
+            serializedGraph.ApplyModifiedPropertiesWithoutUndo();
+        }
+
+        /// <summary>
         /// AnimationGraphAsset の target 定義を設定
         /// </summary>
         /// <param name="graphAsset">設定対象の AnimationGraphAsset</param>
@@ -241,6 +257,17 @@ namespace UnityAnimationGraph.Tests {
         public void SetExitSignals(Node node, params Signal[] signals) {
             var serializedNode = new SerializedObject(node);
             SetSignalArray(serializedNode.FindProperty(ExitSignalsPropertyName), signals);
+            serializedNode.ApplyModifiedPropertiesWithoutUndo();
+        }
+
+        /// <summary>
+        /// Node の後続ノード ID 一覧を設定
+        /// </summary>
+        /// <param name="node">設定対象ノード</param>
+        /// <param name="nextNodeIds">後続ノード ID 一覧</param>
+        public void SetNextNodeIds(Node node, params string[] nextNodeIds) {
+            var serializedNode = new SerializedObject(node);
+            SetStringArray(serializedNode.FindProperty(NextNodeIdsPropertyName), nextNodeIds);
             serializedNode.ApplyModifiedPropertiesWithoutUndo();
         }
 

@@ -4,7 +4,7 @@ namespace UnityAnimationGraph.Sample {
     /// <summary>
     /// Sample 用に target の localPosition を動かす ActionNode
     /// </summary>
-    [AnimationGraphNode("サンプル移動", "Sample/サンプル移動")]
+    [NodeInfo("サンプル移動", "Sample/サンプル移動")]
     public sealed class SampleMoveLocalPositionNode : ActionNode {
         [SerializeField, Min(0.0f), Tooltip("移動にかける時間")]
         private float _duration = 1.0f;

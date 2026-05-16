@@ -5,7 +5,7 @@ namespace UnityAnimationGraph.Sample {
     /// <summary>
     /// Sample 用に target の Graphic.color を変える ActionNode
     /// </summary>
-    [AnimationGraphNode("サンプル色変更", "Sample/サンプル色変更")]
+    [NodeInfo("サンプル色変更", "Sample/サンプル色変更")]
     public sealed class SampleChangeColorNode : ActionNode {
         [SerializeField, Min(0.0f), Tooltip("色変更にかける時間")]
         private float _duration = 1.0f;

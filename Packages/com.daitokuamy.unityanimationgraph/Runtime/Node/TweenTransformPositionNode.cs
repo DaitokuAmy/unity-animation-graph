@@ -4,7 +4,7 @@ namespace UnityAnimationGraph {
     /// <summary>
     /// Transform の position または localPosition を Tween するノード
     /// </summary>
-    [AnimationGraphNode("Tween Position", "Built-in/Tween/Transform/Position")]
+    [NodeInfo("Tween Position", "Built-in/Tween/Transform/Position")]
     public sealed class TweenTransformPositionNode : TweenTransformVector3Node {
         [SerializeField, Tooltip("Position Tween 設定")]
         private Vector3Tween _tween = new(Vector3.zero, Vector3.up);

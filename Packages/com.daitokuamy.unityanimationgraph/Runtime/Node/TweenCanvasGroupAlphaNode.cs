@@ -4,7 +4,7 @@ namespace UnityAnimationGraph {
     /// <summary>
     /// CanvasGroup の alpha を Tween するノード
     /// </summary>
-    [AnimationGraphNode("Tween Canvas Group Alpha", "Built-in/Tween/UI/Canvas Group Alpha")]
+    [NodeInfo("Tween Canvas Group Alpha", "Built-in/Tween/UI/Canvas Group Alpha")]
     public sealed class TweenCanvasGroupAlphaNode : TweenFloatNode<CanvasGroup> {
         [SerializeField, Tooltip("Alpha Tween 設定")]
         private FloatTween _tween = new(1.0f, 0.0f);

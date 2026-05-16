@@ -4,7 +4,7 @@ namespace UnityAnimationGraph {
     /// <summary>
     /// Camera の orthographicSize を Tween するノード
     /// </summary>
-    [AnimationGraphNode("Tween Camera Orthographic Size", "Built-in/Tween/Camera/Orthographic Size")]
+    [NodeInfo("Tween Camera Orthographic Size", "Built-in/Tween/Camera/Orthographic Size")]
     public sealed class TweenCameraOrthographicSizeNode : TweenFloatNode<Camera> {
         [SerializeField, Tooltip("OrthographicSize Tween 設定")]
         private FloatTween _tween = new(5.0f, 3.0f);

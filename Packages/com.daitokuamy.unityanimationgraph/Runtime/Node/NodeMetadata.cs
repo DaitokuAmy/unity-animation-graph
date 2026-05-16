@@ -6,9 +6,9 @@ using UnityEditor;
 
 namespace UnityAnimationGraph {
     /// <summary>
-    /// Animation Graph Node のエディタ表示情報を解決するクラス
+    /// Node のエディタ表示情報を解決するクラス
     /// </summary>
-    internal static class AnimationGraphNodeMetadata {
+    internal static class NodeMetadata {
         /// <summary>
         /// GraphView 上の表示名を取得
         /// </summary>
@@ -48,12 +48,12 @@ namespace UnityAnimationGraph {
         }
 
         /// <summary>
-        /// Node 型の AnimationGraphNodeAttribute を取得
+        /// Node 型の NodeInfoAttribute を取得
         /// </summary>
         /// <param name="nodeType">対象の Node 型</param>
-        /// <returns>AnimationGraphNodeAttribute。未定義の場合は null</returns>
-        private static AnimationGraphNodeAttribute GetAttribute(Type nodeType) {
-            return nodeType.GetCustomAttribute<AnimationGraphNodeAttribute>(false);
+        /// <returns>NodeInfoAttribute。未定義の場合は null</returns>
+        private static NodeInfoAttribute GetAttribute(Type nodeType) {
+            return nodeType.GetCustomAttribute<NodeInfoAttribute>(false);
         }
 
         /// <summary>

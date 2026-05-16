@@ -227,6 +227,47 @@ namespace UnityAnimationGraph.Tests {
         }
 
         /// <summary>
+        /// 指定した GraphAsset GUID の target binding は現在の GraphAsset に関係なく取得できる
+        /// </summary>
+        [Test]
+        public void GetTargetBindingsByGraphAssetGuid_ReturnsStoredBindingsForSpecifiedGraphAsset() {
+            using var builder = new AnimationGraphTestBuilder();
+            var firstStartNode = builder.CreateStartNode("firstStart");
+            var firstGraphAsset = builder.CreateGraph("firstStart", firstStartNode);
+            var secondStartNode = builder.CreateStartNode("secondStart");
+            var secondGraphAsset = builder.CreateGraph("secondStart", secondStartNode);
+            builder.SetTargetDefinitions(firstGraphAsset, "actor");
+            builder.SetTargetDefinitions(secondGraphAsset, "actor");
+            var runnerObject = new GameObject("AnimationGraphRunnerTest");
+            var firstTargetObject = new GameObject("FirstTarget");
+            var secondTargetObject = new GameObject("SecondTarget");
+
+            try {
+                var runner = runnerObject.AddComponent<AnimationGraphRunner>();
+                runner.GraphAsset = firstGraphAsset;
+                Assert.IsTrue(runner.SetTarget("actor", firstTargetObject.transform));
+
+                runner.GraphAsset = secondGraphAsset;
+                Assert.IsTrue(runner.SetTarget("actor", secondTargetObject.transform));
+
+                var firstBindings = runner.GetTargetBindingsByGraphAssetGuid(firstGraphAsset.AssetGuid);
+                var secondBindings = runner.GetTargetBindingsByGraphAssetGuid(secondGraphAsset.AssetGuid);
+                var missingBindings = runner.GetTargetBindingsByGraphAssetGuid("missing");
+
+                Assert.That(firstBindings.Count, Is.EqualTo(1));
+                Assert.That(firstBindings[0].Target, Is.EqualTo(firstTargetObject.transform));
+                Assert.That(secondBindings.Count, Is.EqualTo(1));
+                Assert.That(secondBindings[0].Target, Is.EqualTo(secondTargetObject.transform));
+                Assert.That(missingBindings.Count, Is.EqualTo(0));
+            }
+            finally {
+                Object.DestroyImmediate(runnerObject);
+                Object.DestroyImmediate(firstTargetObject);
+                Object.DestroyImmediate(secondTargetObject);
+            }
+        }
+
+        /// <summary>
         /// target binding は target 定義の MonoScript GUID を保持する
         /// </summary>
         [Test]

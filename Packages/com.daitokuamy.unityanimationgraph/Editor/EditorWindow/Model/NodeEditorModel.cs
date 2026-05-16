@@ -4,43 +4,35 @@ using UnityEngine;
 
 namespace UnityAnimationGraph.Editor {
     /// <summary>
+    /// Preview 中の Node 実行状態
+    /// </summary>
+    internal enum NodePreviewExecutionState {
+        /// <summary>未実行</summary>
+        None,
+        /// <summary>実行完了済み</summary>
+        Completed,
+        /// <summary>実行中</summary>
+        Active,
+    }
+
+    /// <summary>
     /// Preview 中の Node 実行情報
     /// </summary>
     internal readonly struct NodePreviewExecutionInfo : IEquatable<NodePreviewExecutionInfo> {
-        /// <summary>実行回数</summary>
-        public int ExecutionCount { get; }
-        /// <summary>最小開始遅延</summary>
-        public float MinDelay { get; }
-        /// <summary>最大開始遅延</summary>
-        public float MaxDelay { get; }
-        /// <summary>最小実行時間</summary>
-        public float MinDuration { get; }
-        /// <summary>最大実行時間</summary>
-        public float MaxDuration { get; }
+        /// <summary>Preview 中の実行状態</summary>
+        public NodePreviewExecutionState State { get; }
 
         /// <summary>
         /// NodePreviewExecutionInfo を作成
         /// </summary>
-        /// <param name="executionCount">実行回数</param>
-        /// <param name="minDelay">最小開始遅延</param>
-        /// <param name="maxDelay">最大開始遅延</param>
-        /// <param name="minDuration">最小実行時間</param>
-        /// <param name="maxDuration">最大実行時間</param>
-        public NodePreviewExecutionInfo(int executionCount, float minDelay, float maxDelay, float minDuration, float maxDuration) {
-            ExecutionCount = executionCount;
-            MinDelay = minDelay;
-            MaxDelay = maxDelay;
-            MinDuration = minDuration;
-            MaxDuration = maxDuration;
+        /// <param name="state">Preview 中の実行状態</param>
+        public NodePreviewExecutionInfo(NodePreviewExecutionState state) {
+            State = state;
         }
 
         /// <inheritdoc/>
         public bool Equals(NodePreviewExecutionInfo other) {
-            return ExecutionCount == other.ExecutionCount
-                && MinDelay.Equals(other.MinDelay)
-                && MaxDelay.Equals(other.MaxDelay)
-                && MinDuration.Equals(other.MinDuration)
-                && MaxDuration.Equals(other.MaxDuration);
+            return State == other.State;
         }
 
         /// <inheritdoc/>
@@ -50,14 +42,7 @@ namespace UnityAnimationGraph.Editor {
 
         /// <inheritdoc/>
         public override int GetHashCode() {
-            unchecked {
-                var hashCode = ExecutionCount;
-                hashCode = (hashCode * 397) ^ MinDelay.GetHashCode();
-                hashCode = (hashCode * 397) ^ MaxDelay.GetHashCode();
-                hashCode = (hashCode * 397) ^ MinDuration.GetHashCode();
-                hashCode = (hashCode * 397) ^ MaxDuration.GetHashCode();
-                return hashCode;
-            }
+            return (int)State;
         }
     }
 
@@ -74,13 +59,21 @@ namespace UnityAnimationGraph.Editor {
         /// <summary>ノード型</summary>
         public Type NodeType => _node.GetType();
         /// <summary>ノード表示名</summary>
-        public string DisplayName => AnimationGraphNodeMetadata.GetDisplayName(NodeType);
+        public string DisplayName => NodeMetadata.GetDisplayName(NodeType);
         /// <summary>ノード名</summary>
         public string Name => _node.name ?? string.Empty;
         /// <summary>エディタ上のノード位置</summary>
         public Vector2 GraphPosition => _node.GraphPosition;
         /// <summary>後続ノード ID の一覧</summary>
         public IReadOnlyList<string> NextNodeIds => _node.NextNodeIds;
+        /// <summary>Enter シグナル用の出力 Port を表示する場合は true</summary>
+        public bool EnableEnterSignalPort => _node.EnableEnterSignalPort;
+        /// <summary>Exit シグナル用の出力 Port を表示する場合は true</summary>
+        public bool EnableExitSignalPort => _node.EnableExitSignalPort;
+        /// <summary>Enter 時に通知する Signal 一覧</summary>
+        public IReadOnlyList<Signal> EnterSignals => _node.EnterSignals;
+        /// <summary>Exit 時に通知する Signal 一覧</summary>
+        public IReadOnlyList<Signal> ExitSignals => _node.ExitSignals;
         /// <summary>参照元の Node</summary>
         internal Node Node => _node;
 
@@ -130,6 +123,22 @@ namespace UnityAnimationGraph.Editor {
         /// <param name="nextNodeIds">設定する後続ノード ID 一覧</param>
         internal void SetNextNodeIds(IReadOnlyList<string> nextNodeIds) {
             AnimationGraphAssetUtility.SetNodeNextNodeIds(_node, nextNodeIds);
+        }
+
+        /// <summary>
+        /// Enter シグナル用の出力 Port 表示フラグを設定
+        /// </summary>
+        /// <param name="enabled">表示する場合は true</param>
+        internal void SetEnterSignalPortEnabled(bool enabled) {
+            AnimationGraphAssetUtility.SetNodeEnterSignalPortEnabled(_node, enabled);
+        }
+
+        /// <summary>
+        /// Exit シグナル用の出力 Port 表示フラグを設定
+        /// </summary>
+        /// <param name="enabled">表示する場合は true</param>
+        internal void SetExitSignalPortEnabled(bool enabled) {
+            AnimationGraphAssetUtility.SetNodeExitSignalPortEnabled(_node, enabled);
         }
 
         /// <summary>

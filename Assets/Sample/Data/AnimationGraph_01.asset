@@ -16,6 +16,8 @@ MonoBehaviour:
   _graphPosition: {x: 611, y: 94}
   _nextNodeIds:
   - 30db5e79b0e344a5a91c438aaef73964
+  _enableEnterSignalPort: 0
+  _enableExitSignalPort: 0
   _enterSignals: []
   _exitSignals: []
   _targetKey: DirectorTarget
@@ -36,6 +38,8 @@ MonoBehaviour:
   _graphPosition: {x: 407, y: 258}
   _nextNodeIds:
   - 41d25952d3a446a28459a65d3b554092
+  _enableEnterSignalPort: 0
+  _enableExitSignalPort: 0
   _enterSignals: []
   _exitSignals: []
   _joinType: 0
@@ -54,6 +58,8 @@ MonoBehaviour:
   _nodeId: 26dad5b4a5404443b9997d7bb79417f0
   _graphPosition: {x: -142, y: 301}
   _nextNodeIds: []
+  _enableEnterSignalPort: 0
+  _enableExitSignalPort: 0
   _enterSignals: []
   _exitSignals: []
   _falseNodeIds: []
@@ -75,8 +81,11 @@ MonoBehaviour:
   _graphPosition: {x: 253, y: 96}
   _nextNodeIds:
   - 4845ed8b33d14f938a3596ad53090352
+  _enableEnterSignalPort: 0
+  _enableExitSignalPort: 1
   _enterSignals: []
-  _exitSignals: []
+  _exitSignals:
+  - {fileID: 3267309385647311337}
   _delay: 2
 --- !u!114 &-4527490929091549941
 MonoBehaviour:
@@ -94,6 +103,8 @@ MonoBehaviour:
   _graphPosition: {x: 253, y: 376}
   _nextNodeIds:
   - 1f72a500682548af99ce3c86253fbe50
+  _enableEnterSignalPort: 0
+  _enableExitSignalPort: 0
   _enterSignals: []
   _exitSignals: []
   _targetKey: MoveTarget
@@ -118,6 +129,8 @@ MonoBehaviour:
   _nextNodeIds:
   - 0de2b523ffad40bfa7cdc484761617a7
   - f3b2d52a23ac495b8aa69a0dda859837
+  _enableEnterSignalPort: 0
+  _enableExitSignalPort: 0
   _enterSignals: []
   _exitSignals: []
   _loopCount: 3
@@ -140,6 +153,8 @@ MonoBehaviour:
   _graphPosition: {x: 95, y: 376}
   _nextNodeIds:
   - ce704b898d754759bd96731272bd19f8
+  _enableEnterSignalPort: 0
+  _enableExitSignalPort: 0
   _enterSignals: []
   _exitSignals: []
   _targetKey: MoveTarget
@@ -163,6 +178,8 @@ MonoBehaviour:
   _graphPosition: {x: 808, y: 94}
   _nextNodeIds:
   - 87a179028eec4f5ba589d08ac9052dc1
+  _enableEnterSignalPort: 0
+  _enableExitSignalPort: 0
   _enterSignals: []
   _exitSignals: []
   _targetKey: RotateTarget
@@ -186,6 +203,7 @@ MonoBehaviour:
       _source: 1
       _blackboardKey: TargetAngle
       _value: {x: 0, y: 90, z: 0}
+    _ignoreMask: 0
   _space: 1
 --- !u!114 &-1064402391938092031
 MonoBehaviour:
@@ -202,13 +220,15 @@ MonoBehaviour:
   _nodeId: 41d25952d3a446a28459a65d3b554092
   _graphPosition: {x: 546, y: 256}
   _nextNodeIds: []
+  _enableEnterSignalPort: 0
+  _enableExitSignalPort: 0
   _enterSignals: []
   _exitSignals: []
   _targetKey: ColorTarget
   _duration: 0.5
   _delay: 0
   _from: {r: 1, g: 0, b: 0, a: 1}
-  _to: {r: 0.8166667, g: 1, b: 0, a: 1}
+  _to: {r: 0.4604575, g: 0.8666667, b: 0.42352945, a: 1}
 --- !u!114 &-808291724333275700
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -225,6 +245,8 @@ MonoBehaviour:
   _graphPosition: {x: 95, y: 256}
   _nextNodeIds:
   - 1f72a500682548af99ce3c86253fbe50
+  _enableEnterSignalPort: 0
+  _enableExitSignalPort: 0
   _enterSignals: []
   _exitSignals: []
   _targetKey: ColorTarget
@@ -264,6 +286,7 @@ MonoBehaviour:
   - {fileID: -8224036317216257604}
   - {fileID: -1388851978294385070}
   - {fileID: 7115547045294773654}
+  - {fileID: 3097784692866626518}
   _targetDefinitions:
   - _key: MoveTarget
     _monoScriptGuid: 00000000000000000000000000000001
@@ -273,6 +296,8 @@ MonoBehaviour:
     _monoScriptGuid: 00000000000000000000000000000004
   - _key: DirectorTarget
     _monoScriptGuid: 00000000000000000000000000000010
+  - _key: ParticleTarget
+    _monoScriptGuid: 00000000000000000000000000000011
   _blackboardDefinitions:
   - _key: TargetAngle
     _valueType: 5
@@ -294,7 +319,7 @@ MonoBehaviour:
     _defaultColorValue: {r: 1, g: 0, b: 0, a: 1}
   - _key: IsPrimary
     _valueType: 0
-    _defaultBoolValue: 0
+    _defaultBoolValue: 1
     _defaultIntValue: 0
     _defaultFloatValue: 0
     _defaultStringValue: 
@@ -317,12 +342,14 @@ MonoBehaviour:
   _graphPosition: {x: 457, y: 94}
   _nextNodeIds:
   - 36dfbe67cf934019afb9e87d1d16e299
+  _enableEnterSignalPort: 0
+  _enableExitSignalPort: 0
   _enterSignals: []
   _exitSignals: []
   _targetKey: MoveTarget
   _duration: 2
   _delay: 0
-  _from: {x: 0, y: 10, z: 0}
+  _from: {x: 0, y: 30, z: 0}
   _to: {x: 0, y: 0, z: 0}
 --- !u!114 &832963955223547466
 MonoBehaviour:
@@ -340,8 +367,49 @@ MonoBehaviour:
   _graphPosition: {x: -263, y: 135}
   _nextNodeIds:
   - 872db1a967624136bd3828e7016c9db8
+  - 69b599a3c5be487e8ea0546b824996a2
+  _enableEnterSignalPort: 0
+  _enableExitSignalPort: 0
   _enterSignals: []
   _exitSignals: []
+--- !u!114 &3097784692866626518
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 195884df96784b38a11a216b5129d5c6, type: 3}
+  m_Name: PlayParticleSystemNode
+  m_EditorClassIdentifier: UnityAnimationGraph::UnityAnimationGraph.PlayParticleSystemNode
+  _nodeId: 69b599a3c5be487e8ea0546b824996a2
+  _graphPosition: {x: -118, y: -108}
+  _nextNodeIds: []
+  _enableEnterSignalPort: 0
+  _enableExitSignalPort: 1
+  _enterSignals: []
+  _exitSignals:
+  - {fileID: 7526610600951302847}
+  _targetKey: ParticleTarget
+  _duration: 0
+--- !u!114 &3267309385647311337
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 35ae7a8f66694659b5e645e28b0908b0, type: 3}
+  m_Name: SampleLogSignal
+  m_EditorClassIdentifier: Assembly-CSharp::UnityAnimationGraph.Sample.SampleLogSignal
+  _signalId: 1553178c6a69478ca64b2f26cc1e2b99
+  _graphPosition: {x: 457, y: -65}
+  _message: Sample Signal
+  _includeSeed: 1
 --- !u!114 &7115547045294773654
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -357,6 +425,8 @@ MonoBehaviour:
   _nodeId: 87a179028eec4f5ba589d08ac9052dc1
   _graphPosition: {x: 989, y: 94}
   _nextNodeIds: []
+  _enableEnterSignalPort: 0
+  _enableExitSignalPort: 0
   _enterSignals: []
   _exitSignals: []
   _targetKey: RotateTarget
@@ -380,6 +450,7 @@ MonoBehaviour:
       _source: 0
       _blackboardKey: TargetAngle
       _value: {x: 0, y: 0, z: 0}
+    _ignoreMask: 0
   _space: 1
 --- !u!114 &7246135758792466407
 MonoBehaviour:
@@ -397,13 +468,31 @@ MonoBehaviour:
   _graphPosition: {x: 104, y: 94}
   _nextNodeIds:
   - 9e13660fc054402a884fd67df1c766aa
+  _enableEnterSignalPort: 0
+  _enableExitSignalPort: 0
   _enterSignals: []
   _exitSignals: []
   _targetKey: MoveTarget
   _duration: 1
   _delay: 0
   _from: {x: 0, y: 0, z: 0}
-  _to: {x: 0, y: 10, z: 0}
+  _to: {x: 0, y: 30, z: 0}
+--- !u!114 &7526610600951302847
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 35ae7a8f66694659b5e645e28b0908b0, type: 3}
+  m_Name: SampleLogSignal
+  m_EditorClassIdentifier: Assembly-CSharp::UnityAnimationGraph.Sample.SampleLogSignal
+  _signalId: cb44ab6808fa448c963a658f628265d1
+  _graphPosition: {x: 84, y: -202}
+  _message: Sample Signal
+  _includeSeed: 1
 --- !u!114 &8635276361769120540
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -419,6 +508,8 @@ MonoBehaviour:
   _nodeId: f3b2d52a23ac495b8aa69a0dda859837
   _graphPosition: {x: 104, y: -38}
   _nextNodeIds: []
+  _enableEnterSignalPort: 0
+  _enableExitSignalPort: 0
   _enterSignals: []
   _exitSignals: []
   _targetKey: ColorTarget

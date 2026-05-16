@@ -11,6 +11,7 @@ namespace UnityAnimationGraph.Editor {
     /// </summary>
     internal sealed class AnimationGraphView : GraphView {
         private readonly Dictionary<string, AnimationGraphNodeView> _nodeViewsById = new();
+        private readonly Dictionary<string, AnimationGraphSignalView> _signalViewsById = new();
         private readonly Label _emptyStateLabel;
         private readonly Label _validationLabel;
 
@@ -21,10 +22,18 @@ namespace UnityAnimationGraph.Editor {
         public event Action<Type, Vector2> NodeCreateRequested;
         /// <summary>ノード移動通知</summary>
         public event Action<NodeEditorModel, Rect> NodeMoved;
+        /// <summary>Signal 移動通知</summary>
+        public event Action<SignalEditorModel, Rect> SignalMoved;
         /// <summary>Edge 作成要求</summary>
         public event Func<AnimationGraphOutputPortKind, NodeEditorModel, NodeEditorModel, bool> EdgeCreateRequested;
         /// <summary>Edge 削除要求</summary>
         public event Action<AnimationGraphOutputPortKind, NodeEditorModel, NodeEditorModel> EdgeRemoveRequested;
+        /// <summary>Signal Edge 作成要求</summary>
+        public event Func<AnimationGraphOutputPortKind, NodeEditorModel, SignalEditorModel, bool> SignalEdgeCreateRequested;
+        /// <summary>Signal Edge 削除要求</summary>
+        public event Action<AnimationGraphOutputPortKind, NodeEditorModel, SignalEditorModel> SignalEdgeRemoveRequested;
+        /// <summary>Signal 作成要求</summary>
+        public event Action<Type, Vector2> SignalCreateRequested;
         /// <summary>選択状態変更通知</summary>
         public event Action SelectionChanged;
         /// <summary>コピー要求</summary>
@@ -119,8 +128,14 @@ namespace UnityAnimationGraph.Editor {
                     AddNodeView(nodeModels[i]);
                 }
 
+                var signalModels = assetModel.Signals;
+                for (var i = 0; i < signalModels.Count; i++) {
+                    AddSignalView(signalModels[i]);
+                }
+
                 for (var i = 0; i < nodeModels.Count; i++) {
                     AddEdgeViews(nodeModels[i]);
+                    AddSignalEdgeViews(nodeModels[i]);
                 }
 
                 RefreshValidationState();
@@ -148,6 +163,23 @@ namespace UnityAnimationGraph.Editor {
         }
 
         /// <summary>
+        /// 選択中の SignalEditorModel 一覧を取得
+        /// </summary>
+        /// <returns>選択中の SignalEditorModel 一覧</returns>
+        public IReadOnlyList<SignalEditorModel> GetSelectedSignalModels() {
+            var signalModels = new List<SignalEditorModel>();
+            foreach (var selectable in selection) {
+                if (selectable is not AnimationGraphSignalView signalView) {
+                    continue;
+                }
+
+                signalModels.Add(signalView.SignalModel);
+            }
+
+            return signalModels;
+        }
+
+        /// <summary>
         /// 選択中の Edge 接続一覧を取得
         /// </summary>
         /// <returns>選択中の Edge 接続一覧</returns>
@@ -155,6 +187,23 @@ namespace UnityAnimationGraph.Editor {
             var edgeConnections = new List<AnimationGraphEdgeConnection>();
             foreach (var selectable in selection) {
                 if (selectable is not Edge edge || !TryGetEdgeConnection(edge, out var edgeConnection)) {
+                    continue;
+                }
+
+                edgeConnections.Add(edgeConnection);
+            }
+
+            return edgeConnections;
+        }
+
+        /// <summary>
+        /// 選択中の Signal Edge 接続一覧を取得
+        /// </summary>
+        /// <returns>選択中の Signal Edge 接続一覧</returns>
+        public IReadOnlyList<AnimationGraphSignalEdgeConnection> GetSelectedSignalEdgeConnections() {
+            var edgeConnections = new List<AnimationGraphSignalEdgeConnection>();
+            foreach (var selectable in selection) {
+                if (selectable is not Edge edge || !TryGetSignalEdgeConnection(edge, out var edgeConnection)) {
                     continue;
                 }
 
@@ -220,15 +269,17 @@ namespace UnityAnimationGraph.Editor {
                     continue;
                 }
 
-                var createMenuPath = AnimationGraphNodeMetadata.GetCreateMenuPath(nodeType);
+                var createMenuPath = NodeMetadata.GetCreateMenuPath(nodeType);
                 evt.menu.AppendAction($"Create/{createMenuPath}", _ => NodeCreateRequested?.Invoke(nodeType, graphPosition));
             }
+
+            AppendSignalCreateActions(evt.menu, graphPosition);
         }
 
         /// <inheritdoc/>
         public override List<Port> GetCompatiblePorts(Port startPort, NodeAdapter nodeAdapter) {
             var compatiblePorts = new List<Port>();
-            if (_assetModel == null || startPort?.node is not AnimationGraphNodeView startNodeView) {
+            if (_assetModel == null || startPort == null) {
                 return compatiblePorts;
             }
 
@@ -237,23 +288,39 @@ namespace UnityAnimationGraph.Editor {
                     return;
                 }
 
-                if (port.node is not AnimationGraphNodeView portNodeView) {
+                if (TryGetNodeEdgeConnection(startPort, port, out var outputPortKind, out var sourceNodeModel, out var targetNodeModel)) {
+                    if (!_assetModel.CanConnect(outputPortKind, sourceNodeModel, targetNodeModel, out _)) {
+                        return;
+                    }
+
+                    compatiblePorts.Add(port);
                     return;
                 }
 
-                if (!TryGetOutputPortKind(startPort, startNodeView, port, portNodeView, out var outputPortKind)) {
+                if (!TryGetSignalEdgeConnection(startPort, port, out var signalOutputPortKind, out var signalSourceNodeModel, out var targetSignalModel)) {
                     return;
                 }
 
-                var sourceNodeModel = startPort.direction == Direction.Output ? startNodeView.NodeModel : portNodeView.NodeModel;
-                var targetNodeModel = startPort.direction == Direction.Output ? portNodeView.NodeModel : startNodeView.NodeModel;
-                if (!_assetModel.CanConnect(outputPortKind, sourceNodeModel, targetNodeModel, out _)) {
+                if (!_assetModel.CanConnectSignal(signalOutputPortKind, signalSourceNodeModel, targetSignalModel, out _)) {
                     return;
                 }
 
                 compatiblePorts.Add(port);
             });
             return compatiblePorts;
+        }
+
+        private static bool IsCreatableSignalType(Type signalType) {
+            if (signalType == null || signalType.IsAbstract || signalType.IsGenericType) {
+                return false;
+            }
+
+            if (!signalType.IsPublic && !signalType.IsNestedPublic) {
+                return false;
+            }
+
+            var assemblyName = signalType.Assembly.GetName().Name;
+            return !assemblyName.EndsWith(".Tests", StringComparison.Ordinal);
         }
 
         private static bool IsCreatableNodeType(Type nodeType) {
@@ -269,6 +336,51 @@ namespace UnityAnimationGraph.Editor {
             return !assemblyName.EndsWith(".Tests", StringComparison.Ordinal);
         }
 
+        private void AppendSignalCreateActions(DropdownMenu menu, Vector2 graphPosition) {
+            var signalTypes = TypeCache.GetTypesDerivedFrom<UnityAnimationGraph.Signal>();
+            var hasSignalType = false;
+            for (var i = 0; i < signalTypes.Count; i++) {
+                var signalType = signalTypes[i];
+                if (!IsCreatableSignalType(signalType)) {
+                    continue;
+                }
+
+                hasSignalType = true;
+                var createMenuPath = GetSignalCreateMenuPath(signalType);
+                var capturedSignalType = signalType;
+                menu.AppendAction($"Create/Signal/{createMenuPath}", _ => SignalCreateRequested?.Invoke(capturedSignalType, graphPosition));
+            }
+
+            if (!hasSignalType) {
+                menu.AppendAction("Create/Signal/No creatable Signal", _ => { }, DropdownMenuAction.Status.Disabled);
+            }
+        }
+
+        private static bool TryGetSignalOutputPort(IEventHandler target, out AnimationGraphNodeView nodeView, out AnimationGraphOutputPortKind outputPortKind) {
+            var element = target as VisualElement;
+            while (element != null) {
+                if (element is Port port && port.node is AnimationGraphNodeView currentNodeView && currentNodeView.TryGetOutputPortKind(port, out var currentOutputPortKind) && IsSignalOutputPort(currentOutputPortKind)) {
+                    nodeView = currentNodeView;
+                    outputPortKind = currentOutputPortKind;
+                    return true;
+                }
+
+                element = element.parent;
+            }
+
+            nodeView = null;
+            outputPortKind = default;
+            return false;
+        }
+
+        private static bool IsSignalOutputPort(AnimationGraphOutputPortKind outputPortKind) {
+            return outputPortKind is AnimationGraphOutputPortKind.EnterSignal or AnimationGraphOutputPortKind.ExitSignal;
+        }
+
+        private static string GetSignalCreateMenuPath(Type signalType) {
+            return SignalMetadata.GetCreateMenuPath(signalType);
+        }
+
         private GraphViewChange OnGraphViewChanged(GraphViewChange graphViewChange) {
             if (_isRebuilding) {
                 return graphViewChange;
@@ -276,11 +388,14 @@ namespace UnityAnimationGraph.Editor {
 
             if (graphViewChange.movedElements != null) {
                 for (var i = 0; i < graphViewChange.movedElements.Count; i++) {
-                    if (graphViewChange.movedElements[i] is not AnimationGraphNodeView nodeView) {
+                    if (graphViewChange.movedElements[i] is AnimationGraphNodeView nodeView) {
+                        NodeMoved?.Invoke(nodeView.NodeModel, nodeView.GetPosition());
                         continue;
                     }
 
-                    NodeMoved?.Invoke(nodeView.NodeModel, nodeView.GetPosition());
+                    if (graphViewChange.movedElements[i] is AnimationGraphSignalView signalView) {
+                        SignalMoved?.Invoke(signalView.SignalModel, signalView.GetPosition());
+                    }
                 }
             }
 
@@ -289,6 +404,15 @@ namespace UnityAnimationGraph.Editor {
                 for (var i = 0; i < graphViewChange.edgesToCreate.Count; i++) {
                     var edge = graphViewChange.edgesToCreate[i];
                     if (!TryGetEdgeConnection(edge, out var edgeConnection)) {
+                        if (!TryGetSignalEdgeConnection(edge, out var signalEdgeConnection)) {
+                            continue;
+                        }
+
+                        if (SignalEdgeCreateRequested?.Invoke(signalEdgeConnection.OutputPortKind, signalEdgeConnection.SourceNodeModel, signalEdgeConnection.TargetSignalModel) != true) {
+                            continue;
+                        }
+
+                        edgesToCreate.Add(edge);
                         continue;
                     }
 
@@ -303,18 +427,22 @@ namespace UnityAnimationGraph.Editor {
             }
 
             if (graphViewChange.elementsToRemove != null) {
-                var nodeRemoved = false;
+                var graphNodeRemoved = false;
                 for (var i = 0; i < graphViewChange.elementsToRemove.Count; i++) {
                     if (graphViewChange.elementsToRemove[i] is Edge edge && TryGetEdgeConnection(edge, out var edgeConnection)) {
                         EdgeRemoveRequested?.Invoke(edgeConnection.OutputPortKind, edgeConnection.SourceNodeModel, edgeConnection.TargetNodeModel);
                     }
 
-                    if (graphViewChange.elementsToRemove[i] is AnimationGraphNodeView) {
-                        nodeRemoved = true;
+                    if (graphViewChange.elementsToRemove[i] is Edge signalEdge && TryGetSignalEdgeConnection(signalEdge, out var signalEdgeConnection)) {
+                        SignalEdgeRemoveRequested?.Invoke(signalEdgeConnection.OutputPortKind, signalEdgeConnection.SourceNodeModel, signalEdgeConnection.TargetSignalModel);
+                    }
+
+                    if (graphViewChange.elementsToRemove[i] is AnimationGraphNodeView or AnimationGraphSignalView) {
+                        graphNodeRemoved = true;
                     }
                 }
 
-                if (nodeRemoved) {
+                if (graphNodeRemoved) {
                     DeleteRequested?.Invoke();
                     graphViewChange.elementsToRemove = new List<GraphElement>();
                 }
@@ -336,6 +464,13 @@ namespace UnityAnimationGraph.Editor {
             AddElement(nodeView);
         }
 
+        private void AddSignalView(SignalEditorModel signalModel) {
+            var signalView = new AnimationGraphSignalView(signalModel);
+            signalView.SelectionChanged += OnSignalViewSelectionChanged;
+            _signalViewsById.Add(signalModel.SignalId, signalView);
+            AddElement(signalView);
+        }
+
         private void AddEdgeViews(NodeEditorModel sourceNodeModel) {
             if (!_nodeViewsById.TryGetValue(sourceNodeModel.NodeId, out var sourceNodeView)) {
                 return;
@@ -349,6 +484,15 @@ namespace UnityAnimationGraph.Editor {
             if (sourceNodeModel is LoopNodeEditorModel loopNodeModel) {
                 AddEdgeViews(sourceNodeView, AnimationGraphOutputPortKind.Loop, loopNodeModel.LoopNodeIds);
             }
+        }
+
+        private void AddSignalEdgeViews(NodeEditorModel sourceNodeModel) {
+            if (!_nodeViewsById.TryGetValue(sourceNodeModel.NodeId, out var sourceNodeView)) {
+                return;
+            }
+
+            AddSignalEdgeViews(sourceNodeView, AnimationGraphOutputPortKind.EnterSignal, sourceNodeModel.EnterSignals);
+            AddSignalEdgeViews(sourceNodeView, AnimationGraphOutputPortKind.ExitSignal, sourceNodeModel.ExitSignals);
         }
 
         private void AddEdgeViews(AnimationGraphNodeView sourceNodeView, AnimationGraphOutputPortKind outputPortKind, IReadOnlyList<string> targetNodeIds) {
@@ -372,6 +516,23 @@ namespace UnityAnimationGraph.Editor {
             }
         }
 
+        private void AddSignalEdgeViews(AnimationGraphNodeView sourceNodeView, AnimationGraphOutputPortKind outputPortKind, IReadOnlyList<Signal> targetSignals) {
+            var outputPort = sourceNodeView.GetOutputPort(outputPortKind);
+            if (outputPort == null) {
+                return;
+            }
+
+            for (var i = 0; i < targetSignals.Count; i++) {
+                var targetSignal = targetSignals[i];
+                if (targetSignal == null || !_signalViewsById.TryGetValue(targetSignal.SignalId, out var targetSignalView)) {
+                    continue;
+                }
+
+                var edge = outputPort.ConnectTo(targetSignalView.InputPort);
+                AddElement(edge);
+            }
+        }
+
         private void RemoveGraphElements() {
             var elementsToRemove = new List<GraphElement>();
             foreach (var graphElement in graphElements) {
@@ -386,6 +547,12 @@ namespace UnityAnimationGraph.Editor {
                     continue;
                 }
 
+                if (graphElement is AnimationGraphSignalView signalView) {
+                    signalView.SelectionChanged -= OnSignalViewSelectionChanged;
+                    elementsToRemove.Add(signalView);
+                    continue;
+                }
+
                 if (graphElement is Edge edge) {
                     elementsToRemove.Add(edge);
                 }
@@ -396,9 +563,14 @@ namespace UnityAnimationGraph.Editor {
             }
 
             _nodeViewsById.Clear();
+            _signalViewsById.Clear();
         }
 
         private void OnNodeViewSelectionChanged() {
+            SelectionChanged?.Invoke();
+        }
+
+        private void OnSignalViewSelectionChanged() {
             SelectionChanged?.Invoke();
         }
 
@@ -453,8 +625,8 @@ namespace UnityAnimationGraph.Editor {
         }
 
         private bool TryGetEdgeConnection(Edge edge, out AnimationGraphEdgeConnection edgeConnection) {
-            if (edge.output?.node is AnimationGraphNodeView sourceNodeView && edge.input?.node is AnimationGraphNodeView targetNodeView && sourceNodeView.TryGetOutputPortKind(edge.output, out var outputPortKind)) {
-                edgeConnection = new AnimationGraphEdgeConnection(outputPortKind, sourceNodeView.NodeModel, targetNodeView.NodeModel);
+            if (TryGetNodeEdgeConnection(edge.output, edge.input, out var outputPortKind, out var sourceNodeModel, out var targetNodeModel)) {
+                edgeConnection = new AnimationGraphEdgeConnection(outputPortKind, sourceNodeModel, targetNodeModel);
                 return true;
             }
 
@@ -462,12 +634,52 @@ namespace UnityAnimationGraph.Editor {
             return false;
         }
 
-        private static bool TryGetOutputPortKind(Port startPort, AnimationGraphNodeView startNodeView, Port candidatePort, AnimationGraphNodeView candidateNodeView, out AnimationGraphOutputPortKind outputPortKind) {
-            if (startPort.direction == Direction.Output) {
-                return startNodeView.TryGetOutputPortKind(startPort, out outputPortKind);
+        private bool TryGetSignalEdgeConnection(Edge edge, out AnimationGraphSignalEdgeConnection edgeConnection) {
+            if (TryGetSignalEdgeConnection(edge.output, edge.input, out var outputPortKind, out var sourceNodeModel, out var targetSignalModel)) {
+                edgeConnection = new AnimationGraphSignalEdgeConnection(outputPortKind, sourceNodeModel, targetSignalModel);
+                return true;
             }
 
-            return candidateNodeView.TryGetOutputPortKind(candidatePort, out outputPortKind);
+            edgeConnection = default;
+            return false;
+        }
+
+        private static bool TryGetNodeEdgeConnection(Port firstPort, Port secondPort, out AnimationGraphOutputPortKind outputPortKind, out NodeEditorModel sourceNodeModel, out NodeEditorModel targetNodeModel) {
+            var outputPort = firstPort?.direction == Direction.Output ? firstPort : secondPort;
+            var inputPort = firstPort?.direction == Direction.Input ? firstPort : secondPort;
+            if (outputPort?.node is AnimationGraphNodeView sourceNodeView
+                && inputPort?.node is AnimationGraphNodeView targetNodeView
+                && targetNodeView.InputPort == inputPort
+                && sourceNodeView.TryGetOutputPortKind(outputPort, out outputPortKind)
+                && !IsSignalOutputPort(outputPortKind)) {
+                sourceNodeModel = sourceNodeView.NodeModel;
+                targetNodeModel = targetNodeView.NodeModel;
+                return true;
+            }
+
+            outputPortKind = default;
+            sourceNodeModel = null;
+            targetNodeModel = null;
+            return false;
+        }
+
+        private static bool TryGetSignalEdgeConnection(Port firstPort, Port secondPort, out AnimationGraphOutputPortKind outputPortKind, out NodeEditorModel sourceNodeModel, out SignalEditorModel targetSignalModel) {
+            var outputPort = firstPort?.direction == Direction.Output ? firstPort : secondPort;
+            var inputPort = firstPort?.direction == Direction.Input ? firstPort : secondPort;
+            if (outputPort?.node is AnimationGraphNodeView sourceNodeView
+                && inputPort?.node is AnimationGraphSignalView targetSignalView
+                && targetSignalView.InputPort == inputPort
+                && sourceNodeView.TryGetOutputPortKind(outputPort, out outputPortKind)
+                && IsSignalOutputPort(outputPortKind)) {
+                sourceNodeModel = sourceNodeView.NodeModel;
+                targetSignalModel = targetSignalView.SignalModel;
+                return true;
+            }
+
+            outputPortKind = default;
+            sourceNodeModel = null;
+            targetSignalModel = null;
+            return false;
         }
 
         private void SetEmptyState(string message) {

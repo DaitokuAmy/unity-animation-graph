@@ -2,15 +2,15 @@ using NUnit.Framework;
 
 namespace UnityAnimationGraph.Tests {
     /// <summary>
-    /// AnimationGraphNodeMetadata の EditMode テスト
+    /// NodeMetadata の EditMode テスト
     /// </summary>
-    public sealed class AnimationGraphNodeMetadataTests {
+    public sealed class NodeMetadataTests {
         /// <summary>
         /// Attribute の表示名を取得できる
         /// </summary>
         [Test]
         public void GetDisplayName_ReturnsAttributeDisplayName() {
-            var displayName = AnimationGraphNodeMetadata.GetDisplayName(typeof(CustomMenuNode));
+            var displayName = NodeMetadata.GetDisplayName(typeof(CustomMenuNode));
 
             Assert.That(displayName, Is.EqualTo("表示名"));
         }
@@ -20,7 +20,7 @@ namespace UnityAnimationGraph.Tests {
         /// </summary>
         [Test]
         public void GetDisplayName_FallsBackToNicifiedTypeNameWithoutNodeSuffix() {
-            var displayName = AnimationGraphNodeMetadata.GetDisplayName(typeof(DefaultMenuNode));
+            var displayName = NodeMetadata.GetDisplayName(typeof(DefaultMenuNode));
 
             Assert.That(displayName, Is.EqualTo("Default Menu"));
         }
@@ -30,7 +30,7 @@ namespace UnityAnimationGraph.Tests {
         /// </summary>
         [Test]
         public void GetCreateMenuPath_ReturnsAttributeMenuPath() {
-            var createMenuPath = AnimationGraphNodeMetadata.GetCreateMenuPath(typeof(CustomMenuNode));
+            var createMenuPath = NodeMetadata.GetCreateMenuPath(typeof(CustomMenuNode));
 
             Assert.That(createMenuPath, Is.EqualTo("Action/Samples/表示名"));
         }
@@ -40,7 +40,7 @@ namespace UnityAnimationGraph.Tests {
         /// </summary>
         [Test]
         public void GetCreateMenuPath_FallsBackToDisplayName() {
-            var createMenuPath = AnimationGraphNodeMetadata.GetCreateMenuPath(typeof(DisplayNameOnlyNode));
+            var createMenuPath = NodeMetadata.GetCreateMenuPath(typeof(DisplayNameOnlyNode));
 
             Assert.That(createMenuPath, Is.EqualTo("Action/表示名のみ"));
         }
@@ -50,7 +50,7 @@ namespace UnityAnimationGraph.Tests {
         /// </summary>
         [Test]
         public void GetCreateMenuPath_FallsBackToNicifiedTypeNameWithoutNodeSuffix() {
-            var createMenuPath = AnimationGraphNodeMetadata.GetCreateMenuPath(typeof(DefaultMenuNode));
+            var createMenuPath = NodeMetadata.GetCreateMenuPath(typeof(DefaultMenuNode));
 
             Assert.That(createMenuPath, Is.EqualTo("Action/Default Menu"));
         }
@@ -60,12 +60,12 @@ namespace UnityAnimationGraph.Tests {
         /// </summary>
         [Test]
         public void GetCreateMenuPath_ReturnsControlCategoryPath() {
-            var createMenuPath = AnimationGraphNodeMetadata.GetCreateMenuPath(typeof(ControlMenuNode));
+            var createMenuPath = NodeMetadata.GetCreateMenuPath(typeof(ControlMenuNode));
 
             Assert.That(createMenuPath, Is.EqualTo("Control/Flow/制御表示名"));
         }
 
-        [AnimationGraphNode("表示名", "Samples/表示名")]
+        [NodeInfo("表示名", "Samples/表示名")]
         private sealed class CustomMenuNode : ActionNode {
             protected override float CalculateDuration(int seed, IAnimationGraphContext context) {
                 return 0.0f;
@@ -79,7 +79,7 @@ namespace UnityAnimationGraph.Tests {
             }
         }
 
-        [AnimationGraphNode("表示名のみ")]
+        [NodeInfo("表示名のみ")]
         private sealed class DisplayNameOnlyNode : ActionNode {
             protected override float CalculateDuration(int seed, IAnimationGraphContext context) {
                 return 0.0f;
@@ -106,7 +106,7 @@ namespace UnityAnimationGraph.Tests {
             }
         }
 
-        [AnimationGraphNode("制御表示名", "Flow/制御表示名")]
+        [NodeInfo("制御表示名", "Flow/制御表示名")]
         private sealed class ControlMenuNode : ControlNode {
             protected override float CalculateDuration(int seed, IAnimationGraphContext context) {
                 return 0.0f;

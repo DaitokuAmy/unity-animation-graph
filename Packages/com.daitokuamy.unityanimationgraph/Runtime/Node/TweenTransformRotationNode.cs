@@ -4,7 +4,7 @@ namespace UnityAnimationGraph {
     /// <summary>
     /// Transform の rotation または localRotation を Euler 角で Tween するノード
     /// </summary>
-    [AnimationGraphNode("Tween Rotation", "Built-in/Tween/Transform/Rotation")]
+    [NodeInfo("Tween Rotation", "Built-in/Tween/Transform/Rotation")]
     public sealed class TweenTransformRotationNode : TweenTransformVector3Node {
         [SerializeField, Tooltip("Rotation Tween 設定。値は Euler 角として扱う")]
         private Vector3Tween _tween = new(Vector3.zero, new Vector3(0.0f, 90.0f, 0.0f));

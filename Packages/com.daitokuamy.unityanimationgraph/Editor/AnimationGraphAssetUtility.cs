@@ -14,6 +14,18 @@ namespace UnityAnimationGraph.Editor {
         private const string GraphPositionPropertyName = "_graphPosition";
         /// <summary>Node の後続ノード ID フィールド名</summary>
         private const string NextNodeIdsPropertyName = "_nextNodeIds";
+        /// <summary>Node の Enter シグナル Port 表示フラグフィールド名</summary>
+        private const string EnableEnterSignalPortPropertyName = "_enableEnterSignalPort";
+        /// <summary>Node の Exit シグナル Port 表示フラグフィールド名</summary>
+        private const string EnableExitSignalPortPropertyName = "_enableExitSignalPort";
+        /// <summary>Node の Enter シグナルフィールド名</summary>
+        private const string EnterSignalsPropertyName = "_enterSignals";
+        /// <summary>Node の Exit シグナルフィールド名</summary>
+        private const string ExitSignalsPropertyName = "_exitSignals";
+        /// <summary>Signal の ID フィールド名</summary>
+        private const string SignalIdPropertyName = "_signalId";
+        /// <summary>Signal のグラフ位置フィールド名</summary>
+        private const string SignalGraphPositionPropertyName = "_graphPosition";
         /// <summary>ActionNode の target key フィールド名</summary>
         private const string ActionTargetKeyPropertyName = "_targetKey";
         /// <summary>DelayNode delay property name</summary>
@@ -256,6 +268,214 @@ namespace UnityAnimationGraph.Editor {
 
             serializedNode.ApplyModifiedProperties();
             EditorUtility.SetDirty(node);
+        }
+
+        /// <summary>
+        /// Signal のエディタ上の位置を設定
+        /// </summary>
+        /// <param name="signal">設定対象の Signal</param>
+        /// <param name="graphPosition">エディタ上のシグナル位置</param>
+        public static void SetSignalGraphPosition(Signal signal, Vector2 graphPosition) {
+            if (signal == null) {
+                throw new ArgumentNullException(nameof(signal));
+            }
+
+            var undoName = "Set Animation Graph Signal Position";
+            Undo.RecordObject(signal, undoName);
+
+            var serializedSignal = new SerializedObject(signal);
+            serializedSignal.FindProperty(SignalGraphPositionPropertyName).vector2Value = graphPosition;
+            serializedSignal.ApplyModifiedProperties();
+            EditorUtility.SetDirty(signal);
+        }
+
+        /// <summary>
+        /// Node の Enter シグナル Port 表示フラグを設定
+        /// </summary>
+        /// <param name="node">設定対象の Node</param>
+        /// <param name="enabled">表示する場合は true</param>
+        public static void SetNodeEnterSignalPortEnabled(Node node, bool enabled) {
+            SetNodeSignalPortEnabled(node, EnableEnterSignalPortPropertyName, enabled, "Set Animation Graph Enter Signal Port");
+        }
+
+        /// <summary>
+        /// Node の Exit シグナル Port 表示フラグを設定
+        /// </summary>
+        /// <param name="node">設定対象の Node</param>
+        /// <param name="enabled">表示する場合は true</param>
+        public static void SetNodeExitSignalPortEnabled(Node node, bool enabled) {
+            SetNodeSignalPortEnabled(node, EnableExitSignalPortPropertyName, enabled, "Set Animation Graph Exit Signal Port");
+        }
+
+        /// <summary>
+        /// Node の Enter シグナル一覧に Signal を追加
+        /// </summary>
+        /// <param name="graphAsset">追加先の AnimationGraphAsset</param>
+        /// <param name="node">追加先の Node</param>
+        /// <param name="signalType">追加する Signal 型</param>
+        /// <returns>追加した Signal</returns>
+        public static Signal AddEnterSignal(AnimationGraphAsset graphAsset, Node node, Type signalType) {
+            return AddEnterSignal(graphAsset, node, signalType, Vector2.zero);
+        }
+
+        /// <summary>
+        /// Node の Enter シグナル一覧に Signal を追加
+        /// </summary>
+        /// <param name="graphAsset">追加先の AnimationGraphAsset</param>
+        /// <param name="node">追加先の Node</param>
+        /// <param name="signalType">追加する Signal 型</param>
+        /// <param name="graphPosition">エディタ上の Signal 位置</param>
+        /// <returns>追加した Signal</returns>
+        public static Signal AddEnterSignal(AnimationGraphAsset graphAsset, Node node, Type signalType, Vector2 graphPosition) {
+            return AddSignal(graphAsset, node, signalType, graphPosition, EnterSignalsPropertyName);
+        }
+
+        /// <summary>
+        /// Node の Exit シグナル一覧に Signal を追加
+        /// </summary>
+        /// <param name="graphAsset">追加先の AnimationGraphAsset</param>
+        /// <param name="node">追加先の Node</param>
+        /// <param name="signalType">追加する Signal 型</param>
+        /// <returns>追加した Signal</returns>
+        public static Signal AddExitSignal(AnimationGraphAsset graphAsset, Node node, Type signalType) {
+            return AddExitSignal(graphAsset, node, signalType, Vector2.zero);
+        }
+
+        /// <summary>
+        /// Node の Exit シグナル一覧に Signal を追加
+        /// </summary>
+        /// <param name="graphAsset">追加先の AnimationGraphAsset</param>
+        /// <param name="node">追加先の Node</param>
+        /// <param name="signalType">追加する Signal 型</param>
+        /// <param name="graphPosition">エディタ上の Signal 位置</param>
+        /// <returns>追加した Signal</returns>
+        public static Signal AddExitSignal(AnimationGraphAsset graphAsset, Node node, Type signalType, Vector2 graphPosition) {
+            return AddSignal(graphAsset, node, signalType, graphPosition, ExitSignalsPropertyName);
+        }
+
+        /// <summary>
+        /// AnimationGraphAsset に未接続の Signal を追加
+        /// </summary>
+        /// <param name="graphAsset">追加先の AnimationGraphAsset</param>
+        /// <param name="signalType">追加する Signal 型</param>
+        /// <param name="graphPosition">エディタ上の Signal 位置</param>
+        /// <returns>追加した Signal</returns>
+        public static Signal AddSignal(AnimationGraphAsset graphAsset, Type signalType, Vector2 graphPosition) {
+            if (graphAsset == null) {
+                throw new ArgumentNullException(nameof(graphAsset));
+            }
+
+            ValidateSignalType(signalType);
+
+            var signal = (Signal)ScriptableObject.CreateInstance(signalType);
+            signal.name = signalType.Name;
+
+            var undoName = $"Add {signalType.Name}";
+            Undo.RegisterCreatedObjectUndo(signal, undoName);
+            Undo.RecordObject(graphAsset, undoName);
+
+            SetupSignal(signal, GenerateSignalId(graphAsset), graphPosition);
+            AssetDatabase.AddObjectToAsset(signal, graphAsset);
+
+            EditorUtility.SetDirty(signal);
+            EditorUtility.SetDirty(graphAsset);
+
+            var assetPath = AssetDatabase.GetAssetPath(graphAsset);
+            if (!string.IsNullOrEmpty(assetPath)) {
+                AssetDatabase.ImportAsset(assetPath);
+            }
+
+            return signal;
+        }
+
+        /// <summary>
+        /// AnimationGraphAsset に含まれる Signal sub asset 一覧を取得
+        /// </summary>
+        /// <param name="graphAsset">取得対象の AnimationGraphAsset</param>
+        /// <returns>Signal sub asset 一覧</returns>
+        public static IReadOnlyList<Signal> GetSignals(AnimationGraphAsset graphAsset) {
+            if (graphAsset == null) {
+                throw new ArgumentNullException(nameof(graphAsset));
+            }
+
+            var assetPath = AssetDatabase.GetAssetPath(graphAsset);
+            if (string.IsNullOrEmpty(assetPath)) {
+                return Array.Empty<Signal>();
+            }
+
+            var signals = new List<Signal>();
+            var assets = AssetDatabase.LoadAllAssetsAtPath(assetPath);
+            for (var i = 0; i < assets.Length; i++) {
+                if (assets[i] is Signal signal) {
+                    signals.Add(signal);
+                }
+            }
+
+            return signals;
+        }
+
+        /// <summary>
+        /// Node の Enter シグナル一覧に Signal 参照を追加
+        /// </summary>
+        /// <param name="node">追加先の Node</param>
+        /// <param name="signal">追加する Signal</param>
+        public static void AddEnterSignalReference(Node node, Signal signal) {
+            AddSignalReference(node, signal, EnterSignalsPropertyName, "Connect Animation Graph Enter Signal");
+        }
+
+        /// <summary>
+        /// Node の Exit シグナル一覧に Signal 参照を追加
+        /// </summary>
+        /// <param name="node">追加先の Node</param>
+        /// <param name="signal">追加する Signal</param>
+        public static void AddExitSignalReference(Node node, Signal signal) {
+            AddSignalReference(node, signal, ExitSignalsPropertyName, "Connect Animation Graph Exit Signal");
+        }
+
+        /// <summary>
+        /// Node の Enter シグナル一覧から Signal 参照を削除
+        /// </summary>
+        /// <param name="node">削除元の Node</param>
+        /// <param name="signal">削除する Signal</param>
+        /// <returns>削除した場合は true</returns>
+        public static bool RemoveEnterSignalReference(Node node, Signal signal) {
+            return RemoveSignalReference(node, signal, EnterSignalsPropertyName, "Disconnect Animation Graph Enter Signal");
+        }
+
+        /// <summary>
+        /// Node の Exit シグナル一覧から Signal 参照を削除
+        /// </summary>
+        /// <param name="node">削除元の Node</param>
+        /// <param name="signal">削除する Signal</param>
+        /// <returns>削除した場合は true</returns>
+        public static bool RemoveExitSignalReference(Node node, Signal signal) {
+            return RemoveSignalReference(node, signal, ExitSignalsPropertyName, "Disconnect Animation Graph Exit Signal");
+        }
+
+        /// <summary>
+        /// AnimationGraphAsset から Signal を削除
+        /// </summary>
+        /// <param name="graphAsset">削除元の AnimationGraphAsset</param>
+        /// <param name="signal">削除する Signal</param>
+        public static void RemoveSignal(AnimationGraphAsset graphAsset, Signal signal) {
+            if (graphAsset == null) {
+                throw new ArgumentNullException(nameof(graphAsset));
+            }
+
+            if (signal == null) {
+                throw new ArgumentNullException(nameof(signal));
+            }
+
+            var undoName = $"Remove {signal.name}";
+            Undo.RecordObject(graphAsset, undoName);
+            RemoveSignalReferences(graphAsset, signal, undoName);
+            Undo.DestroyObjectImmediate(signal);
+            EditorUtility.SetDirty(graphAsset);
+
+            var assetPath = AssetDatabase.GetAssetPath(graphAsset);
+            if (!string.IsNullOrEmpty(assetPath)) {
+                AssetDatabase.ImportAsset(assetPath);
+            }
         }
 
         /// <summary>
@@ -527,12 +747,15 @@ namespace UnityAnimationGraph.Editor {
                 EditorUtility.SetDirty(current);
             }
 
+            var nodeSignals = CollectSignals(node.EnterSignals, node.ExitSignals);
+
             var serializedGraph = new SerializedObject(graphAsset);
             var nodesProperty = serializedGraph.FindProperty(NodesPropertyName);
             nodesProperty.GetArrayElementAtIndex(nodeIndex).objectReferenceValue = null;
             nodesProperty.DeleteArrayElementAtIndex(nodeIndex);
             serializedGraph.ApplyModifiedProperties();
 
+            DestroySignals(graphAsset, nodeSignals, undoName);
             Undo.DestroyObjectImmediate(node);
             EditorUtility.SetDirty(graphAsset);
 
@@ -616,6 +839,21 @@ namespace UnityAnimationGraph.Editor {
         }
 
         /// <summary>
+        /// AnimationGraphAsset 内で一意なシグナル ID を生成
+        /// </summary>
+        /// <param name="graphAsset">生成先の AnimationGraphAsset</param>
+        /// <returns>一意なシグナル ID</returns>
+        private static string GenerateSignalId(AnimationGraphAsset graphAsset) {
+            string signalId;
+            do {
+                signalId = Guid.NewGuid().ToString("N");
+            }
+            while (ContainsSignalId(graphAsset, signalId));
+
+            return signalId;
+        }
+
+        /// <summary>
         /// 追加直後のノード情報を設定
         /// </summary>
         /// <param name="node">設定対象のノード</param>
@@ -626,6 +864,8 @@ namespace UnityAnimationGraph.Editor {
             serializedNode.FindProperty(NodeIdPropertyName).stringValue = nodeId;
             serializedNode.FindProperty(GraphPositionPropertyName).vector2Value = graphPosition;
             serializedNode.FindProperty(NextNodeIdsPropertyName).arraySize = 0;
+            serializedNode.FindProperty(EnterSignalsPropertyName).arraySize = 0;
+            serializedNode.FindProperty(ExitSignalsPropertyName).arraySize = 0;
             if (node is BranchNode) {
                 serializedNode.FindProperty(FalseNodeIdsPropertyName).arraySize = 0;
             }
@@ -635,6 +875,18 @@ namespace UnityAnimationGraph.Editor {
             }
 
             serializedNode.ApplyModifiedPropertiesWithoutUndo();
+        }
+
+        /// <summary>
+        /// 追加直後の Signal 情報を設定
+        /// </summary>
+        /// <param name="signal">設定対象の Signal</param>
+        /// <param name="signalId">設定する Signal ID</param>
+        private static void SetupSignal(Signal signal, string signalId, Vector2 graphPosition) {
+            var serializedSignal = new SerializedObject(signal);
+            serializedSignal.FindProperty(SignalIdPropertyName).stringValue = signalId;
+            serializedSignal.FindProperty(SignalGraphPositionPropertyName).vector2Value = graphPosition;
+            serializedSignal.ApplyModifiedPropertiesWithoutUndo();
         }
 
         /// <summary>
@@ -710,6 +962,267 @@ namespace UnityAnimationGraph.Editor {
             nodesProperty.arraySize++;
             nodesProperty.GetArrayElementAtIndex(index).objectReferenceValue = node;
             serializedGraph.ApplyModifiedProperties();
+        }
+
+        /// <summary>
+        /// Node の Signal Port 表示フラグを設定
+        /// </summary>
+        /// <param name="node">設定対象の Node</param>
+        /// <param name="propertyName">設定対象フィールド名</param>
+        /// <param name="enabled">表示する場合は true</param>
+        /// <param name="undoName">Undo 名</param>
+        private static void SetNodeSignalPortEnabled(Node node, string propertyName, bool enabled, string undoName) {
+            if (node == null) {
+                throw new ArgumentNullException(nameof(node));
+            }
+
+            Undo.RecordObject(node, undoName);
+
+            var serializedNode = new SerializedObject(node);
+            serializedNode.FindProperty(propertyName).boolValue = enabled;
+            serializedNode.ApplyModifiedProperties();
+            EditorUtility.SetDirty(node);
+        }
+
+        /// <summary>
+        /// Node の Signal 一覧に Signal を追加
+        /// </summary>
+        /// <param name="graphAsset">追加先の AnimationGraphAsset</param>
+        /// <param name="node">追加先の Node</param>
+        /// <param name="signalType">追加する Signal 型</param>
+        /// <param name="signalsPropertyName">追加先 Signal 配列フィールド名</param>
+        /// <returns>追加した Signal</returns>
+        private static Signal AddSignal(AnimationGraphAsset graphAsset, Node node, Type signalType, Vector2 graphPosition, string signalsPropertyName) {
+            if (graphAsset == null) {
+                throw new ArgumentNullException(nameof(graphAsset));
+            }
+
+            if (node == null) {
+                throw new ArgumentNullException(nameof(node));
+            }
+
+            ValidateSignalType(signalType);
+
+            if (!ContainsNode(graphAsset, node)) {
+                throw new InvalidOperationException("Node is not contained in AnimationGraphAsset");
+            }
+
+            var signal = (Signal)ScriptableObject.CreateInstance(signalType);
+            signal.name = signalType.Name;
+
+            var undoName = $"Add {signalType.Name}";
+            Undo.RegisterCreatedObjectUndo(signal, undoName);
+            Undo.RecordObject(graphAsset, undoName);
+            Undo.RecordObject(node, undoName);
+
+            SetupSignal(signal, GenerateSignalId(graphAsset), graphPosition);
+            AssetDatabase.AddObjectToAsset(signal, graphAsset);
+            AddSignalReference(node, signal, signalsPropertyName, undoName);
+
+            EditorUtility.SetDirty(signal);
+            EditorUtility.SetDirty(node);
+            EditorUtility.SetDirty(graphAsset);
+
+            var assetPath = AssetDatabase.GetAssetPath(graphAsset);
+            if (!string.IsNullOrEmpty(assetPath)) {
+                AssetDatabase.ImportAsset(assetPath);
+            }
+
+            return signal;
+        }
+
+        /// <summary>
+        /// Node の Signal 配列に Signal 参照を追加
+        /// </summary>
+        /// <param name="node">追加先の Node</param>
+        /// <param name="signal">追加する Signal</param>
+        /// <param name="signalsPropertyName">追加先 Signal 配列フィールド名</param>
+        private static void AddSignalReference(Node node, Signal signal, string signalsPropertyName, string undoName) {
+            if (node == null) {
+                throw new ArgumentNullException(nameof(node));
+            }
+
+            if (signal == null) {
+                throw new ArgumentNullException(nameof(signal));
+            }
+
+            Undo.RecordObject(node, undoName);
+            var serializedNode = new SerializedObject(node);
+            var signalsProperty = serializedNode.FindProperty(signalsPropertyName);
+            for (var i = 0; i < signalsProperty.arraySize; i++) {
+                if (signalsProperty.GetArrayElementAtIndex(i).objectReferenceValue != signal) {
+                    continue;
+                }
+
+                return;
+            }
+
+            var index = signalsProperty.arraySize;
+            signalsProperty.arraySize++;
+            signalsProperty.GetArrayElementAtIndex(index).objectReferenceValue = signal;
+            serializedNode.ApplyModifiedProperties();
+            EditorUtility.SetDirty(node);
+        }
+
+        private static void ValidateSignalType(Type signalType) {
+            if (signalType == null) {
+                throw new ArgumentNullException(nameof(signalType));
+            }
+
+            if (!typeof(Signal).IsAssignableFrom(signalType)) {
+                throw new ArgumentException($"{signalType.FullName} does not derive from Signal", nameof(signalType));
+            }
+
+            if (signalType.IsAbstract) {
+                throw new ArgumentException($"{signalType.FullName} is abstract", nameof(signalType));
+            }
+        }
+
+        private static IReadOnlyList<Signal> CollectSignals(IReadOnlyList<Signal> firstSignals, IReadOnlyList<Signal> secondSignals) {
+            var signals = new List<Signal>();
+            AddSignals(firstSignals, signals);
+            AddSignals(secondSignals, signals);
+            return signals;
+        }
+
+        private static void AddSignals(IReadOnlyList<Signal> sourceSignals, List<Signal> destinationSignals) {
+            for (var i = 0; i < sourceSignals.Count; i++) {
+                var signal = sourceSignals[i];
+                if (signal == null || destinationSignals.Contains(signal)) {
+                    continue;
+                }
+
+                destinationSignals.Add(signal);
+            }
+        }
+
+        private static void DestroySignals(AnimationGraphAsset graphAsset, IReadOnlyList<Signal> signals, string undoName) {
+            for (var i = 0; i < signals.Count; i++) {
+                var signal = signals[i];
+                if (signal == null) {
+                    continue;
+                }
+
+                RemoveSignalReferences(graphAsset, signal, undoName);
+                Undo.DestroyObjectImmediate(signal);
+            }
+        }
+
+        private static void RemoveSignalReferences(AnimationGraphAsset graphAsset, Signal signal, string undoName) {
+            var nodes = graphAsset.Nodes;
+            for (var i = 0; i < nodes.Count; i++) {
+                var node = nodes[i];
+                if (node == null) {
+                    continue;
+                }
+
+                var removed = RemoveSignalReference(node, signal, EnterSignalsPropertyName, undoName);
+                removed |= RemoveSignalReference(node, signal, ExitSignalsPropertyName, undoName);
+                if (removed) {
+                    EditorUtility.SetDirty(node);
+                }
+            }
+        }
+
+        private static bool RemoveSignalReference(Node node, Signal signal, string signalsPropertyName, string undoName) {
+            if (node == null) {
+                throw new ArgumentNullException(nameof(node));
+            }
+
+            if (signal == null) {
+                throw new ArgumentNullException(nameof(signal));
+            }
+
+            var serializedNode = new SerializedObject(node);
+            var signalsProperty = serializedNode.FindProperty(signalsPropertyName);
+            var removed = false;
+            for (var i = signalsProperty.arraySize - 1; i >= 0; i--) {
+                if (signalsProperty.GetArrayElementAtIndex(i).objectReferenceValue != signal) {
+                    continue;
+                }
+
+                if (!removed) {
+                    Undo.RecordObject(node, undoName);
+                }
+
+                signalsProperty.GetArrayElementAtIndex(i).objectReferenceValue = null;
+                signalsProperty.DeleteArrayElementAtIndex(i);
+                removed = true;
+            }
+
+            if (removed) {
+                serializedNode.ApplyModifiedProperties();
+            }
+
+            return removed;
+        }
+
+        /// <summary>
+        /// AnimationGraphAsset に Node が含まれるかを判定
+        /// </summary>
+        /// <param name="graphAsset">判定対象の AnimationGraphAsset</param>
+        /// <param name="node">判定する Node</param>
+        /// <returns>含まれる場合は true</returns>
+        private static bool ContainsNode(AnimationGraphAsset graphAsset, Node node) {
+            var nodes = graphAsset.Nodes;
+            for (var i = 0; i < nodes.Count; i++) {
+                if (nodes[i] == node) {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// 指定した Signal ID が AnimationGraphAsset 内で使用済みかを判定
+        /// </summary>
+        /// <param name="graphAsset">判定対象の AnimationGraphAsset</param>
+        /// <param name="signalId">判定する Signal ID</param>
+        /// <returns>使用済みの場合は true</returns>
+        private static bool ContainsSignalId(AnimationGraphAsset graphAsset, string signalId) {
+            var nodes = graphAsset.Nodes;
+            for (var i = 0; i < nodes.Count; i++) {
+                var node = nodes[i];
+                if (node == null) {
+                    continue;
+                }
+
+                if (ContainsSignalId(node.EnterSignals, signalId) || ContainsSignalId(node.ExitSignals, signalId)) {
+                    return true;
+                }
+            }
+
+            var assetPath = AssetDatabase.GetAssetPath(graphAsset);
+            if (string.IsNullOrEmpty(assetPath)) {
+                return false;
+            }
+
+            var assets = AssetDatabase.LoadAllAssetsAtPath(assetPath);
+            for (var i = 0; i < assets.Length; i++) {
+                if (assets[i] is Signal signal && signal.SignalId == signalId) {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// 指定した Signal 一覧に Signal ID が含まれるかを判定
+        /// </summary>
+        /// <param name="signals">判定対象の Signal 一覧</param>
+        /// <param name="signalId">判定する Signal ID</param>
+        /// <returns>含まれる場合は true</returns>
+        private static bool ContainsSignalId(IReadOnlyList<Signal> signals, string signalId) {
+            for (var i = 0; i < signals.Count; i++) {
+                var signal = signals[i];
+                if (signal != null && signal.SignalId == signalId) {
+                    return true;
+                }
+            }
+
+            return false;
         }
     }
 

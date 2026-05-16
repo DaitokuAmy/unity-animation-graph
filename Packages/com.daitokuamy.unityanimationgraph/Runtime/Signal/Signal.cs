@@ -7,9 +7,13 @@ namespace UnityAnimationGraph {
     public abstract class Signal : ScriptableObject, ISignalExecutor {
         [SerializeField, Tooltip("グラフ内で一意なシグナル ID"), HideInInspector]
         private string _signalId = string.Empty;
+        [SerializeField, Tooltip("エディタ上のシグナル位置"), HideInInspector]
+        private Vector2 _graphPosition;
 
         /// <summary>グラフ内で一意なシグナル ID</summary>
         public string SignalId => _signalId;
+        /// <summary>エディタ上のシグナル位置</summary>
+        public Vector2 GraphPosition => _graphPosition;
 
         /// <inheritdoc/>
         void ISignalExecutor.Dispatch(int seed, IAnimationGraphContext context) {

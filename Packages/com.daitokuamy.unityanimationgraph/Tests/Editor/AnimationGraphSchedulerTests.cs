@@ -25,6 +25,25 @@ namespace UnityAnimationGraph.Tests {
         }
 
         /// <summary>
+        /// 通常 Node の複数 Next 接続は同じ終了時刻から並列に開始する
+        /// </summary>
+        [Test]
+        public void BuildSchedule_NodeWithMultipleNextOutputsStartsNextNodesTogether() {
+            using var builder = new AnimationGraphTestBuilder();
+            var startNode = builder.CreateStartNode("start", "fork");
+            var forkNode = builder.CreateActionNode("fork", 1.0f, "left", "right");
+            var leftNode = builder.CreateActionNode("left", 2.0f);
+            var rightNode = builder.CreateActionNode("right", 3.0f);
+            var graphAsset = builder.CreateGraph("start", startNode, forkNode, leftNode, rightNode);
+
+            var schedule = BuildSchedule(graphAsset);
+
+            AssertScheduledNode(schedule, forkNode, 0.0f, 1.0f);
+            AssertScheduledNode(schedule, leftNode, 1.0f, 2.0f);
+            AssertScheduledNode(schedule, rightNode, 1.0f, 3.0f);
+        }
+
+        /// <summary>
         /// DelayNode は後続ノードの開始時刻を待機時間分だけ遅らせる
         /// </summary>
         [Test]

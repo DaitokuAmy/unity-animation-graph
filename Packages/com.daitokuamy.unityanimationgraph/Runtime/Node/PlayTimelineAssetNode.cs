@@ -6,7 +6,7 @@ namespace UnityAnimationGraph {
     /// <summary>
     /// PlayableDirector で TimelineAsset を再生するノード
     /// </summary>
-    [AnimationGraphNode("Play Timeline Asset", "Built-in/Play Timeline Asset")]
+    [NodeInfo("Play Timeline Asset", "Built-in/Play Timeline Asset")]
     public sealed class PlayTimelineAssetNode : ActionNode {
         [SerializeField, Tooltip("PlayableDirector に設定する TimelineAsset")]
         private TimelineAsset _timelineAsset;
@@ -39,8 +39,14 @@ namespace UnityAnimationGraph {
                 return;
             }
 
-            playableDirector.playableAsset = _timelineAsset;
-            playableDirector.timeUpdateMode = DirectorUpdateMode.Manual;
+            if (playableDirector.playableAsset != _timelineAsset) {
+                playableDirector.playableAsset = _timelineAsset;
+            }
+
+            if (playableDirector.timeUpdateMode != DirectorUpdateMode.Manual) {
+                playableDirector.timeUpdateMode = DirectorUpdateMode.Manual;
+            }
+
             playableDirector.RebuildGraph();
         }
 

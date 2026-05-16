@@ -172,6 +172,123 @@ namespace UnityAnimationGraph.Tests {
         }
 
         /// <summary>
+        /// 通常 Node から複数の Next 接続を追加できる
+        /// </summary>
+        [Test]
+        public void Connect_AllowsMultipleNextOutputs() {
+            var graphAsset = CreateSavedGraphAsset();
+            var model = new AnimationGraphAssetEditorModel();
+            model.SetGraphAsset(graphAsset);
+            var startNode = model.InitializeGraph(Vector2.zero);
+            var sourceNode = model.AddNode<TestActionNode>(Vector2.right);
+            var firstNode = model.AddNode<TestActionNode>(Vector2.right * 2.0f);
+            var secondNode = model.AddNode<TestActionNode>(Vector2.right * 3.0f);
+
+            Assert.IsTrue(model.Connect(startNode, sourceNode, out _));
+            Assert.IsTrue(model.Connect(sourceNode, firstNode, out _));
+            Assert.IsTrue(model.Connect(sourceNode, secondNode, out var errorMessage));
+
+            Assert.That(errorMessage, Is.EqualTo(string.Empty));
+            Assert.That(sourceNode.NextNodeIds.Count, Is.EqualTo(2));
+            Assert.That(sourceNode.NextNodeIds[0], Is.EqualTo(firstNode.NodeId));
+            Assert.That(sourceNode.NextNodeIds[1], Is.EqualTo(secondNode.NodeId));
+        }
+
+        /// <summary>
+        /// JoinNode 以外の input には複数接続できない
+        /// </summary>
+        [Test]
+        public void Connect_PreventsMultipleInputsExceptJoinNode() {
+            var graphAsset = CreateSavedGraphAsset();
+            var model = new AnimationGraphAssetEditorModel();
+            model.SetGraphAsset(graphAsset);
+            var startNode = model.InitializeGraph(Vector2.zero);
+            var firstSourceNode = model.AddNode<TestActionNode>(Vector2.right);
+            var secondSourceNode = model.AddNode<TestActionNode>(Vector2.right * 2.0f);
+            var targetNode = model.AddNode<TestActionNode>(Vector2.right * 3.0f);
+            var joinNode = model.AddNode<JoinNode>(Vector2.right * 4.0f);
+
+            Assert.IsTrue(model.Connect(startNode, firstSourceNode, out _));
+            Assert.IsTrue(model.Connect(startNode, secondSourceNode, out _));
+            Assert.IsTrue(model.Connect(firstSourceNode, targetNode, out _));
+
+            Assert.IsFalse(model.Connect(secondSourceNode, targetNode, out var targetErrorMessage));
+            Assert.That(targetErrorMessage, Is.EqualTo("Only JoinNode can receive multiple input connections"));
+            Assert.IsTrue(model.Connect(firstSourceNode, joinNode, out _));
+            Assert.IsTrue(model.Connect(secondSourceNode, joinNode, out var joinErrorMessage));
+            Assert.That(joinErrorMessage, Is.EqualTo(string.Empty));
+        }
+
+        /// <summary>
+        /// Node の Signal Port 表示フラグを serialized property 経由で更新できる
+        /// </summary>
+        [Test]
+        public void SetNodeSignalPortEnabled_UpdatesNodeFlags() {
+            var graphAsset = CreateSavedGraphAsset();
+            var model = new AnimationGraphAssetEditorModel();
+            model.SetGraphAsset(graphAsset);
+            model.InitializeGraph(Vector2.zero);
+            var nodeModel = model.AddNode<DelayNode>(Vector2.right);
+            Assert.IsTrue(graphAsset.TryGetNode(nodeModel.NodeId, out var node));
+
+            AnimationGraphAssetUtility.SetNodeEnterSignalPortEnabled(node, true);
+            AnimationGraphAssetUtility.SetNodeExitSignalPortEnabled(node, true);
+
+            Assert.IsTrue(node.EnableEnterSignalPort);
+            Assert.IsTrue(node.EnableExitSignalPort);
+
+            AnimationGraphAssetUtility.SetNodeEnterSignalPortEnabled(node, false);
+            AnimationGraphAssetUtility.SetNodeExitSignalPortEnabled(node, false);
+
+            Assert.IsFalse(node.EnableEnterSignalPort);
+            Assert.IsFalse(node.EnableExitSignalPort);
+        }
+
+        /// <summary>
+        /// Node の Enter Signal 一覧に Signal sub asset を追加できる
+        /// </summary>
+        [Test]
+        public void AddEnterSignal_AddsSignalSubAssetToNode() {
+            var graphAsset = CreateSavedGraphAsset();
+            var model = new AnimationGraphAssetEditorModel();
+            model.SetGraphAsset(graphAsset);
+            model.InitializeGraph(Vector2.zero);
+            var nodeModel = model.AddNode<DelayNode>(Vector2.right);
+            Assert.IsTrue(graphAsset.TryGetNode(nodeModel.NodeId, out var node));
+
+            var signal = AnimationGraphAssetUtility.AddEnterSignal(graphAsset, node, typeof(TestSignal));
+
+            Assert.That(signal, Is.TypeOf<TestSignal>());
+            Assert.That(signal.SignalId, Is.Not.Empty);
+            Assert.That(node.EnterSignals.Count, Is.EqualTo(1));
+            Assert.That(node.EnterSignals[0], Is.SameAs(signal));
+            Assert.That(node.ExitSignals, Is.Empty);
+            CollectionAssert.Contains(AssetDatabase.LoadAllAssetsAtPath(AssetDatabase.GetAssetPath(graphAsset)), signal);
+        }
+
+        /// <summary>
+        /// Node の Exit Signal 一覧に Signal sub asset を追加できる
+        /// </summary>
+        [Test]
+        public void AddExitSignal_AddsSignalSubAssetToNode() {
+            var graphAsset = CreateSavedGraphAsset();
+            var model = new AnimationGraphAssetEditorModel();
+            model.SetGraphAsset(graphAsset);
+            model.InitializeGraph(Vector2.zero);
+            var nodeModel = model.AddNode<DelayNode>(Vector2.right);
+            Assert.IsTrue(graphAsset.TryGetNode(nodeModel.NodeId, out var node));
+
+            var signal = AnimationGraphAssetUtility.AddExitSignal(graphAsset, node, typeof(TestSignal));
+
+            Assert.That(signal, Is.TypeOf<TestSignal>());
+            Assert.That(signal.SignalId, Is.Not.Empty);
+            Assert.That(node.EnterSignals, Is.Empty);
+            Assert.That(node.ExitSignals.Count, Is.EqualTo(1));
+            Assert.That(node.ExitSignals[0], Is.SameAs(signal));
+            CollectionAssert.Contains(AssetDatabase.LoadAllAssetsAtPath(AssetDatabase.GetAssetPath(graphAsset)), signal);
+        }
+
+        /// <summary>
         /// 重複接続、self-loop、cycle は接続できない
         /// </summary>
         [Test]

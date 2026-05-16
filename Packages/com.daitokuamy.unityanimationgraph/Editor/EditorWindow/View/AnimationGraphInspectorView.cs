@@ -82,6 +82,44 @@ namespace UnityAnimationGraph.Editor {
             _inspectorContainer.MarkDirtyRepaint();
         }
 
+        /// <summary>
+        /// Inspector の表示対象 Signal を設定
+        /// </summary>
+        /// <param name="signalModels">選択中の Signal Model 一覧</param>
+        public void SetSignalSelection(IReadOnlyList<SignalEditorModel> signalModels) {
+            if (signalModels == null) {
+                throw new ArgumentNullException(nameof(signalModels));
+            }
+
+            DestroyEditor();
+            _scrollPosition = Vector2.zero;
+            if (signalModels.Count == 0) {
+                _messageLabel.text = "No node selected";
+                _messageLabel.style.display = DisplayStyle.Flex;
+                return;
+            }
+
+            var signalType = signalModels[0].SignalType;
+            for (var i = 1; i < signalModels.Count; i++) {
+                if (signalModels[i].SignalType == signalType) {
+                    continue;
+                }
+
+                _messageLabel.text = "Multiple signal types selected";
+                _messageLabel.style.display = DisplayStyle.Flex;
+                return;
+            }
+
+            var targets = new UnityEngine.Object[signalModels.Count];
+            for (var i = 0; i < signalModels.Count; i++) {
+                targets[i] = signalModels[i].Signal;
+            }
+
+            _editor = UnityEditor.Editor.CreateEditor(targets);
+            _messageLabel.style.display = DisplayStyle.None;
+            _inspectorContainer.MarkDirtyRepaint();
+        }
+
         /// <inheritdoc/>
         public void Dispose() {
             DestroyEditor();

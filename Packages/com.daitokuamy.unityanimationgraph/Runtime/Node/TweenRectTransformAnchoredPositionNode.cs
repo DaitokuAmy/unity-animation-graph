@@ -4,7 +4,7 @@ namespace UnityAnimationGraph {
     /// <summary>
     /// RectTransform の anchoredPosition を Tween するノード
     /// </summary>
-    [AnimationGraphNode("Tween RectTransform Anchored Position", "Built-in/Tween/UI/RectTransform Anchored Position")]
+    [NodeInfo("Tween RectTransform Anchored Position", "Built-in/Tween/UI/RectTransform Anchored Position")]
     public sealed class TweenRectTransformAnchoredPositionNode : TweenVector2Node<RectTransform> {
         [SerializeField, Tooltip("AnchoredPosition Tween 設定")]
         private Vector2Tween _tween = new(Vector2.zero, Vector2.up * 100.0f);

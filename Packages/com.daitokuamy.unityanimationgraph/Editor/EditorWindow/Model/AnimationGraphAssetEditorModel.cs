@@ -7,35 +7,47 @@ namespace UnityAnimationGraph.Editor {
     /// Editor MVP の Model として AnimationGraphAsset の編集操作を提供するクラス
     /// </summary>
     public sealed class AnimationGraphAssetEditorModel {
+        private const float PreviewTimeEpsilon = 0.0001f;
+
         /// <summary>
         /// Preview 中の Node 実行情報を集計する構造体
         /// </summary>
         private struct PreviewExecutionInfoBuilder {
-            private int _executionCount;
-            private float _minDelay;
-            private float _maxDelay;
-            private float _minDuration;
-            private float _maxDuration;
+            private NodePreviewExecutionState _state;
 
             /// <summary>
-            /// ScheduledNode の情報を追加
+            /// 現在時刻に対する ScheduledNode の実行状態を追加
             /// </summary>
             /// <param name="scheduledNode">追加する ScheduledNode</param>
-            public void Add(ScheduledNode scheduledNode) {
-                if (_executionCount == 0) {
-                    _minDelay = scheduledNode.Delay;
-                    _maxDelay = scheduledNode.Delay;
-                    _minDuration = scheduledNode.Duration;
-                    _maxDuration = scheduledNode.Duration;
+            /// <param name="previewTime">Preview の現在時刻</param>
+            public void Add(ScheduledNode scheduledNode, float previewTime) {
+                var nextState = NodePreviewExecutionState.None;
+                if (scheduledNode.Duration <= PreviewTimeEpsilon) {
+                    if (Mathf.Abs(previewTime - scheduledNode.StartTime) <= PreviewTimeEpsilon) {
+                        nextState = NodePreviewExecutionState.Active;
+                    }
+                    else if (scheduledNode.StartTime < previewTime - PreviewTimeEpsilon) {
+                        nextState = NodePreviewExecutionState.Completed;
+                    }
                 }
-                else {
-                    _minDelay = Mathf.Min(_minDelay, scheduledNode.Delay);
-                    _maxDelay = Mathf.Max(_maxDelay, scheduledNode.Delay);
-                    _minDuration = Mathf.Min(_minDuration, scheduledNode.Duration);
-                    _maxDuration = Mathf.Max(_maxDuration, scheduledNode.Duration);
+                else if (scheduledNode.StartTime - PreviewTimeEpsilon <= previewTime && previewTime < scheduledNode.EndTime - PreviewTimeEpsilon) {
+                    nextState = NodePreviewExecutionState.Active;
+                }
+                else if (scheduledNode.EndTime <= previewTime + PreviewTimeEpsilon) {
+                    nextState = NodePreviewExecutionState.Completed;
                 }
 
-                _executionCount++;
+                if (nextState == NodePreviewExecutionState.Active || _state == NodePreviewExecutionState.None && nextState == NodePreviewExecutionState.Completed) {
+                    _state = nextState;
+                }
+            }
+
+            /// <summary>
+            /// 表示対象の実行状態を持つか判定
+            /// </summary>
+            /// <returns>表示対象の実行状態を持つ場合は true</returns>
+            public bool HasState() {
+                return _state != NodePreviewExecutionState.None;
             }
 
             /// <summary>
@@ -43,12 +55,14 @@ namespace UnityAnimationGraph.Editor {
             /// </summary>
             /// <returns>集計した NodePreviewExecutionInfo</returns>
             public NodePreviewExecutionInfo ToPreviewExecutionInfo() {
-                return new NodePreviewExecutionInfo(_executionCount, _minDelay, _maxDelay, _minDuration, _maxDuration);
+                return new NodePreviewExecutionInfo(_state);
             }
         }
 
         private readonly List<NodeEditorModel> _nodes = new();
         private readonly Dictionary<string, NodeEditorModel> _nodeModelsById = new();
+        private readonly List<SignalEditorModel> _signals = new();
+        private readonly Dictionary<string, SignalEditorModel> _signalModelsById = new();
 
         private AnimationGraphAsset _graphAsset;
 
@@ -62,6 +76,8 @@ namespace UnityAnimationGraph.Editor {
         public string StartNodeId => _graphAsset?.StartNodeId ?? string.Empty;
         /// <summary>GraphAsset に含まれるノード Model 一覧</summary>
         public IReadOnlyList<NodeEditorModel> Nodes => _nodes;
+        /// <summary>GraphAsset に含まれる Signal Model 一覧</summary>
+        public IReadOnlyList<SignalEditorModel> Signals => _signals;
         /// <summary>GraphAsset が要求する target key 定義一覧</summary>
         public IReadOnlyList<AnimationGraphTargetDefinition> TargetDefinitions => _graphAsset?.TargetDefinitions ?? Array.Empty<AnimationGraphTargetDefinition>();
         /// <summary>GraphAsset が要求する Blackboard key 定義一覧</summary>
@@ -222,32 +238,34 @@ namespace UnityAnimationGraph.Editor {
             var previousNodeModelsById = new Dictionary<string, NodeEditorModel>(_nodeModelsById);
             _nodes.Clear();
             _nodeModelsById.Clear();
-            if (_graphAsset == null) {
-                return;
+
+            if (_graphAsset != null) {
+                var nodes = _graphAsset.Nodes;
+                for (var i = 0; i < nodes.Count; i++) {
+                    var node = nodes[i];
+                    if (node == null || _nodeModelsById.ContainsKey(node.NodeId)) {
+                        continue;
+                    }
+
+                    if (!previousNodeModelsById.TryGetValue(node.NodeId, out var nodeModel) || nodeModel.Node != node) {
+                        nodeModel = NodeEditorModel.Create(node);
+                    }
+
+                    _nodes.Add(nodeModel);
+                    _nodeModelsById.Add(node.NodeId, nodeModel);
+                }
             }
 
-            var nodes = _graphAsset.Nodes;
-            for (var i = 0; i < nodes.Count; i++) {
-                var node = nodes[i];
-                if (node == null || _nodeModelsById.ContainsKey(node.NodeId)) {
-                    continue;
-                }
-
-                if (!previousNodeModelsById.TryGetValue(node.NodeId, out var nodeModel) || nodeModel.Node != node) {
-                    nodeModel = NodeEditorModel.Create(node);
-                }
-
-                _nodes.Add(nodeModel);
-                _nodeModelsById.Add(node.NodeId, nodeModel);
-            }
+            RefreshSignals();
         }
 
         /// <summary>
         /// Preview 中の schedule から Node 実行情報を反映
         /// </summary>
         /// <param name="previewSchedule">Preview 中の schedule。null の場合は Preview 情報を消去</param>
+        /// <param name="previewTime">Preview の現在時刻</param>
         /// <returns>Node 表示情報が変化した場合は true</returns>
-        public bool SetPreviewSchedule(AnimationGraphSchedule previewSchedule) {
+        public bool SetPreviewSchedule(AnimationGraphSchedule previewSchedule, float previewTime) {
             var previewInfoBuildersByNodeId = new Dictionary<string, PreviewExecutionInfoBuilder>();
             if (previewSchedule != null) {
                 var scheduledNodes = previewSchedule.Nodes;
@@ -262,7 +280,7 @@ namespace UnityAnimationGraph.Editor {
                         builder = default;
                     }
 
-                    builder.Add(scheduledNode);
+                    builder.Add(scheduledNode, previewTime);
                     previewInfoBuildersByNodeId[node.NodeId] = builder;
                 }
             }
@@ -270,7 +288,7 @@ namespace UnityAnimationGraph.Editor {
             var changed = false;
             for (var i = 0; i < _nodes.Count; i++) {
                 var nodeModel = _nodes[i];
-                if (previewInfoBuildersByNodeId.TryGetValue(nodeModel.NodeId, out var builder)) {
+                if (previewInfoBuildersByNodeId.TryGetValue(nodeModel.NodeId, out var builder) && builder.HasState()) {
                     changed |= nodeModel.SetPreviewExecutionInfo(builder.ToPreviewExecutionInfo());
                     continue;
                 }
@@ -332,6 +350,188 @@ namespace UnityAnimationGraph.Editor {
         /// <param name="definitions">設定する Blackboard 定義一覧</param>
         public void SetBlackboardDefinitions(IReadOnlyList<AnimationGraphBlackboardDefinition> definitions) {
             AnimationGraphAssetUtility.SetBlackboardDefinitions(RequireGraphAsset(), definitions);
+        }
+
+        /// <summary>
+        /// 操作対象の AnimationGraphAsset に Signal を追加
+        /// </summary>
+        /// <param name="signalType">追加する Signal 型</param>
+        /// <param name="graphPosition">エディタ上の Signal 位置</param>
+        /// <returns>追加した Signal Model</returns>
+        internal SignalEditorModel AddSignal(Type signalType, Vector2 graphPosition) {
+            var signal = AnimationGraphAssetUtility.AddSignal(RequireGraphAsset(), signalType, graphPosition);
+            return GetOrAddSignalModel(signal);
+        }
+
+        /// <summary>
+        /// 指定した Node の Signal Port に Signal を追加
+        /// </summary>
+        /// <param name="outputPortKind">追加先 Signal Port 種別</param>
+        /// <param name="nodeModel">追加先ノード Model</param>
+        /// <param name="signalType">追加する Signal 型</param>
+        /// <returns>追加した Signal</returns>
+        internal Signal AddSignal(AnimationGraphOutputPortKind outputPortKind, NodeEditorModel nodeModel, Type signalType) {
+            return AddSignal(outputPortKind, nodeModel, signalType, Vector2.zero);
+        }
+
+        /// <summary>
+        /// 指定した Node の Signal Port に Signal を追加
+        /// </summary>
+        /// <param name="outputPortKind">追加先 Signal Port 種別</param>
+        /// <param name="nodeModel">追加先ノード Model</param>
+        /// <param name="signalType">追加する Signal 型</param>
+        /// <param name="graphPosition">エディタ上の Signal 位置</param>
+        /// <returns>追加した Signal</returns>
+        internal Signal AddSignal(AnimationGraphOutputPortKind outputPortKind, NodeEditorModel nodeModel, Type signalType, Vector2 graphPosition) {
+            if (nodeModel == null) {
+                throw new ArgumentNullException(nameof(nodeModel));
+            }
+
+            if (!ContainsNode(nodeModel)) {
+                throw new InvalidOperationException("Node is not contained in AnimationGraphAsset");
+            }
+
+            var signal = outputPortKind switch {
+                AnimationGraphOutputPortKind.EnterSignal when nodeModel.EnableEnterSignalPort => AnimationGraphAssetUtility.AddEnterSignal(RequireGraphAsset(), nodeModel.Node, signalType, graphPosition),
+                AnimationGraphOutputPortKind.ExitSignal when nodeModel.EnableExitSignalPort => AnimationGraphAssetUtility.AddExitSignal(RequireGraphAsset(), nodeModel.Node, signalType, graphPosition),
+                AnimationGraphOutputPortKind.EnterSignal or AnimationGraphOutputPortKind.ExitSignal => throw new InvalidOperationException("Signal port is not enabled for this node"),
+                _ => throw new InvalidOperationException("Output port is not a Signal port"),
+            };
+            GetOrAddSignalModel(signal);
+            return signal;
+        }
+
+        /// <summary>
+        /// 指定した output port から Signal へ接続
+        /// </summary>
+        /// <param name="outputPortKind">接続元 output port 種別</param>
+        /// <param name="sourceNodeModel">接続元ノード Model</param>
+        /// <param name="targetSignalModel">接続先 Signal Model</param>
+        /// <param name="errorMessage">接続できない理由</param>
+        /// <returns>接続できた場合は true</returns>
+        internal bool ConnectSignal(AnimationGraphOutputPortKind outputPortKind, NodeEditorModel sourceNodeModel, SignalEditorModel targetSignalModel, out string errorMessage) {
+            if (!CanConnectSignal(outputPortKind, sourceNodeModel, targetSignalModel, out errorMessage)) {
+                return false;
+            }
+
+            switch (outputPortKind) {
+                case AnimationGraphOutputPortKind.EnterSignal:
+                    AnimationGraphAssetUtility.AddEnterSignalReference(sourceNodeModel.Node, targetSignalModel.Signal);
+                    break;
+                case AnimationGraphOutputPortKind.ExitSignal:
+                    AnimationGraphAssetUtility.AddExitSignalReference(sourceNodeModel.Node, targetSignalModel.Signal);
+                    break;
+            }
+
+            RefreshSignals();
+            return true;
+        }
+
+        /// <summary>
+        /// 指定した output port から Signal への接続を解除
+        /// </summary>
+        /// <param name="outputPortKind">接続元 output port 種別</param>
+        /// <param name="sourceNodeModel">接続元ノード Model</param>
+        /// <param name="targetSignalModel">接続先 Signal Model</param>
+        /// <returns>接続解除できた場合は true</returns>
+        internal bool DisconnectSignal(AnimationGraphOutputPortKind outputPortKind, NodeEditorModel sourceNodeModel, SignalEditorModel targetSignalModel) {
+            if (sourceNodeModel == null) {
+                throw new ArgumentNullException(nameof(sourceNodeModel));
+            }
+
+            if (targetSignalModel == null) {
+                throw new ArgumentNullException(nameof(targetSignalModel));
+            }
+
+            if (!IsSignalOutputPort(outputPortKind) || !ContainsSignalReference(sourceNodeModel, outputPortKind, targetSignalModel.Signal)) {
+                return false;
+            }
+
+            switch (outputPortKind) {
+                case AnimationGraphOutputPortKind.EnterSignal:
+                    AnimationGraphAssetUtility.RemoveEnterSignalReference(sourceNodeModel.Node, targetSignalModel.Signal);
+                    break;
+                case AnimationGraphOutputPortKind.ExitSignal:
+                    AnimationGraphAssetUtility.RemoveExitSignalReference(sourceNodeModel.Node, targetSignalModel.Signal);
+                    break;
+            }
+
+            RefreshSignals();
+            return true;
+        }
+
+        /// <summary>
+        /// 指定した output port から Signal へ接続できるかを判定
+        /// </summary>
+        /// <param name="outputPortKind">接続元 output port 種別</param>
+        /// <param name="sourceNodeModel">接続元ノード Model</param>
+        /// <param name="targetSignalModel">接続先 Signal Model</param>
+        /// <param name="errorMessage">接続できない理由</param>
+        /// <returns>接続できる場合は true</returns>
+        internal bool CanConnectSignal(AnimationGraphOutputPortKind outputPortKind, NodeEditorModel sourceNodeModel, SignalEditorModel targetSignalModel, out string errorMessage) {
+            if (sourceNodeModel == null) {
+                throw new ArgumentNullException(nameof(sourceNodeModel));
+            }
+
+            if (targetSignalModel == null) {
+                throw new ArgumentNullException(nameof(targetSignalModel));
+            }
+
+            if (!ContainsNode(sourceNodeModel) || !ContainsSignal(targetSignalModel)) {
+                errorMessage = "Element is not contained in AnimationGraphAsset";
+                return false;
+            }
+
+            if (!IsSignalOutputPort(outputPortKind)) {
+                errorMessage = "Output port is not a Signal port";
+                return false;
+            }
+
+            if (!CanUseSignalOutputPort(sourceNodeModel, outputPortKind)) {
+                errorMessage = "Signal port is not enabled for this node";
+                return false;
+            }
+
+            if (IsSignalAttached(targetSignalModel.Signal)) {
+                errorMessage = "Signal already has an input connection";
+                return false;
+            }
+
+            errorMessage = string.Empty;
+            return true;
+        }
+
+        /// <summary>
+        /// 操作対象の AnimationGraphAsset から Signal を削除
+        /// </summary>
+        /// <param name="signalModel">削除する Signal Model</param>
+        internal void RemoveSignal(SignalEditorModel signalModel) {
+            if (signalModel == null) {
+                throw new ArgumentNullException(nameof(signalModel));
+            }
+
+            var signalId = signalModel.SignalId;
+            AnimationGraphAssetUtility.RemoveSignal(RequireGraphAsset(), signalModel.Signal);
+            RemoveSignalModel(signalModel, signalId);
+        }
+
+        /// <summary>
+        /// 操作対象の AnimationGraphAsset から複数 Signal を削除
+        /// </summary>
+        /// <param name="signalModels">削除する Signal Model 一覧</param>
+        internal void RemoveSignals(IReadOnlyList<SignalEditorModel> signalModels) {
+            if (signalModels == null) {
+                throw new ArgumentNullException(nameof(signalModels));
+            }
+
+            for (var i = signalModels.Count - 1; i >= 0; i--) {
+                var signalModel = signalModels[i];
+                if (signalModel == null || !ContainsSignal(signalModel)) {
+                    continue;
+                }
+
+                RemoveSignal(signalModel);
+            }
         }
 
         /// <summary>
@@ -444,6 +644,11 @@ namespace UnityAnimationGraph.Editor {
                 return false;
             }
 
+            if (outputPortKind is AnimationGraphOutputPortKind.EnterSignal or AnimationGraphOutputPortKind.ExitSignal) {
+                errorMessage = "Signal port cannot connect to Node";
+                return false;
+            }
+
             if (sourceNodeModel.NodeId == targetNodeModel.NodeId) {
                 errorMessage = "Self-loop connection is not allowed";
                 return false;
@@ -471,6 +676,11 @@ namespace UnityAnimationGraph.Editor {
                 }
 
                 errorMessage = "Duplicate connection is not allowed";
+                return false;
+            }
+
+            if (ShouldEnforceSingleInput(outputPortKind, sourceNodeModel, targetNodeModel) && !CanUseMultipleInputs(targetNodeModel) && HasInputConnection(targetNodeModel)) {
+                errorMessage = "Only JoinNode can receive multiple input connections";
                 return false;
             }
 
@@ -569,12 +779,85 @@ namespace UnityAnimationGraph.Editor {
         }
 
         /// <summary>
+        /// GraphAsset の現在状態から Signal Model 一覧を再構築
+        /// </summary>
+        private void RefreshSignals() {
+            var previousSignalModelsById = new Dictionary<string, SignalEditorModel>(_signalModelsById);
+            _signals.Clear();
+            _signalModelsById.Clear();
+            if (_graphAsset == null) {
+                return;
+            }
+
+            AddSignalModels(AnimationGraphAssetUtility.GetSignals(_graphAsset), previousSignalModelsById);
+            for (var i = 0; i < _nodes.Count; i++) {
+                AddSignalModels(_nodes[i].EnterSignals, previousSignalModelsById);
+                AddSignalModels(_nodes[i].ExitSignals, previousSignalModelsById);
+            }
+        }
+
+        private void AddSignalModels(IReadOnlyList<Signal> signals, Dictionary<string, SignalEditorModel> previousSignalModelsById) {
+            for (var i = 0; i < signals.Count; i++) {
+                var signal = signals[i];
+                if (signal == null || string.IsNullOrEmpty(signal.SignalId) || _signalModelsById.ContainsKey(signal.SignalId)) {
+                    continue;
+                }
+
+                if (!previousSignalModelsById.TryGetValue(signal.SignalId, out var signalModel) || signalModel.Signal != signal) {
+                    signalModel = new SignalEditorModel(signal);
+                }
+
+                _signals.Add(signalModel);
+                _signalModelsById.Add(signal.SignalId, signalModel);
+            }
+        }
+
+        private SignalEditorModel GetOrAddSignalModel(Signal signal) {
+            if (signal == null) {
+                throw new ArgumentNullException(nameof(signal));
+            }
+
+            if (_signalModelsById.TryGetValue(signal.SignalId, out var signalModel) && signalModel.Signal == signal) {
+                return signalModel;
+            }
+
+            if (signalModel != null) {
+                RemoveSignalModel(signalModel, signal.SignalId);
+            }
+
+            signalModel = new SignalEditorModel(signal);
+            _signals.Add(signalModel);
+            _signalModelsById.Add(signal.SignalId, signalModel);
+            return signalModel;
+        }
+
+        private void RemoveSignalModel(SignalEditorModel signalModel, string signalId) {
+            _signalModelsById.Remove(signalId);
+
+            for (var i = _signals.Count - 1; i >= 0; i--) {
+                if (!ReferenceEquals(_signals[i], signalModel) && _signals[i].SignalId != signalId) {
+                    continue;
+                }
+
+                _signals.RemoveAt(i);
+                return;
+            }
+        }
+
+        /// <summary>
         /// 指定したノード Model が GraphAsset に含まれるかを判定
         /// </summary>
         /// <param name="nodeModel">判定するノード Model</param>
         /// <returns>GraphAsset に含まれる場合は true</returns>
         private bool ContainsNode(NodeEditorModel nodeModel) {
             return nodeModel != null && _graphAsset != null && _graphAsset.TryGetNode(nodeModel.NodeId, out var node) && node == nodeModel.Node;
+        }
+
+        private bool ContainsSignal(SignalEditorModel signalModel) {
+            return signalModel != null
+                && _graphAsset != null
+                && _signalModelsById.TryGetValue(signalModel.SignalId, out var currentSignalModel)
+                && currentSignalModel.Signal == signalModel.Signal;
         }
 
         /// <summary>
@@ -590,6 +873,48 @@ namespace UnityAnimationGraph.Editor {
                 AnimationGraphOutputPortKind.Loop => nodeModel is LoopNodeEditorModel,
                 _ => false,
             };
+        }
+
+        private static bool CanUseSignalOutputPort(NodeEditorModel nodeModel, AnimationGraphOutputPortKind outputPortKind) {
+            return outputPortKind switch {
+                AnimationGraphOutputPortKind.EnterSignal => nodeModel.EnableEnterSignalPort,
+                AnimationGraphOutputPortKind.ExitSignal => nodeModel.EnableExitSignalPort,
+                _ => false,
+            };
+        }
+
+        private bool IsSignalAttached(Signal signal) {
+            for (var i = 0; i < _nodes.Count; i++) {
+                if (ContainsSignalReference(_nodes[i], AnimationGraphOutputPortKind.EnterSignal, signal)
+                    || ContainsSignalReference(_nodes[i], AnimationGraphOutputPortKind.ExitSignal, signal)) {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private static bool ContainsSignalReference(NodeEditorModel nodeModel, AnimationGraphOutputPortKind outputPortKind, Signal signal) {
+            var signals = GetConnectedSignals(nodeModel, outputPortKind);
+            for (var i = 0; i < signals.Count; i++) {
+                if (signals[i] == signal) {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private static IReadOnlyList<Signal> GetConnectedSignals(NodeEditorModel nodeModel, AnimationGraphOutputPortKind outputPortKind) {
+            return outputPortKind switch {
+                AnimationGraphOutputPortKind.EnterSignal => nodeModel.EnterSignals,
+                AnimationGraphOutputPortKind.ExitSignal => nodeModel.ExitSignals,
+                _ => Array.Empty<Signal>(),
+            };
+        }
+
+        private static bool IsSignalOutputPort(AnimationGraphOutputPortKind outputPortKind) {
+            return outputPortKind is AnimationGraphOutputPortKind.EnterSignal or AnimationGraphOutputPortKind.ExitSignal;
         }
 
         /// <summary>
@@ -838,6 +1163,67 @@ namespace UnityAnimationGraph.Editor {
 
         private string GetNodeDisplayName(string nodeId) {
             return _nodeModelsById.TryGetValue(nodeId, out var nodeModel) ? nodeModel.DisplayName : "Node";
+        }
+
+        /// <summary>
+        /// input port に複数接続できる Node か判定
+        /// </summary>
+        /// <param name="nodeModel">判定するノード Model</param>
+        /// <returns>複数接続できる場合は true</returns>
+        private bool CanUseMultipleInputs(NodeEditorModel nodeModel) {
+            return typeof(JoinNode).IsAssignableFrom(nodeModel.NodeType);
+        }
+
+        /// <summary>
+        /// input port の単一接続制約を適用するか判定
+        /// </summary>
+        /// <param name="outputPortKind">接続元 output port 種別</param>
+        /// <param name="sourceNodeModel">接続元ノード Model</param>
+        /// <param name="targetNodeModel">接続先ノード Model</param>
+        /// <returns>単一接続制約を適用する場合は true</returns>
+        private bool ShouldEnforceSingleInput(AnimationGraphOutputPortKind outputPortKind, NodeEditorModel sourceNodeModel, NodeEditorModel targetNodeModel) {
+            if (outputPortKind == AnimationGraphOutputPortKind.Loop) {
+                return false;
+            }
+
+            return FindLoopOwner(sourceNodeModel.NodeId) == null && FindLoopOwner(targetNodeModel.NodeId) == null;
+        }
+
+        /// <summary>
+        /// 指定ノードが既に input 接続を持つか判定
+        /// </summary>
+        /// <param name="targetNodeModel">判定する接続先ノード Model</param>
+        /// <returns>既に input 接続を持つ場合は true</returns>
+        private bool HasInputConnection(NodeEditorModel targetNodeModel) {
+            var nodeModels = _nodes;
+            for (var i = 0; i < nodeModels.Count; i++) {
+                var sourceNodeModel = nodeModels[i];
+                if (ContainsConnectedNodeId(sourceNodeModel, AnimationGraphOutputPortKind.Next, targetNodeModel.NodeId)
+                    || ContainsConnectedNodeId(sourceNodeModel, AnimationGraphOutputPortKind.False, targetNodeModel.NodeId)
+                    || ContainsConnectedNodeId(sourceNodeModel, AnimationGraphOutputPortKind.Loop, targetNodeModel.NodeId)) {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// 指定 output port から対象ノードへ接続済みか判定
+        /// </summary>
+        /// <param name="sourceNodeModel">接続元ノード Model</param>
+        /// <param name="outputPortKind">接続元 output port 種別</param>
+        /// <param name="targetNodeId">接続先ノード ID</param>
+        /// <returns>接続済みの場合は true</returns>
+        private bool ContainsConnectedNodeId(NodeEditorModel sourceNodeModel, AnimationGraphOutputPortKind outputPortKind, string targetNodeId) {
+            var nodeIds = GetConnectedNodeIds(sourceNodeModel, outputPortKind);
+            for (var i = 0; i < nodeIds.Count; i++) {
+                if (nodeIds[i] == targetNodeId) {
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         /// <summary>

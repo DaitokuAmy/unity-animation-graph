@@ -1,6 +1,7 @@
 using NUnit.Framework;
 using UnityEditor;
 using UnityEngine;
+using UnityEngine.TestTools;
 
 namespace UnityAnimationGraph.Tests {
     /// <summary>
@@ -76,17 +77,56 @@ namespace UnityAnimationGraph.Tests {
         }
 
         /// <summary>
-        /// Evaluate で seed と duration を同期し localTime までシミュレーションする
+        /// Evaluate で localTime までシミュレーションする
         /// </summary>
         [Test]
-        public void Evaluate_SimulatesParticleSystemAtLocalTimeAndSyncsDuration() {
+        public void Evaluate_SimulatesParticleSystemAtLocalTime() {
             ((INodeExecutor)_node).Evaluate(456, 0.5f, 2.5f, _context);
 
-            var main = _particleSystem.main;
-            Assert.IsFalse(_particleSystem.useAutoRandomSeed);
-            Assert.That(_particleSystem.randomSeed, Is.EqualTo(456u));
-            Assert.That(main.duration, Is.EqualTo(2.5f).Within(0.0001f));
             Assert.That(_particleSystem.time, Is.EqualTo(0.5f).Within(0.05f));
+        }
+
+        /// <summary>
+        /// Enter で設定済み duration を ParticleSystem に反映する
+        /// </summary>
+        [Test]
+        public void Enter_SyncsConfiguredDuration() {
+            SetNodeProperties(_node, TargetKey, 2.5f);
+
+            ((INodeExecutor)_node).Enter(456, _context);
+
+            var main = _particleSystem.main;
+            Assert.That(main.duration, Is.EqualTo(2.5f).Within(0.0001f));
+        }
+
+        /// <summary>
+        /// Evaluate の連続呼び出しでは ParticleSystem に seed を設定しない
+        /// </summary>
+        [Test]
+        public void Evaluate_DoesNotSetSeed() {
+            ((INodeExecutor)_node).Enter(456, _context);
+            ((INodeExecutor)_node).Evaluate(456, 0.5f, 2.5f, _context);
+
+            ((INodeExecutor)_node).Evaluate(789, 1.0f, 2.5f, _context);
+
+            Assert.That(_particleSystem.randomSeed, Is.EqualTo(456u));
+            Assert.That(_particleSystem.time, Is.EqualTo(1.0f).Within(0.05f));
+            LogAssert.NoUnexpectedReceived();
+        }
+
+        /// <summary>
+        /// localTime 0 の Evaluate は ParticleSystem を停止して先頭状態へ戻す
+        /// </summary>
+        [Test]
+        public void Evaluate_StopsParticleSystemWhenLocalTimeReturnsToStart() {
+            ((INodeExecutor)_node).Enter(456, _context);
+            ((INodeExecutor)_node).Evaluate(456, 0.5f, 2.5f, _context);
+
+            ((INodeExecutor)_node).Evaluate(789, 0.0f, 2.5f, _context);
+
+            Assert.That(_particleSystem.randomSeed, Is.EqualTo(456u));
+            Assert.That(_particleSystem.time, Is.EqualTo(0.0f).Within(0.0001f));
+            LogAssert.NoUnexpectedReceived();
         }
 
         /// <summary>

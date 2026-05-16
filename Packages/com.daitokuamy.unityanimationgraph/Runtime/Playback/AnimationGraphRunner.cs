@@ -93,6 +93,7 @@ namespace UnityAnimationGraph {
                 return true;
             }
 
+            
             target = null;
             return false;
         }
@@ -255,6 +256,16 @@ namespace UnityAnimationGraph {
         public bool SetTarget(string key, Component target) {
             var group = GetCurrentTargetBindingGroup();
             return group != null && group.SetTarget(key, target);
+        }
+
+        /// <summary>
+        /// 指定した GraphAsset GUID に対応する target binding 一覧を取得
+        /// </summary>
+        /// <param name="graphAssetGuid">GraphAsset の asset GUID</param>
+        /// <returns>指定した GraphAsset GUID に対応する target binding 一覧</returns>
+        internal IReadOnlyList<AnimationGraphTargetBinding> GetTargetBindingsByGraphAssetGuid(string graphAssetGuid) {
+            var group = GetTargetBindingGroupByGraphAssetGuid(graphAssetGuid);
+            return group?.Bindings ?? Array.Empty<AnimationGraphTargetBinding>();
         }
 
         /// <summary>
@@ -545,6 +556,20 @@ namespace UnityAnimationGraph {
             }
 
             return _targetBindingGroups[_currentTargetBindingGroupIndex];
+        }
+
+        /// <summary>
+        /// 指定した GraphAsset GUID に対応する target binding group を取得
+        /// </summary>
+        /// <param name="graphAssetGuid">GraphAsset の asset GUID</param>
+        /// <returns>指定した GraphAsset GUID に対応する target binding group</returns>
+        private AnimationGraphTargetBindingGroup GetTargetBindingGroupByGraphAssetGuid(string graphAssetGuid) {
+            var groupIndex = FindTargetBindingGroupIndex(graphAssetGuid);
+            if (groupIndex < 0 || _targetBindingGroups == null || groupIndex >= _targetBindingGroups.Length) {
+                return null;
+            }
+
+            return _targetBindingGroups[groupIndex];
         }
 
         /// <summary>

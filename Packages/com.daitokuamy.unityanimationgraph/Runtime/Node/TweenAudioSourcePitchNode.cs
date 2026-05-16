@@ -4,7 +4,7 @@ namespace UnityAnimationGraph {
     /// <summary>
     /// AudioSource の pitch を Tween するノード
     /// </summary>
-    [AnimationGraphNode("Tween Audio Source Pitch", "Built-in/Tween/Audio Source/Pitch")]
+    [NodeInfo("Tween Audio Source Pitch", "Built-in/Tween/Audio Source/Pitch")]
     public sealed class TweenAudioSourcePitchNode : TweenFloatNode<AudioSource> {
         [SerializeField, Tooltip("Pitch Tween 設定")]
         private FloatTween _tween = new(1.0f, 1.2f);

@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Globalization;
 using UnityEditor.Experimental.GraphView;
 using UnityEditor.UIElements;
 using UnityEngine;
@@ -11,18 +10,20 @@ namespace UnityAnimationGraph.Editor {
     /// NodeEditorModel を表示する GraphView Node
     /// </summary>
     internal sealed class AnimationGraphNodeView : UnityEditor.Experimental.GraphView.Node {
-        private const float PreviewValueEpsilon = 0.0001f;
-
         private static readonly Vector2 DefaultSize = new(236.0f, 112.0f);
         private static readonly Color DetailLabelColor = new(0.56f, 0.56f, 0.56f);
         private static readonly Color DetailValueColor = new(0.86f, 0.86f, 0.86f);
+        private static readonly Color SignalPortColor = new(1.0f, 0.70f, 0.24f);
         private static readonly Color ValidationErrorColor = new(1.0f, 0.24f, 0.20f);
+        private static readonly Color PreviewCompletedColor = new(0.24f, 0.82f, 0.36f);
+        private static readonly Color PreviewActiveColor = new(1.0f, 0.82f, 0.22f);
 
         private readonly Dictionary<AnimationGraphOutputPortKind, Port> _outputPortsByKind = new();
         private readonly Func<IReadOnlyList<AnimationGraphTargetDefinition>> _targetDefinitionsProvider;
         private readonly Func<IReadOnlyList<AnimationGraphBlackboardDefinition>> _blackboardDefinitionsProvider;
         private readonly VisualElement _detailsContainer;
         private readonly Color _keyColor;
+        private string _validationMessage;
 
         /// <summary>表示対象の NodeEditorModel</summary>
         public NodeEditorModel NodeModel { get; }
@@ -66,7 +67,7 @@ namespace UnityAnimationGraph.Editor {
             RefreshDetails();
 
             if (nodeModel.NodeType != typeof(StartNode)) {
-                InputPort = InstantiatePort(Orientation.Horizontal, Direction.Input, Port.Capacity.Multi, typeof(bool));
+                InputPort = InstantiatePort(Orientation.Horizontal, Direction.Input, GetInputPortCapacity(), typeof(bool));
                 InputPort.portName = "In";
                 InputPort.portColor = _keyColor;
                 inputContainer.Add(InputPort);
@@ -128,9 +129,6 @@ namespace UnityAnimationGraph.Editor {
 
             if (NodeModel.Node is ActionNode actionNode) {
                 AddTargetKeyPopup(actionNode.TargetKey);
-                if (NodeModel.TryGetPreviewExecutionInfo(out var previewExecutionInfo)) {
-                    AddPreviewRow(previewExecutionInfo);
-                }
             }
 
             if (NodeModel is DelayNodeEditorModel delayNodeModel) {
@@ -149,6 +147,7 @@ namespace UnityAnimationGraph.Editor {
                 AddJoinTypePopup(joinNode.JoinType);
             }
 
+            ApplyNodeFrameColor();
             _detailsContainer.style.display = _detailsContainer.childCount == 0 ? DisplayStyle.None : DisplayStyle.Flex;
         }
 
@@ -157,17 +156,8 @@ namespace UnityAnimationGraph.Editor {
         /// </summary>
         /// <param name="message">検証エラーメッセージ</param>
         public void SetValidationMessage(string message) {
-            if (string.IsNullOrEmpty(message)) {
-                tooltip = string.Empty;
-                ApplyKeyColor(_keyColor);
-                return;
-            }
-
-            tooltip = message;
-            style.borderTopColor = ValidationErrorColor;
-            style.borderRightColor = ValidationErrorColor;
-            style.borderBottomColor = ValidationErrorColor;
-            style.borderLeftColor = ValidationErrorColor;
+            _validationMessage = message;
+            ApplyNodeFrameColor();
         }
 
         private void AddOutputPorts(Color keyColor) {
@@ -179,12 +169,34 @@ namespace UnityAnimationGraph.Editor {
             if (NodeModel.NodeType == typeof(LoopNode)) {
                 AddOutputPort(AnimationGraphOutputPortKind.Loop, "Loop", Port.Capacity.Multi, keyColor);
             }
+
+            if (NodeModel.EnableEnterSignalPort) {
+                AddOutputPort(AnimationGraphOutputPortKind.EnterSignal, "Enter", Port.Capacity.Multi, SignalPortColor, typeof(Signal));
+            }
+
+            if (NodeModel.EnableExitSignalPort) {
+                AddOutputPort(AnimationGraphOutputPortKind.ExitSignal, "Exit", Port.Capacity.Multi, SignalPortColor, typeof(Signal));
+            }
         }
 
-        private void AddOutputPort(AnimationGraphOutputPortKind outputPortKind, string portName, Port.Capacity capacity, Color keyColor) {
-            var outputPort = InstantiatePort(Orientation.Horizontal, Direction.Output, capacity, typeof(bool));
+        /// <summary>
+        /// input port の接続数を Node 種別から取得
+        /// </summary>
+        /// <returns>input port の接続数</returns>
+        private Port.Capacity GetInputPortCapacity() {
+            return typeof(JoinNode).IsAssignableFrom(NodeModel.NodeType)
+                ? Port.Capacity.Multi
+                : Port.Capacity.Single;
+        }
+
+        private void AddOutputPort(AnimationGraphOutputPortKind outputPortKind, string portName, Port.Capacity capacity, Color keyColor, Type portType = null) {
+            var outputPort = InstantiatePort(Orientation.Horizontal, Direction.Output, capacity, portType ?? typeof(bool));
             outputPort.portName = portName;
             outputPort.portColor = keyColor;
+            if (IsSignalOutputPort(outputPortKind)) {
+                outputPort.tooltip = "Connect to Signal";
+            }
+
             _outputPortsByKind.Add(outputPortKind, outputPort);
             outputContainer.Add(outputPort);
         }
@@ -334,24 +346,6 @@ namespace UnityAnimationGraph.Editor {
             _detailsContainer.Add(row);
         }
 
-        private void AddPreviewRow(NodePreviewExecutionInfo previewExecutionInfo) {
-            var row = new VisualElement {
-                pickingMode = PickingMode.Ignore,
-                style = {
-                    flexDirection = FlexDirection.Row,
-                    alignItems = Align.Center,
-                    marginTop = 3.0f,
-                },
-            };
-            row.Add(CreateMetricGroup("DELAY", FormatPreviewRange(previewExecutionInfo.MinDelay, previewExecutionInfo.MaxDelay)));
-            row.Add(CreateMetricGroup("DUR", FormatPreviewRange(previewExecutionInfo.MinDuration, previewExecutionInfo.MaxDuration)));
-            if (previewExecutionInfo.ExecutionCount > 1) {
-                row.Add(CreateExecutionCountLabel(previewExecutionInfo.ExecutionCount));
-            }
-
-            _detailsContainer.Add(row);
-        }
-
         private static VisualElement CreateDetailsContainer() {
             return new VisualElement {
                 style = {
@@ -387,21 +381,6 @@ namespace UnityAnimationGraph.Editor {
             row.Add(CreateDetailLabel(label, 48.0f));
             row.Add(CreateValueLabel(value));
             return row;
-        }
-
-        private static VisualElement CreateMetricGroup(string label, string value) {
-            var group = new VisualElement {
-                pickingMode = PickingMode.Ignore,
-                style = {
-                    flexDirection = FlexDirection.Row,
-                    alignItems = Align.Center,
-                    marginRight = 10.0f,
-                    flexShrink = 0.0f,
-                },
-            };
-            group.Add(CreateDetailLabel(label, 28.0f));
-            group.Add(CreateValueLabel(value));
-            return group;
         }
 
         private static Label CreateDetailLabel(string text, float width) {
@@ -447,17 +426,6 @@ namespace UnityAnimationGraph.Editor {
             };
         }
 
-        private static Label CreateExecutionCountLabel(int executionCount) {
-            return new Label($"x{executionCount}") {
-                pickingMode = PickingMode.Ignore,
-                style = {
-                    fontSize = 10,
-                    color = DetailLabelColor,
-                    unityTextAlign = TextAnchor.MiddleLeft,
-                },
-            };
-        }
-
         private static string GetNextPortName(Type nodeType) {
             if (typeof(BranchNode).IsAssignableFrom(nodeType)) {
                 return "True";
@@ -468,6 +436,10 @@ namespace UnityAnimationGraph.Editor {
 
         private static string GetDisplayValue(string value) {
             return string.IsNullOrEmpty(value) ? "-" : value;
+        }
+
+        private static bool IsSignalOutputPort(AnimationGraphOutputPortKind outputPortKind) {
+            return outputPortKind is AnimationGraphOutputPortKind.EnterSignal or AnimationGraphOutputPortKind.ExitSignal;
         }
 
         private static List<string> CreateTargetKeyChoices(IReadOnlyList<AnimationGraphTargetDefinition> targetDefinitions, string currentTargetKey) {
@@ -585,24 +557,52 @@ namespace UnityAnimationGraph.Editor {
             return false;
         }
 
-        private static string FormatPreviewRange(float minValue, float maxValue) {
-            if (Mathf.Abs(minValue - maxValue) <= PreviewValueEpsilon) {
-                return FormatPreviewValue(minValue);
+        /// <summary>
+        /// Node の状態に応じた枠色を適用
+        /// </summary>
+        private void ApplyNodeFrameColor() {
+            tooltip = string.IsNullOrEmpty(_validationMessage) ? string.Empty : _validationMessage;
+            ApplyKeyColor(_keyColor);
+            if (!string.IsNullOrEmpty(_validationMessage)) {
+                ApplyBorderColor(ValidationErrorColor);
+                return;
             }
 
-            return $"{FormatPreviewValue(minValue)}..{FormatPreviewValue(maxValue)}";
+            if (!NodeModel.TryGetPreviewExecutionInfo(out var previewExecutionInfo)) {
+                return;
+            }
+
+            if (previewExecutionInfo.State == NodePreviewExecutionState.Active) {
+                ApplyBorderColor(PreviewActiveColor);
+                return;
+            }
+
+            if (previewExecutionInfo.State == NodePreviewExecutionState.Completed) {
+                ApplyBorderColor(PreviewCompletedColor);
+            }
         }
 
-        private static string FormatPreviewValue(float value) {
-            return value.ToString("0.###", CultureInfo.InvariantCulture);
-        }
-
+        /// <summary>
+        /// Node 種別に応じた基本色を適用
+        /// </summary>
+        /// <param name="keyColor">Node 種別の色</param>
         private void ApplyKeyColor(Color keyColor) {
             style.borderTopColor = keyColor;
             style.borderRightColor = GetSubtleColor(keyColor);
             style.borderBottomColor = GetSubtleColor(keyColor);
             style.borderLeftColor = GetSubtleColor(keyColor);
             titleContainer.style.backgroundColor = GetTitleBackgroundColor(keyColor);
+        }
+
+        /// <summary>
+        /// Node の枠色を全辺に適用
+        /// </summary>
+        /// <param name="borderColor">適用する枠色</param>
+        private void ApplyBorderColor(Color borderColor) {
+            style.borderTopColor = borderColor;
+            style.borderRightColor = borderColor;
+            style.borderBottomColor = borderColor;
+            style.borderLeftColor = borderColor;
         }
 
         private void ApplyTitleStyle() {
