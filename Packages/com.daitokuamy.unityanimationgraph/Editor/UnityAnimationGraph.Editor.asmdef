@@ -1,0 +1,18 @@
+{
+    "name": "UnityAnimationGraph.Editor",
+    "rootNamespace": "",
+    "references": [
+        "GUID:28c90a7465aa85c48911b6285dd59d38"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}
