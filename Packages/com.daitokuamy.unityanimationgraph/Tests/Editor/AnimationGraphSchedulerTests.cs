@@ -1,0 +1,162 @@
+using System.Collections.Generic;
+using NUnit.Framework;
+
+namespace UnityAnimationGraph.Tests {
+    /// <summary>
+    /// AnimationGraphScheduler の EditMode テスト
+    /// </summary>
+    public sealed class AnimationGraphSchedulerTests {
+        /// <summary>
+        /// 直列接続では前ノードの終了時刻から後続ノードを開始する
+        /// </summary>
+        [Test]
+        public void BuildSchedule_SerialNodesStartAfterPreviousDuration() {
+            using var builder = new AnimationGraphTestBuilder();
+            var startNode = builder.CreateStartNode("start", "first");
+            var firstNode = builder.CreateActionNode("first", 1.0f, "second");
+            var secondNode = builder.CreateActionNode("second", 2.0f);
+            var graphAsset = builder.CreateGraph("start", startNode, firstNode, secondNode);
+
+            var schedule = BuildSchedule(graphAsset);
+
+            AssertScheduledNode(schedule, firstNode, 0.0f, 1.0f);
+            AssertScheduledNode(schedule, secondNode, 1.0f, 2.0f);
+        }
+
+        /// <summary>
+        /// JoinNode は JoinType に応じた合流時刻で後続を開始する
+        /// </summary>
+        /// <param name="joinType">合流方法</param>
+        /// <param name="expectedAfterStartTime">後続ノードの期待開始時刻</param>
+        [TestCase(JoinType.All, 3.0f)]
+        [TestCase(JoinType.Any, 1.0f)]
+        public void BuildSchedule_JoinNodeStartsNextNodeByJoinType(JoinType joinType, float expectedAfterStartTime) {
+            using var builder = new AnimationGraphTestBuilder();
+            var startNode = builder.CreateStartNode("start", "route");
+            var routeNode = builder.CreateNode<RouteNode>("route", "short", "long");
+            var shortNode = builder.CreateActionNode("short", 1.0f, "join");
+            var longNode = builder.CreateActionNode("long", 3.0f, "join");
+            var joinNode = builder.CreateNode<JoinNode>("join", "after");
+            var afterNode = builder.CreateActionNode("after", 2.0f);
+            builder.SetJoinType(joinNode, joinType);
+            var graphAsset = builder.CreateGraph("start", startNode, routeNode, shortNode, longNode, joinNode, afterNode);
+
+            var schedule = BuildSchedule(graphAsset);
+
+            AssertScheduledNode(schedule, afterNode, expectedAfterStartTime, 2.0f);
+        }
+
+        /// <summary>
+        /// BranchNode は build 時に選択されなかった側を schedule に含めない
+        /// </summary>
+        [Test]
+        public void BuildSchedule_BranchNodeSchedulesOnlySelectedSide() {
+            using var builder = new AnimationGraphTestBuilder();
+            var startNode = builder.CreateStartNode("start", "branch");
+            var branchNode = builder.CreateNode<TestBranchNode>("branch", "trueAction");
+            branchNode.Condition = false;
+            var trueActionNode = builder.CreateActionNode("trueAction", 1.0f);
+            var falseActionNode = builder.CreateActionNode("falseAction", 2.0f);
+            builder.SetFalseNodeIds(branchNode, "falseAction");
+            var graphAsset = builder.CreateGraph("start", startNode, branchNode, trueActionNode, falseActionNode);
+
+            var schedule = BuildSchedule(graphAsset);
+
+            Assert.IsFalse(ContainsNode(schedule, trueActionNode));
+            AssertScheduledNode(schedule, falseActionNode, 0.0f, 2.0f);
+        }
+
+        /// <summary>
+        /// RepeatNode は戻り先から終端までを指定回数分 schedule に展開する
+        /// </summary>
+        [Test]
+        public void BuildSchedule_RepeatNodeExpandsBodyByRepeatCount() {
+            using var builder = new AnimationGraphTestBuilder();
+            var startNode = builder.CreateStartNode("start", "body");
+            var bodyNode = builder.CreateActionNode("body", 1.0f, "repeat");
+            var repeatNode = builder.CreateNode<RepeatNode>("repeat", "after");
+            var afterNode = builder.CreateActionNode("after", 2.0f);
+            builder.SetRepeat(repeatNode, 3, "body");
+            var graphAsset = builder.CreateGraph("start", startNode, bodyNode, repeatNode, afterNode);
+
+            var schedule = BuildSchedule(graphAsset);
+            var bodyScheduledNodes = FindScheduledNodes(schedule, bodyNode);
+
+            Assert.That(bodyScheduledNodes.Count, Is.EqualTo(3));
+            Assert.That(bodyScheduledNodes[0].StartTime, Is.EqualTo(0.0f).Within(0.0001f));
+            Assert.That(bodyScheduledNodes[1].StartTime, Is.EqualTo(1.0f).Within(0.0001f));
+            Assert.That(bodyScheduledNodes[2].StartTime, Is.EqualTo(2.0f).Within(0.0001f));
+            AssertScheduledNode(schedule, afterNode, 3.0f, 2.0f);
+        }
+
+        /// <summary>
+        /// AnimationGraphSchedule を構築
+        /// </summary>
+        /// <param name="graphAsset">構築対象 graph asset</param>
+        /// <returns>構築した schedule</returns>
+        private AnimationGraphSchedule BuildSchedule(AnimationGraphAsset graphAsset) {
+            var scheduler = new AnimationGraphScheduler();
+            scheduler.SetGraph(graphAsset);
+            return scheduler.BuildSchedule(new TestAnimationGraphContext());
+        }
+
+        /// <summary>
+        /// 指定ノードの schedule 結果を検証
+        /// </summary>
+        /// <param name="schedule">検証対象 schedule</param>
+        /// <param name="node">検証対象ノード</param>
+        /// <param name="expectedStartTime">期待開始時刻</param>
+        /// <param name="expectedDuration">期待実行時間</param>
+        private void AssertScheduledNode(AnimationGraphSchedule schedule, Node node, float expectedStartTime, float expectedDuration) {
+            var scheduledNode = FindSingleScheduledNode(schedule, node);
+            Assert.That(scheduledNode.StartTime, Is.EqualTo(expectedStartTime).Within(0.0001f));
+            Assert.That(scheduledNode.Duration, Is.EqualTo(expectedDuration).Within(0.0001f));
+        }
+
+        /// <summary>
+        /// 指定ノードが schedule に含まれるか判定
+        /// </summary>
+        /// <param name="schedule">検索対象 schedule</param>
+        /// <param name="node">検索対象ノード</param>
+        /// <returns>含まれる場合は true</returns>
+        private bool ContainsNode(AnimationGraphSchedule schedule, Node node) {
+            for (var i = 0; i < schedule.Nodes.Count; i++) {
+                if (schedule.Nodes[i].Node == node) {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// 指定ノードの schedule 結果を 1 件取得
+        /// </summary>
+        /// <param name="schedule">検索対象 schedule</param>
+        /// <param name="node">検索対象ノード</param>
+        /// <returns>見つかった scheduled node</returns>
+        private ScheduledNode FindSingleScheduledNode(AnimationGraphSchedule schedule, Node node) {
+            var scheduledNodes = FindScheduledNodes(schedule, node);
+            Assert.That(scheduledNodes.Count, Is.EqualTo(1));
+            return scheduledNodes[0];
+        }
+
+        /// <summary>
+        /// 指定ノードの schedule 結果をすべて取得
+        /// </summary>
+        /// <param name="schedule">検索対象 schedule</param>
+        /// <param name="node">検索対象ノード</param>
+        /// <returns>見つかった scheduled node 一覧</returns>
+        private List<ScheduledNode> FindScheduledNodes(AnimationGraphSchedule schedule, Node node) {
+            var scheduledNodes = new List<ScheduledNode>();
+            for (var i = 0; i < schedule.Nodes.Count; i++) {
+                var scheduledNode = schedule.Nodes[i];
+                if (scheduledNode.Node == node) {
+                    scheduledNodes.Add(scheduledNode);
+                }
+            }
+
+            return scheduledNodes;
+        }
+    }
+}

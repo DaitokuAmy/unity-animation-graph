@@ -1,0 +1,27 @@
+using System;
+using UnityEngine;
+
+namespace UnityAnimationGraph {
+    /// <summary>
+    /// bool フラグの値に応じて進行先を選ぶ分岐ノード
+    /// </summary>
+    public sealed class FlagBranchNode : BranchNode {
+        [SerializeField, Tooltip("判定に使うフラグキー")]
+        private string _flagKey = string.Empty;
+        [SerializeField, Tooltip("true 側へ進む期待値")]
+        private bool _expectedValue = true;
+
+        /// <inheritdoc/>
+        protected override bool EvaluateConditionInternal(int seed, IAnimationGraphContext context) {
+            if (string.IsNullOrEmpty(_flagKey)) {
+                throw new InvalidOperationException($"FlagBranchNode '{NodeId}' has empty flag key");
+            }
+
+            if (!context.TryGetBlackboardValue<bool>(_flagKey, out var value)) {
+                throw new InvalidOperationException($"FlagBranchNode '{NodeId}' could not resolve flag '{_flagKey}'");
+            }
+
+            return value == _expectedValue;
+        }
+    }
+}

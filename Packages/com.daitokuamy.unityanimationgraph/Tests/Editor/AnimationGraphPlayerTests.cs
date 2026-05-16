@@ -1,0 +1,163 @@
+using System.Collections;
+using System.Threading.Tasks;
+using NUnit.Framework;
+
+namespace UnityAnimationGraph.Tests {
+    /// <summary>
+    /// AnimationGraphPlayer の EditMode テスト
+    /// </summary>
+    public sealed class AnimationGraphPlayerTests {
+        /// <summary>
+        /// Tick は現在時刻で active なノードだけを評価する
+        /// </summary>
+        [Test]
+        public void Tick_EvaluatesOnlyActiveNodes() {
+            using var builder = new AnimationGraphTestBuilder();
+            var startNode = builder.CreateStartNode("start", "first");
+            var firstNode = builder.CreateActionNode("first", 2.0f, "second");
+            var secondNode = builder.CreateActionNode("second", 2.0f);
+            var graphAsset = builder.CreateGraph("start", startNode, firstNode, secondNode);
+            var player = CreatePlayer(graphAsset);
+
+            player.Play();
+            player.Tick(0.5f);
+
+            Assert.That(firstNode.EvaluateCount, Is.EqualTo(1));
+            Assert.That(firstNode.LastLocalTime, Is.EqualTo(0.5f).Within(0.0001f));
+            Assert.That(secondNode.EvaluateCount, Is.EqualTo(0));
+
+            player.Tick(2.0f);
+
+            Assert.That(firstNode.EvaluateCount, Is.EqualTo(1));
+            Assert.That(secondNode.EvaluateCount, Is.EqualTo(1));
+            Assert.That(secondNode.LastLocalTime, Is.EqualTo(0.5f).Within(0.0001f));
+        }
+
+        /// <summary>
+        /// Stop は直前に active だった non-zero duration node だけをキャンセルする
+        /// </summary>
+        [Test]
+        public void Stop_CancelsOnlyLastActiveNonZeroDurationNodes() {
+            using var builder = new AnimationGraphTestBuilder();
+            var startNode = builder.CreateStartNode("start", "running");
+            var runningNode = builder.CreateActionNode("running", 10.0f, "future");
+            var futureNode = builder.CreateActionNode("future", 1.0f);
+            var graphAsset = builder.CreateGraph("start", startNode, runningNode, futureNode);
+            var player = CreatePlayer(graphAsset);
+
+            var handle = player.Play();
+            player.Tick(1.0f);
+            player.Stop();
+
+            Assert.That(runningNode.CancelCount, Is.EqualTo(1));
+            Assert.That(runningNode.LastCancelSeed, Is.EqualTo(runningNode.LastSeed));
+            Assert.That(futureNode.EvaluateCount, Is.EqualTo(0));
+            Assert.That(futureNode.CancelCount, Is.EqualTo(0));
+            Assert.IsTrue(handle.IsDone);
+            Assert.IsTrue(handle.IsInterrupted);
+            Assert.IsFalse(handle.IsCompleted);
+        }
+
+        /// <summary>
+        /// 自然完了した PlayHandle は完了状態になる
+        /// </summary>
+        [Test]
+        public void Tick_CompletesPlayHandleOnNaturalCompletion() {
+            using var builder = new AnimationGraphTestBuilder();
+            var startNode = builder.CreateStartNode("start", "action");
+            var actionNode = builder.CreateActionNode("action", 1.0f);
+            var graphAsset = builder.CreateGraph("start", startNode, actionNode);
+            var player = CreatePlayer(graphAsset);
+
+            var handle = player.Play();
+            player.Tick(1.0f);
+
+            Assert.That(actionNode.CancelCount, Is.EqualTo(0));
+            Assert.IsTrue(handle.IsDone);
+            Assert.IsTrue(handle.IsCompleted);
+            Assert.IsFalse(handle.IsInterrupted);
+        }
+
+        /// <summary>
+        /// PlayHandle は await で自然完了結果を返す
+        /// </summary>
+        /// <returns>テスト task</returns>
+        [Test]
+        public async Task PlayHandle_AwaitReturnsTrueWhenPlaybackCompletes() {
+            using var builder = new AnimationGraphTestBuilder();
+            var startNode = builder.CreateStartNode("start", "action");
+            var actionNode = builder.CreateActionNode("action", 1.0f);
+            var graphAsset = builder.CreateGraph("start", startNode, actionNode);
+            var player = CreatePlayer(graphAsset);
+
+            var handle = player.Play();
+            var completionTask = AwaitHandle(handle);
+            Assert.IsFalse(completionTask.IsCompleted);
+            player.Tick(1.0f);
+            var completed = await completionTask;
+
+            Assert.IsTrue(completed);
+        }
+
+        /// <summary>
+        /// PlayHandle は await で中断結果を返す
+        /// </summary>
+        /// <returns>テスト task</returns>
+        [Test]
+        public async Task PlayHandle_AwaitReturnsFalseWhenPlaybackInterrupted() {
+            using var builder = new AnimationGraphTestBuilder();
+            var startNode = builder.CreateStartNode("start", "action");
+            var actionNode = builder.CreateActionNode("action", 10.0f);
+            var graphAsset = builder.CreateGraph("start", startNode, actionNode);
+            var player = CreatePlayer(graphAsset);
+
+            var handle = player.Play();
+            var completionTask = AwaitHandle(handle);
+            Assert.IsFalse(completionTask.IsCompleted);
+            player.Tick(1.0f);
+            player.Stop();
+            var completed = await completionTask;
+
+            Assert.IsFalse(completed);
+        }
+
+        /// <summary>
+        /// PlayHandle は IEnumerator として再生完了まで待機できる
+        /// </summary>
+        [Test]
+        public void PlayHandle_IEnumeratorWaitsUntilPlaybackCompletes() {
+            using var builder = new AnimationGraphTestBuilder();
+            var startNode = builder.CreateStartNode("start", "action");
+            var actionNode = builder.CreateActionNode("action", 1.0f);
+            var graphAsset = builder.CreateGraph("start", startNode, actionNode);
+            var player = CreatePlayer(graphAsset);
+
+            var enumerator = (IEnumerator)player.Play();
+
+            Assert.IsTrue(enumerator.MoveNext());
+            player.Tick(1.0f);
+            Assert.IsFalse(enumerator.MoveNext());
+        }
+
+        /// <summary>
+        /// AnimationGraphPlayer を生成
+        /// </summary>
+        /// <param name="graphAsset">設定する graph asset</param>
+        /// <returns>生成した player</returns>
+        private AnimationGraphPlayer CreatePlayer(AnimationGraphAsset graphAsset) {
+            var player = new AnimationGraphPlayer();
+            player.SetGraph(graphAsset);
+            player.SetContext(new TestAnimationGraphContext());
+            return player;
+        }
+
+        /// <summary>
+        /// PlayHandle の await 結果を Task として取得
+        /// </summary>
+        /// <param name="handle">待機対象 handle</param>
+        /// <returns>await 結果 task</returns>
+        private async Task<bool> AwaitHandle(AnimationGraphPlayHandle handle) {
+            return await handle;
+        }
+    }
+}

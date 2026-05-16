@@ -1,0 +1,22 @@
+{
+    "name": "UnityAnimationGraph.Tests",
+    "rootNamespace": "",
+    "references": [
+        "GUID:28c90a7465aa85c48911b6285dd59d38"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": true,
+    "precompiledReferences": [
+        "nunit.framework.dll"
+    ],
+    "autoReferenced": false,
+    "defineConstraints": [
+        "UNITY_INCLUDE_TESTS"
+    ],
+    "versionDefines": [],
+    "noEngineReferences": false
+}
