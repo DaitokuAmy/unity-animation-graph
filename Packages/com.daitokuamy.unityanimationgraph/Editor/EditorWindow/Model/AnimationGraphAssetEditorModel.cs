@@ -450,6 +450,11 @@ namespace UnityAnimationGraph.Editor {
             }
 
             if (targetNodeModel.NodeType == typeof(StartNode)) {
+                if (HasPath(targetNodeModel.NodeId, sourceNodeModel.NodeId)) {
+                    errorMessage = "Cycle connection is not allowed";
+                    return false;
+                }
+
                 errorMessage = "StartNode cannot receive input connections";
                 return false;
             }

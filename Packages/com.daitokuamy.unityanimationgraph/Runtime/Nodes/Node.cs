@@ -32,8 +32,18 @@ namespace UnityAnimationGraph {
         }
 
         /// <inheritdoc/>
+        void INodeExecutor.BeginPlayback(int seed, IAnimationGraphContext context) {
+            BeginPlayback(seed, context);
+        }
+
+        /// <inheritdoc/>
         void INodeExecutor.Evaluate(int seed, float localTime, float calculatedDuration, IAnimationGraphContext context) {
             Evaluate(seed, localTime, calculatedDuration, context);
+        }
+
+        /// <inheritdoc/>
+        void INodeExecutor.EndPlayback(int seed, IAnimationGraphContext context) {
+            EndPlayback(seed, context);
         }
 
         /// <inheritdoc/>
@@ -65,6 +75,22 @@ namespace UnityAnimationGraph {
         /// <param name="calculatedDuration">計算済みの実行時間</param>
         /// <param name="context">評価コンテキスト</param>
         protected abstract void Evaluate(int seed, float localTime, float calculatedDuration, IAnimationGraphContext context);
+
+        /// <summary>
+        /// 再生開始時の初期化を行う
+        /// </summary>
+        /// <param name="seed">評価に使用するシード</param>
+        /// <param name="context">評価コンテキスト</param>
+        protected virtual void BeginPlayback(int seed, IAnimationGraphContext context) {
+        }
+
+        /// <summary>
+        /// 再生終了時の後処理を行う
+        /// </summary>
+        /// <param name="seed">評価に使用するシード</param>
+        /// <param name="context">評価コンテキスト</param>
+        protected virtual void EndPlayback(int seed, IAnimationGraphContext context) {
+        }
 
         /// <summary>
         /// 実行中のノードをキャンセル

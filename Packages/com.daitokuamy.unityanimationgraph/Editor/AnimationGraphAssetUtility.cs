@@ -751,6 +751,8 @@ namespace UnityAnimationGraph.Editor {
             new(typeof(SpriteRenderer), "00000000000000000000000000000007", "Rendering/Sprite Renderer"),
             new(typeof(Camera), "00000000000000000000000000000008", "Rendering/Camera"),
             new(typeof(Light), "00000000000000000000000000000009", "Rendering/Light"),
+            new(typeof(UnityEngine.Playables.PlayableDirector), "00000000000000000000000000000010", "Timeline/Playable Director"),
+            new(typeof(ParticleSystem), "00000000000000000000000000000011", "Effects/Particle System"),
         };
 
         /// <summary>

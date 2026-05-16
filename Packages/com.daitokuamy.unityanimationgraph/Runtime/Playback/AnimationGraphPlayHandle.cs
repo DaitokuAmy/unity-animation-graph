@@ -39,6 +39,14 @@ namespace UnityAnimationGraph {
             return new Awaiter(this);
         }
 
+        /// <summary>
+        /// 最終フレームまで評価して再生を完了する
+        /// </summary>
+        /// <returns>完了できた場合は true</returns>
+        public bool Complete() {
+            return _player != null && _player.CompletePlay(_version);
+        }
+
         /// <inheritdoc/>
         bool IEnumerator.MoveNext() {
             return !IsDone;

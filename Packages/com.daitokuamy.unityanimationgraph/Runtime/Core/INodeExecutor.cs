@@ -20,6 +20,13 @@ namespace UnityAnimationGraph {
         float CalculateDelay(int seed, IAnimationGraphContext context);
 
         /// <summary>
+        /// 再生開始時の初期化を行う
+        /// </summary>
+        /// <param name="seed">評価に使用するシード</param>
+        /// <param name="context">評価コンテキスト</param>
+        void BeginPlayback(int seed, IAnimationGraphContext context);
+
+        /// <summary>
         /// ノードを評価
         /// </summary>
         /// <param name="seed">評価に使用するシード</param>
@@ -27,6 +34,13 @@ namespace UnityAnimationGraph {
         /// <param name="calculatedDuration">計算済みの実行時間</param>
         /// <param name="context">評価コンテキスト</param>
         void Evaluate(int seed, float localTime, float calculatedDuration, IAnimationGraphContext context);
+
+        /// <summary>
+        /// 再生終了時の後処理を行う
+        /// </summary>
+        /// <param name="seed">評価に使用するシード</param>
+        /// <param name="context">評価コンテキスト</param>
+        void EndPlayback(int seed, IAnimationGraphContext context);
 
         /// <summary>
         /// 実行中のノードをキャンセル

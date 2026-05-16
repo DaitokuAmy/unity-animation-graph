@@ -16,13 +16,13 @@ namespace UnityAnimationGraph.Tests {
         }
 
         /// <summary>
-        /// Attribute がない場合は型名を取得する
+        /// Attribute がない場合は型名から表示名を取得する
         /// </summary>
         [Test]
-        public void GetDisplayName_FallsBackToTypeName() {
+        public void GetDisplayName_FallsBackToNicifiedTypeNameWithoutNodeSuffix() {
             var displayName = AnimationGraphNodeMetadata.GetDisplayName(typeof(DefaultMenuNode));
 
-            Assert.That(displayName, Is.EqualTo(nameof(DefaultMenuNode)));
+            Assert.That(displayName, Is.EqualTo("Default Menu"));
         }
 
         /// <summary>
@@ -43,6 +43,16 @@ namespace UnityAnimationGraph.Tests {
             var createMenuPath = AnimationGraphNodeMetadata.GetCreateMenuPath(typeof(DisplayNameOnlyNode));
 
             Assert.That(createMenuPath, Is.EqualTo("Action/表示名のみ"));
+        }
+
+        /// <summary>
+        /// 作成メニューパス未指定の場合は型名由来の表示名を取得する
+        /// </summary>
+        [Test]
+        public void GetCreateMenuPath_FallsBackToNicifiedTypeNameWithoutNodeSuffix() {
+            var createMenuPath = AnimationGraphNodeMetadata.GetCreateMenuPath(typeof(DefaultMenuNode));
+
+            Assert.That(createMenuPath, Is.EqualTo("Action/Default Menu"));
         }
 
         /// <summary>

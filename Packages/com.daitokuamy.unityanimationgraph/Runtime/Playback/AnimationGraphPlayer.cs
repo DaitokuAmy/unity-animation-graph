@@ -109,6 +109,7 @@ namespace UnityAnimationGraph {
             if (_playStatus != PlayStatus.Playing) {
                 _playVersion++;
                 _playContinuation = null;
+                BeginPlaybackScheduledNodes();
                 _playStatus = PlayStatus.Playing;
             }
 
@@ -198,6 +199,25 @@ namespace UnityAnimationGraph {
         }
 
         /// <summary>
+        /// 指定 version の再生を最終フレームまで評価して完了
+        /// </summary>
+        /// <param name="version">再生 version</param>
+        /// <returns>完了できた場合は true</returns>
+        internal bool CompletePlay(int version) {
+            if (version != _playVersion || _playStatus != PlayStatus.Playing) {
+                return false;
+            }
+
+            EnsureSchedule();
+            var previousTime = _currentTime;
+            _currentTime = Duration;
+            EvaluateCurrentTime(_currentTime, true, previousTime);
+            _state = AnimationGraphPlayerState.Stopped;
+            CompleteCurrentPlay(PlayStatus.Completed);
+            return true;
+        }
+
+        /// <summary>
         /// 指定 version の再生完了 continuation を登録
         /// </summary>
         /// <param name="version">再生 version</param>
@@ -251,6 +271,7 @@ namespace UnityAnimationGraph {
                 ClearActiveNodes();
             }
 
+            EndPlaybackScheduledNodes();
             _playStatus = playStatus;
             var continuation = _playContinuation;
             _playContinuation = null;
@@ -275,6 +296,28 @@ namespace UnityAnimationGraph {
         private void ClearActiveNodes() {
             _activeScheduledNodes.Clear();
             _nextActiveScheduledNodes.Clear();
+        }
+
+        /// <summary>
+        /// schedule 内の全ノードへ再生開始を通知
+        /// </summary>
+        private void BeginPlaybackScheduledNodes() {
+            var nodes = _schedule.Nodes;
+            for (var i = 0; i < nodes.Count; i++) {
+                var scheduledNode = nodes[i];
+                ((INodeExecutor)scheduledNode.Node).BeginPlayback(scheduledNode.Seed, _context);
+            }
+        }
+
+        /// <summary>
+        /// schedule 内の全ノードへ再生終了を通知
+        /// </summary>
+        private void EndPlaybackScheduledNodes() {
+            var nodes = _schedule.Nodes;
+            for (var i = 0; i < nodes.Count; i++) {
+                var scheduledNode = nodes[i];
+                ((INodeExecutor)scheduledNode.Node).EndPlayback(scheduledNode.Seed, _context);
+            }
         }
 
         /// <summary>

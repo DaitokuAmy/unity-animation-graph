@@ -1,5 +1,22 @@
 %YAML 1.1
 %TAG !u! tag:unity3d.com,2011:
+--- !u!114 &-8224036317216257604
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 77acf25256c0482393745c8b3f24148c, type: 3}
+  m_Name: PlayTimelineAssetNode
+  m_EditorClassIdentifier: UnityAnimationGraph::UnityAnimationGraph.PlayTimelineAssetNode
+  _nodeId: 36dfbe67cf934019afb9e87d1d16e299
+  _graphPosition: {x: 611, y: 94}
+  _nextNodeIds: []
+  _targetKey: DirectorTarget
+  _timelineAsset: {fileID: 11400000, guid: d589d4e9876f18841b5a554addfb6a6f, type: 2}
 --- !u!114 &-7426020645211944844
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -185,6 +202,7 @@ MonoBehaviour:
   - {fileID: -4527490929091549941}
   - {fileID: -1563823818385396252}
   - {fileID: -1064402391938092031}
+  - {fileID: -8224036317216257604}
   _targetDefinitions:
   - _key: MoveTarget
     _monoScriptGuid: 00000000000000000000000000000001
@@ -192,8 +210,8 @@ MonoBehaviour:
     _monoScriptGuid: 00000000000000000000000000000001
   - _key: ColorTarget
     _monoScriptGuid: 00000000000000000000000000000004
-  - _key: Target
-    _monoScriptGuid: 
+  - _key: DirectorTarget
+    _monoScriptGuid: 00000000000000000000000000000010
   _blackboardDefinitions:
   - _key: TargetPos1
     _valueType: 5
@@ -236,7 +254,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::UnityAnimationGraph.Sample.SampleMoveLocalPositionNode
   _nodeId: 4845ed8b33d14f938a3596ad53090352
   _graphPosition: {x: 457, y: 94}
-  _nextNodeIds: []
+  _nextNodeIds:
+  - 36dfbe67cf934019afb9e87d1d16e299
   _targetKey: MoveTarget
   _duration: 2
   _delay: 0

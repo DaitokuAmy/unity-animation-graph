@@ -292,6 +292,16 @@ namespace UnityAnimationGraph.Tests {
     /// </summary>
     internal sealed class TestAnimationGraphContext : IAnimationGraphContext {
         private readonly Dictionary<string, object> _blackboardValues = new(StringComparer.Ordinal);
+        private readonly Dictionary<string, Component> _targets = new(StringComparer.Ordinal);
+
+        /// <summary>
+        /// target Component を設定
+        /// </summary>
+        /// <param name="key">Target キー</param>
+        /// <param name="target">設定する target</param>
+        public void SetTarget(string key, Component target) {
+            _targets[key] = target;
+        }
 
         /// <summary>
         /// bool Blackboard 値を設定
@@ -358,11 +368,20 @@ namespace UnityAnimationGraph.Tests {
 
         /// <inheritdoc/>
         public T GetTarget<T>(string key) where T : Component {
+            if (TryGetTarget<T>(key, out var target)) {
+                return target;
+            }
+
             throw new InvalidOperationException($"Target '{key}' is not registered");
         }
 
         /// <inheritdoc/>
         public bool TryGetTarget<T>(string key, out T target) where T : Component {
+            if (_targets.TryGetValue(key, out var component) && component is T typedTarget) {
+                target = typedTarget;
+                return true;
+            }
+
             target = null;
             return false;
         }
@@ -454,6 +473,10 @@ namespace UnityAnimationGraph.Tests {
 
         /// <summary>Evaluate が呼ばれた回数</summary>
         public int EvaluateCount { get; private set; }
+        /// <summary>BeginPlayback が呼ばれた回数</summary>
+        public int BeginPlaybackCount { get; private set; }
+        /// <summary>EndPlayback が呼ばれた回数</summary>
+        public int EndPlaybackCount { get; private set; }
         /// <summary>Cancel が呼ばれた回数</summary>
         public int CancelCount { get; private set; }
         /// <summary>最後に渡された localTime</summary>
@@ -462,6 +485,10 @@ namespace UnityAnimationGraph.Tests {
         public float LastDuration { get; private set; }
         /// <summary>最後に渡された seed</summary>
         public int LastSeed { get; private set; }
+        /// <summary>最後に BeginPlayback に渡された seed</summary>
+        public int LastBeginPlaybackSeed { get; private set; }
+        /// <summary>最後に EndPlayback に渡された seed</summary>
+        public int LastEndPlaybackSeed { get; private set; }
         /// <summary>最後に Cancel に渡された seed</summary>
         public int LastCancelSeed { get; private set; }
 
@@ -486,11 +513,23 @@ namespace UnityAnimationGraph.Tests {
         }
 
         /// <inheritdoc/>
+        protected override void BeginPlayback(int seed, IAnimationGraphContext context) {
+            BeginPlaybackCount++;
+            LastBeginPlaybackSeed = seed;
+        }
+
+        /// <inheritdoc/>
         protected override void Evaluate(int seed, float localTime, float calculatedDuration, IAnimationGraphContext context) {
             EvaluateCount++;
             LastSeed = seed;
             LastLocalTime = localTime;
             LastDuration = calculatedDuration;
+        }
+
+        /// <inheritdoc/>
+        protected override void EndPlayback(int seed, IAnimationGraphContext context) {
+            EndPlaybackCount++;
+            LastEndPlaybackSeed = seed;
         }
 
         /// <inheritdoc/>
