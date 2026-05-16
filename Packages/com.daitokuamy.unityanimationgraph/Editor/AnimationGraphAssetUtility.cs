@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using UnityEditor;
 using UnityEngine;
 
@@ -29,6 +30,24 @@ namespace UnityAnimationGraph.Editor {
         private const string TargetDefinitionsPropertyName = "_targetDefinitions";
         /// <summary>AnimationGraphAsset の Blackboard 定義配列フィールド名</summary>
         private const string BlackboardDefinitionsPropertyName = "_blackboardDefinitions";
+        /// <summary>schema 定義の key フィールド名</summary>
+        private const string KeyPropertyName = "_key";
+        /// <summary>Blackboard 定義の value type フィールド名</summary>
+        private const string ValueTypePropertyName = "_valueType";
+        /// <summary>Blackboard 定義の bool default value フィールド名</summary>
+        private const string DefaultBoolValuePropertyName = "_defaultBoolValue";
+        /// <summary>Blackboard 定義の int default value フィールド名</summary>
+        private const string DefaultIntValuePropertyName = "_defaultIntValue";
+        /// <summary>Blackboard 定義の float default value フィールド名</summary>
+        private const string DefaultFloatValuePropertyName = "_defaultFloatValue";
+        /// <summary>Blackboard 定義の string default value フィールド名</summary>
+        private const string DefaultStringValuePropertyName = "_defaultStringValue";
+        /// <summary>Blackboard 定義の Vector2 default value フィールド名</summary>
+        private const string DefaultVector2ValuePropertyName = "_defaultVector2Value";
+        /// <summary>Blackboard 定義の Vector3 default value フィールド名</summary>
+        private const string DefaultVector3ValuePropertyName = "_defaultVector3Value";
+        /// <summary>Blackboard 定義の Color default value フィールド名</summary>
+        private const string DefaultColorValuePropertyName = "_defaultColorValue";
 
         /// <summary>
         /// AnimationGraphAsset を初期状態に戻す
@@ -128,6 +147,25 @@ namespace UnityAnimationGraph.Editor {
             }
 
             return node;
+        }
+
+        /// <summary>
+        /// Node のエディタ上の位置を設定
+        /// </summary>
+        /// <param name="node">設定対象の Node</param>
+        /// <param name="graphPosition">エディタ上のノード位置</param>
+        public static void SetNodeGraphPosition(Node node, Vector2 graphPosition) {
+            if (node == null) {
+                throw new ArgumentNullException(nameof(node));
+            }
+
+            var undoName = "Set Animation Graph Node Position";
+            Undo.RecordObject(node, undoName);
+
+            var serializedNode = new SerializedObject(node);
+            serializedNode.FindProperty(GraphPositionPropertyName).vector2Value = graphPosition;
+            serializedNode.ApplyModifiedProperties();
+            EditorUtility.SetDirty(node);
         }
 
         /// <summary>
@@ -252,6 +290,62 @@ namespace UnityAnimationGraph.Editor {
         }
 
         /// <summary>
+        /// AnimationGraphAsset の target 定義を設定
+        /// </summary>
+        /// <param name="graphAsset">設定対象の AnimationGraphAsset</param>
+        /// <param name="definitions">設定する target 定義一覧</param>
+        public static void SetTargetDefinitions(AnimationGraphAsset graphAsset, IReadOnlyList<AnimationGraphTargetDefinition> definitions) {
+            if (graphAsset == null) {
+                throw new ArgumentNullException(nameof(graphAsset));
+            }
+
+            if (definitions == null) {
+                throw new ArgumentNullException(nameof(definitions));
+            }
+
+            var undoName = "Set Animation Graph Target Definitions";
+            Undo.RecordObject(graphAsset, undoName);
+
+            var serializedGraph = new SerializedObject(graphAsset);
+            var definitionsProperty = serializedGraph.FindProperty(TargetDefinitionsPropertyName);
+            definitionsProperty.arraySize = definitions.Count;
+            for (var i = 0; i < definitions.Count; i++) {
+                definitionsProperty.GetArrayElementAtIndex(i).FindPropertyRelative(KeyPropertyName).stringValue = definitions[i].Key;
+            }
+
+            serializedGraph.ApplyModifiedProperties();
+            EditorUtility.SetDirty(graphAsset);
+        }
+
+        /// <summary>
+        /// AnimationGraphAsset の Blackboard 定義を設定
+        /// </summary>
+        /// <param name="graphAsset">設定対象の AnimationGraphAsset</param>
+        /// <param name="definitions">設定する Blackboard 定義一覧</param>
+        public static void SetBlackboardDefinitions(AnimationGraphAsset graphAsset, IReadOnlyList<AnimationGraphBlackboardDefinition> definitions) {
+            if (graphAsset == null) {
+                throw new ArgumentNullException(nameof(graphAsset));
+            }
+
+            if (definitions == null) {
+                throw new ArgumentNullException(nameof(definitions));
+            }
+
+            var undoName = "Set Animation Graph Blackboard Definitions";
+            Undo.RecordObject(graphAsset, undoName);
+
+            var serializedGraph = new SerializedObject(graphAsset);
+            var definitionsProperty = serializedGraph.FindProperty(BlackboardDefinitionsPropertyName);
+            definitionsProperty.arraySize = definitions.Count;
+            for (var i = 0; i < definitions.Count; i++) {
+                SetBlackboardDefinitionProperty(definitionsProperty.GetArrayElementAtIndex(i), definitions[i]);
+            }
+
+            serializedGraph.ApplyModifiedProperties();
+            EditorUtility.SetDirty(graphAsset);
+        }
+
+        /// <summary>
         /// AnimationGraphAsset 内で一意なノード ID を生成
         /// </summary>
         /// <param name="graphAsset">生成先の AnimationGraphAsset</param>
@@ -286,6 +380,23 @@ namespace UnityAnimationGraph.Editor {
             }
 
             serializedNode.ApplyModifiedPropertiesWithoutUndo();
+        }
+
+        /// <summary>
+        /// Blackboard 定義の SerializedProperty に値を設定
+        /// </summary>
+        /// <param name="definitionProperty">設定対象の SerializedProperty</param>
+        /// <param name="definition">設定する Blackboard 定義</param>
+        private static void SetBlackboardDefinitionProperty(SerializedProperty definitionProperty, AnimationGraphBlackboardDefinition definition) {
+            definitionProperty.FindPropertyRelative(KeyPropertyName).stringValue = definition.Key;
+            definitionProperty.FindPropertyRelative(ValueTypePropertyName).enumValueIndex = (int)definition.ValueType;
+            definitionProperty.FindPropertyRelative(DefaultBoolValuePropertyName).boolValue = definition.DefaultBoolValue;
+            definitionProperty.FindPropertyRelative(DefaultIntValuePropertyName).intValue = definition.DefaultIntValue;
+            definitionProperty.FindPropertyRelative(DefaultFloatValuePropertyName).floatValue = definition.DefaultFloatValue;
+            definitionProperty.FindPropertyRelative(DefaultStringValuePropertyName).stringValue = definition.DefaultStringValue;
+            definitionProperty.FindPropertyRelative(DefaultVector2ValuePropertyName).vector2Value = definition.DefaultVector2Value;
+            definitionProperty.FindPropertyRelative(DefaultVector3ValuePropertyName).vector3Value = definition.DefaultVector3Value;
+            definitionProperty.FindPropertyRelative(DefaultColorValuePropertyName).colorValue = definition.DefaultColorValue;
         }
 
         /// <summary>
