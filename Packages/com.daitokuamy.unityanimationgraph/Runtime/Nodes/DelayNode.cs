@@ -1,14 +1,16 @@
 using UnityEngine;
+using UnityEngine.Scripting.APIUpdating;
 
 namespace UnityAnimationGraph {
     /// <summary>
-    /// 待機後に後続ノードへ流すルートノード
+    /// Node that waits for a configured delay before continuing to the next nodes.
     /// </summary>
-    public sealed class RouteNode : ControlNode {
-        [SerializeField, Min(0.0f), Tooltip("後続ノードへ進む前の待機時間")]
+    [MovedFrom(true, "UnityAnimationGraph", "UnityAnimationGraph", "RouteNode")]
+    public sealed class DelayNode : ControlNode {
+        [SerializeField, Min(0.0f), Tooltip("Delay before continuing to next nodes")]
         private float _delay;
 
-        /// <summary>後続ノードへ進む前の待機時間</summary>
+        /// <summary>Delay before continuing to next nodes.</summary>
         public float Delay => Mathf.Max(0.0f, _delay);
 
         /// <inheritdoc/>

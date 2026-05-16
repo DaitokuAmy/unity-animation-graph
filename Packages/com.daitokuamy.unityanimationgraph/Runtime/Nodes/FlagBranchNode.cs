@@ -6,10 +6,15 @@ namespace UnityAnimationGraph {
     /// bool フラグの値に応じて進行先を選ぶ分岐ノード
     /// </summary>
     public sealed class FlagBranchNode : BranchNode {
-        [SerializeField, Tooltip("判定に使うフラグキー")]
+        [SerializeField, AnimationGraphBlackboardKey(AnimationGraphValueType.Bool), Tooltip("判定に使うフラグキー")]
         private string _flagKey = string.Empty;
         [SerializeField, Tooltip("true 側へ進む期待値")]
         private bool _expectedValue = true;
+
+        /// <summary>判定に使うフラグキー</summary>
+        public string FlagKey => _flagKey;
+        /// <summary>true 側へ進む期待値</summary>
+        public bool ExpectedValue => _expectedValue;
 
         /// <inheritdoc/>
         protected override bool EvaluateConditionInternal(int seed, IAnimationGraphContext context) {

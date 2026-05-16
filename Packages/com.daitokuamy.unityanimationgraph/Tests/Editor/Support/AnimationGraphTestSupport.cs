@@ -16,16 +16,20 @@ namespace UnityAnimationGraph.Tests {
         private const string NextNodeIdsPropertyName = "_nextNodeIds";
         /// <summary>BranchNode の false 側後続ノード ID フィールド名</summary>
         private const string FalseNodeIdsPropertyName = "_falseNodeIds";
-        /// <summary>RepeatNode の合計実行回数フィールド名</summary>
-        private const string RepeatCountPropertyName = "_repeatCount";
-        /// <summary>RepeatNode の戻り先ノード ID フィールド名</summary>
-        private const string RepeatNodeIdPropertyName = "_repeatNodeId";
+        /// <summary>DelayNode の待機時間フィールド名</summary>
+        private const string DelayPropertyName = "_delay";
+        /// <summary>LoopNode の実行回数フィールド名</summary>
+        private const string LoopCountPropertyName = "_loopCount";
+        /// <summary>LoopNode のループ内容ノード ID フィールド名</summary>
+        private const string LoopNodeIdsPropertyName = "_loopNodeIds";
         /// <summary>JoinNode の合流方法フィールド名</summary>
         private const string JoinTypePropertyName = "_joinType";
         /// <summary>AnimationGraphAsset の asset GUID フィールド名</summary>
         private const string AssetGuidPropertyName = "_assetGuid";
         /// <summary>AnimationGraphAsset のグラフシードフィールド名</summary>
         private const string GraphSeedPropertyName = "_graphSeed";
+        /// <summary>AnimationGraphAsset のランダムシードフィールド名</summary>
+        private const string RandomSeedPropertyName = "_randomSeed";
         /// <summary>AnimationGraphAsset の開始ノード ID フィールド名</summary>
         private const string StartNodeIdPropertyName = "_startNodeId";
         /// <summary>AnimationGraphAsset のノード配列フィールド名</summary>
@@ -36,6 +40,8 @@ namespace UnityAnimationGraph.Tests {
         private const string BlackboardDefinitionsPropertyName = "_blackboardDefinitions";
         /// <summary>schema 定義の key フィールド名</summary>
         private const string KeyPropertyName = "_key";
+        /// <summary>target 定義の MonoScript GUID フィールド名</summary>
+        private const string MonoScriptGuidPropertyName = "_monoScriptGuid";
         /// <summary>Blackboard 定義の value type フィールド名</summary>
         private const string ValueTypePropertyName = "_valueType";
         /// <summary>Blackboard 定義の bool default value フィールド名</summary>
@@ -69,6 +75,7 @@ namespace UnityAnimationGraph.Tests {
             var serializedGraph = new SerializedObject(graphAsset);
             serializedGraph.FindProperty(AssetGuidPropertyName).stringValue = Guid.NewGuid().ToString("N");
             serializedGraph.FindProperty(GraphSeedPropertyName).intValue = 12345;
+            serializedGraph.FindProperty(RandomSeedPropertyName).boolValue = false;
             serializedGraph.FindProperty(StartNodeIdPropertyName).stringValue = startNodeId;
             var nodesProperty = serializedGraph.FindProperty(NodesPropertyName);
             nodesProperty.arraySize = nodes.Length;
@@ -81,6 +88,17 @@ namespace UnityAnimationGraph.Tests {
         }
 
         /// <summary>
+        /// AnimationGraphAsset の RandomSeed 設定を更新
+        /// </summary>
+        /// <param name="graphAsset">設定対象の AnimationGraphAsset</param>
+        /// <param name="randomSeed">RandomSeed を有効にする場合は true</param>
+        public void SetRandomSeed(AnimationGraphAsset graphAsset, bool randomSeed) {
+            var serializedGraph = new SerializedObject(graphAsset);
+            serializedGraph.FindProperty(RandomSeedPropertyName).boolValue = randomSeed;
+            serializedGraph.ApplyModifiedPropertiesWithoutUndo();
+        }
+
+        /// <summary>
         /// AnimationGraphAsset の target 定義を設定
         /// </summary>
         /// <param name="graphAsset">設定対象の AnimationGraphAsset</param>
@@ -90,7 +108,27 @@ namespace UnityAnimationGraph.Tests {
             var definitionsProperty = serializedGraph.FindProperty(TargetDefinitionsPropertyName);
             definitionsProperty.arraySize = keys.Length;
             for (var i = 0; i < keys.Length; i++) {
-                definitionsProperty.GetArrayElementAtIndex(i).FindPropertyRelative(KeyPropertyName).stringValue = keys[i];
+                var definitionProperty = definitionsProperty.GetArrayElementAtIndex(i);
+                definitionProperty.FindPropertyRelative(KeyPropertyName).stringValue = keys[i];
+                definitionProperty.FindPropertyRelative(MonoScriptGuidPropertyName).stringValue = string.Empty;
+            }
+
+            serializedGraph.ApplyModifiedPropertiesWithoutUndo();
+        }
+
+        /// <summary>
+        /// AnimationGraphAsset の target 定義を設定
+        /// </summary>
+        /// <param name="graphAsset">設定対象の AnimationGraphAsset</param>
+        /// <param name="definitions">設定する target 定義一覧</param>
+        public void SetTargetDefinitions(AnimationGraphAsset graphAsset, params AnimationGraphTargetDefinition[] definitions) {
+            var serializedGraph = new SerializedObject(graphAsset);
+            var definitionsProperty = serializedGraph.FindProperty(TargetDefinitionsPropertyName);
+            definitionsProperty.arraySize = definitions.Length;
+            for (var i = 0; i < definitions.Length; i++) {
+                var definitionProperty = definitionsProperty.GetArrayElementAtIndex(i);
+                definitionProperty.FindPropertyRelative(KeyPropertyName).stringValue = definitions[i].Key;
+                definitionProperty.FindPropertyRelative(MonoScriptGuidPropertyName).stringValue = definitions[i].MonoScriptGuid;
             }
 
             serializedGraph.ApplyModifiedPropertiesWithoutUndo();
@@ -171,15 +209,26 @@ namespace UnityAnimationGraph.Tests {
         }
 
         /// <summary>
-        /// RepeatNode の設定を更新
+        /// DelayNode の待機時間を設定
         /// </summary>
-        /// <param name="repeatNode">設定対象 RepeatNode</param>
-        /// <param name="repeatCount">合計実行回数</param>
-        /// <param name="repeatNodeId">戻り先ノード ID</param>
-        public void SetRepeat(RepeatNode repeatNode, int repeatCount, string repeatNodeId) {
-            var serializedNode = new SerializedObject(repeatNode);
-            serializedNode.FindProperty(RepeatCountPropertyName).intValue = repeatCount;
-            serializedNode.FindProperty(RepeatNodeIdPropertyName).stringValue = repeatNodeId;
+        /// <param name="delayNode">設定対象 DelayNode</param>
+        /// <param name="delay">待機時間</param>
+        public void SetDelay(DelayNode delayNode, float delay) {
+            var serializedNode = new SerializedObject(delayNode);
+            serializedNode.FindProperty(DelayPropertyName).floatValue = delay;
+            serializedNode.ApplyModifiedPropertiesWithoutUndo();
+        }
+
+        /// <summary>
+        /// LoopNode の設定を更新
+        /// </summary>
+        /// <param name="loopNode">設定対象 LoopNode</param>
+        /// <param name="loopCount">ループ実行回数</param>
+        /// <param name="loopNodeIds">ループ内容ノード ID 一覧</param>
+        public void SetLoop(LoopNode loopNode, int loopCount, params string[] loopNodeIds) {
+            var serializedNode = new SerializedObject(loopNode);
+            serializedNode.FindProperty(LoopCountPropertyName).intValue = loopCount;
+            SetStringArray(serializedNode.FindProperty(LoopNodeIdsPropertyName), loopNodeIds);
             serializedNode.ApplyModifiedPropertiesWithoutUndo();
         }
 
@@ -218,8 +267,8 @@ namespace UnityAnimationGraph.Tests {
                 SetStringArray(serializedNode.FindProperty(FalseNodeIdsPropertyName), Array.Empty<string>());
             }
 
-            if (node is RepeatNode) {
-                serializedNode.FindProperty(RepeatNodeIdPropertyName).stringValue = string.Empty;
+            if (node is LoopNode) {
+                SetStringArray(serializedNode.FindProperty(LoopNodeIdsPropertyName), Array.Empty<string>());
             }
 
             serializedNode.ApplyModifiedPropertiesWithoutUndo();

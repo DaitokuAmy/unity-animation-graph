@@ -12,6 +12,8 @@ namespace UnityAnimationGraph {
         private string _assetGuid = string.Empty;
         [SerializeField, Tooltip("ノード評価に使用するグラフ全体のシード"), HideInInspector]
         private int _graphSeed;
+        [SerializeField, Tooltip("グラフシードをランダムに生成するか"), HideInInspector]
+        private bool _randomSeed;
         [SerializeField, Tooltip("再生開始に使用する StartNode の ID"), HideInInspector]
         private string _startNodeId = string.Empty;
         [SerializeField, Tooltip("グラフに含まれるノード一覧"), HideInInspector]
@@ -24,7 +26,9 @@ namespace UnityAnimationGraph {
         /// <summary>GraphAsset の asset GUID</summary>
         public string AssetGuid => _assetGuid ?? string.Empty;
         /// <summary>グラフ全体のシード</summary>
-        public int GraphSeed => _graphSeed;
+        public int GraphSeed => _randomSeed ? CreateRandomSeed() : _graphSeed;
+        /// <summary>グラフシードをランダムに生成するか</summary>
+        public bool RandomSeed => _randomSeed;
         /// <summary>開始ノード ID</summary>
         public string StartNodeId => _startNodeId;
         /// <summary>グラフに含まれるノード一覧</summary>
@@ -222,6 +226,10 @@ namespace UnityAnimationGraph {
 
             value = default;
             return false;
+        }
+
+        private static int CreateRandomSeed() {
+            return BitConverter.ToInt32(Guid.NewGuid().ToByteArray(), 0);
         }
     }
 }

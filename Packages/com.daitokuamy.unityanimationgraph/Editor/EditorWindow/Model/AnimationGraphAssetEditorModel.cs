@@ -7,6 +7,46 @@ namespace UnityAnimationGraph.Editor {
     /// Editor MVP の Model として AnimationGraphAsset の編集操作を提供するクラス
     /// </summary>
     public sealed class AnimationGraphAssetEditorModel {
+        /// <summary>
+        /// Preview 中の Node 実行情報を集計する構造体
+        /// </summary>
+        private struct PreviewExecutionInfoBuilder {
+            private int _executionCount;
+            private float _minDelay;
+            private float _maxDelay;
+            private float _minDuration;
+            private float _maxDuration;
+
+            /// <summary>
+            /// ScheduledNode の情報を追加
+            /// </summary>
+            /// <param name="scheduledNode">追加する ScheduledNode</param>
+            public void Add(ScheduledNode scheduledNode) {
+                if (_executionCount == 0) {
+                    _minDelay = scheduledNode.Delay;
+                    _maxDelay = scheduledNode.Delay;
+                    _minDuration = scheduledNode.Duration;
+                    _maxDuration = scheduledNode.Duration;
+                }
+                else {
+                    _minDelay = Mathf.Min(_minDelay, scheduledNode.Delay);
+                    _maxDelay = Mathf.Max(_maxDelay, scheduledNode.Delay);
+                    _minDuration = Mathf.Min(_minDuration, scheduledNode.Duration);
+                    _maxDuration = Mathf.Max(_maxDuration, scheduledNode.Duration);
+                }
+
+                _executionCount++;
+            }
+
+            /// <summary>
+            /// NodePreviewExecutionInfo に変換
+            /// </summary>
+            /// <returns>集計した NodePreviewExecutionInfo</returns>
+            public NodePreviewExecutionInfo ToPreviewExecutionInfo() {
+                return new NodePreviewExecutionInfo(_executionCount, _minDelay, _maxDelay, _minDuration, _maxDuration);
+            }
+        }
+
         private readonly List<NodeEditorModel> _nodes = new();
         private readonly Dictionary<string, NodeEditorModel> _nodeModelsById = new();
 
@@ -16,6 +56,8 @@ namespace UnityAnimationGraph.Editor {
         public AnimationGraphAsset GraphAsset => _graphAsset;
         /// <summary>操作対象の AnimationGraphAsset が設定済みの場合は true</summary>
         public bool HasGraphAsset => _graphAsset != null;
+        /// <summary>操作対象の AnimationGraphAsset に有効な StartNode がある場合は true</summary>
+        public bool HasStartNode => _graphAsset != null && !string.IsNullOrEmpty(_graphAsset.StartNodeId) && _graphAsset.TryGetNode(_graphAsset.StartNodeId, out var node) && node is StartNode;
         /// <summary>開始ノード ID</summary>
         public string StartNodeId => _graphAsset?.StartNodeId ?? string.Empty;
         /// <summary>GraphAsset に含まれるノード Model 一覧</summary>
@@ -82,6 +124,98 @@ namespace UnityAnimationGraph.Editor {
         }
 
         /// <summary>
+        /// 操作対象の AnimationGraphAsset から複数ノードを削除
+        /// </summary>
+        /// <param name="nodeModels">削除するノード Model 一覧</param>
+        public void RemoveNodes(IReadOnlyList<NodeEditorModel> nodeModels) {
+            if (nodeModels == null) {
+                throw new ArgumentNullException(nameof(nodeModels));
+            }
+
+            for (var i = nodeModels.Count - 1; i >= 0; i--) {
+                var nodeModel = nodeModels[i];
+                if (nodeModel == null || !CanRemoveNode(nodeModel)) {
+                    continue;
+                }
+
+                RemoveNode(nodeModel);
+            }
+        }
+
+        /// <summary>
+        /// 操作対象の AnimationGraphAsset に複数ノードを複製して追加
+        /// </summary>
+        /// <param name="nodeModels">複製するノード Model 一覧</param>
+        /// <param name="offset">複製先座標に加算する offset</param>
+        /// <returns>複製したノード Model 一覧</returns>
+        public IReadOnlyList<NodeEditorModel> DuplicateNodes(IReadOnlyList<NodeEditorModel> nodeModels, Vector2 offset) {
+            if (nodeModels == null) {
+                throw new ArgumentNullException(nameof(nodeModels));
+            }
+
+            var sourceNodeModels = new List<NodeEditorModel>();
+            var duplicatedNodeModels = new List<NodeEditorModel>();
+            var duplicatedNodeModelsBySourceId = new Dictionary<string, NodeEditorModel>();
+            for (var i = 0; i < nodeModels.Count; i++) {
+                var sourceNodeModel = nodeModels[i];
+                if (sourceNodeModel == null || !CanDuplicateNode(sourceNodeModel) || duplicatedNodeModelsBySourceId.ContainsKey(sourceNodeModel.NodeId)) {
+                    continue;
+                }
+
+                var duplicatedNode = AnimationGraphAssetUtility.DuplicateNode(RequireGraphAsset(), sourceNodeModel.Node, sourceNodeModel.GraphPosition + offset);
+                var duplicatedNodeModel = GetOrAddNodeModel(duplicatedNode);
+                sourceNodeModels.Add(sourceNodeModel);
+                duplicatedNodeModels.Add(duplicatedNodeModel);
+                duplicatedNodeModelsBySourceId.Add(sourceNodeModel.NodeId, duplicatedNodeModel);
+            }
+
+            for (var i = 0; i < sourceNodeModels.Count; i++) {
+                var sourceNodeModel = sourceNodeModels[i];
+                var duplicatedNextNodeIds = new List<string>();
+                var nextNodeIds = sourceNodeModel.NextNodeIds;
+                for (var j = 0; j < nextNodeIds.Count; j++) {
+                    if (!duplicatedNodeModelsBySourceId.TryGetValue(nextNodeIds[j], out var duplicatedNextNodeModel)) {
+                        continue;
+                    }
+
+                    duplicatedNextNodeIds.Add(duplicatedNextNodeModel.NodeId);
+                }
+
+                duplicatedNodeModels[i].SetNextNodeIds(duplicatedNextNodeIds);
+
+                if (sourceNodeModel is BranchNodeEditorModel sourceBranchNodeModel && duplicatedNodeModels[i] is BranchNodeEditorModel duplicatedBranchNodeModel) {
+                    var duplicatedFalseNodeIds = new List<string>();
+                    var falseNodeIds = sourceBranchNodeModel.FalseNodeIds;
+                    for (var j = 0; j < falseNodeIds.Count; j++) {
+                        if (!duplicatedNodeModelsBySourceId.TryGetValue(falseNodeIds[j], out var duplicatedFalseNodeModel)) {
+                            continue;
+                        }
+
+                        duplicatedFalseNodeIds.Add(duplicatedFalseNodeModel.NodeId);
+                    }
+
+                    duplicatedBranchNodeModel.SetFalseNodeIds(duplicatedFalseNodeIds);
+                }
+
+                if (sourceNodeModel is LoopNodeEditorModel sourceLoopNodeModel && duplicatedNodeModels[i] is LoopNodeEditorModel duplicatedLoopNodeModel) {
+                    var duplicatedLoopNodeIds = new List<string>();
+                    var loopNodeIds = sourceLoopNodeModel.LoopNodeIds;
+                    for (var j = 0; j < loopNodeIds.Count; j++) {
+                        if (!duplicatedNodeModelsBySourceId.TryGetValue(loopNodeIds[j], out var duplicatedLoopTargetNodeModel)) {
+                            continue;
+                        }
+
+                        duplicatedLoopNodeIds.Add(duplicatedLoopTargetNodeModel.NodeId);
+                    }
+
+                    duplicatedLoopNodeModel.SetLoopNodeIds(duplicatedLoopNodeIds);
+                }
+            }
+
+            return duplicatedNodeModels;
+        }
+
+        /// <summary>
         /// GraphAsset の現在状態からノード Model 一覧を再構築
         /// </summary>
         public void RefreshNodes() {
@@ -100,12 +234,51 @@ namespace UnityAnimationGraph.Editor {
                 }
 
                 if (!previousNodeModelsById.TryGetValue(node.NodeId, out var nodeModel) || nodeModel.Node != node) {
-                    nodeModel = new NodeEditorModel(node);
+                    nodeModel = NodeEditorModel.Create(node);
                 }
 
                 _nodes.Add(nodeModel);
                 _nodeModelsById.Add(node.NodeId, nodeModel);
             }
+        }
+
+        /// <summary>
+        /// Preview 中の schedule から Node 実行情報を反映
+        /// </summary>
+        /// <param name="previewSchedule">Preview 中の schedule。null の場合は Preview 情報を消去</param>
+        /// <returns>Node 表示情報が変化した場合は true</returns>
+        public bool SetPreviewSchedule(AnimationGraphSchedule previewSchedule) {
+            var previewInfoBuildersByNodeId = new Dictionary<string, PreviewExecutionInfoBuilder>();
+            if (previewSchedule != null) {
+                var scheduledNodes = previewSchedule.Nodes;
+                for (var i = 0; i < scheduledNodes.Count; i++) {
+                    var scheduledNode = scheduledNodes[i];
+                    var node = scheduledNode.Node;
+                    if (node == null || string.IsNullOrEmpty(node.NodeId)) {
+                        continue;
+                    }
+
+                    if (!previewInfoBuildersByNodeId.TryGetValue(node.NodeId, out var builder)) {
+                        builder = default;
+                    }
+
+                    builder.Add(scheduledNode);
+                    previewInfoBuildersByNodeId[node.NodeId] = builder;
+                }
+            }
+
+            var changed = false;
+            for (var i = 0; i < _nodes.Count; i++) {
+                var nodeModel = _nodes[i];
+                if (previewInfoBuildersByNodeId.TryGetValue(nodeModel.NodeId, out var builder)) {
+                    changed |= nodeModel.SetPreviewExecutionInfo(builder.ToPreviewExecutionInfo());
+                    continue;
+                }
+
+                changed |= nodeModel.ClearPreviewExecutionInfo();
+            }
+
+            return changed;
         }
 
         /// <summary>
@@ -138,6 +311,173 @@ namespace UnityAnimationGraph.Editor {
         /// <param name="definitions">設定する Blackboard 定義一覧</param>
         public void SetBlackboardDefinitions(IReadOnlyList<AnimationGraphBlackboardDefinition> definitions) {
             AnimationGraphAssetUtility.SetBlackboardDefinitions(RequireGraphAsset(), definitions);
+        }
+
+        /// <summary>
+        /// 指定したノード同士を後続ノードとして接続
+        /// </summary>
+        /// <param name="sourceNodeModel">接続元ノード Model</param>
+        /// <param name="targetNodeModel">接続先ノード Model</param>
+        /// <param name="errorMessage">接続できない理由</param>
+        /// <returns>接続できた場合は true</returns>
+        public bool Connect(NodeEditorModel sourceNodeModel, NodeEditorModel targetNodeModel, out string errorMessage) {
+            return Connect(AnimationGraphOutputPortKind.Next, sourceNodeModel, targetNodeModel, out errorMessage);
+        }
+
+        /// <summary>
+        /// 指定した output port から後続ノードへ接続
+        /// </summary>
+        /// <param name="outputPortKind">接続元 output port 種別</param>
+        /// <param name="sourceNodeModel">接続元ノード Model</param>
+        /// <param name="targetNodeModel">接続先ノード Model</param>
+        /// <param name="errorMessage">接続できない理由</param>
+        /// <returns>接続できた場合は true</returns>
+        internal bool Connect(AnimationGraphOutputPortKind outputPortKind, NodeEditorModel sourceNodeModel, NodeEditorModel targetNodeModel, out string errorMessage) {
+            if (!CanConnect(outputPortKind, sourceNodeModel, targetNodeModel, out errorMessage)) {
+                return false;
+            }
+
+            AddUnownedNodeToConnectedLoop(outputPortKind, sourceNodeModel, targetNodeModel);
+            var nodeIds = new List<string>(GetConnectedNodeIds(sourceNodeModel, outputPortKind)) {
+                targetNodeModel.NodeId,
+            };
+            SetConnectedNodeIds(sourceNodeModel, outputPortKind, nodeIds);
+            return true;
+        }
+
+        /// <summary>
+        /// 指定したノード同士の後続ノード接続を解除
+        /// </summary>
+        /// <param name="sourceNodeModel">接続元ノード Model</param>
+        /// <param name="targetNodeModel">接続先ノード Model</param>
+        /// <returns>接続解除できた場合は true</returns>
+        public bool Disconnect(NodeEditorModel sourceNodeModel, NodeEditorModel targetNodeModel) {
+            return Disconnect(AnimationGraphOutputPortKind.Next, sourceNodeModel, targetNodeModel);
+        }
+
+        /// <summary>
+        /// 指定した output port の接続を解除
+        /// </summary>
+        /// <param name="outputPortKind">接続元 output port 種別</param>
+        /// <param name="sourceNodeModel">接続元ノード Model</param>
+        /// <param name="targetNodeModel">接続先ノード Model</param>
+        /// <returns>接続解除できた場合は true</returns>
+        internal bool Disconnect(AnimationGraphOutputPortKind outputPortKind, NodeEditorModel sourceNodeModel, NodeEditorModel targetNodeModel) {
+            if (sourceNodeModel == null) {
+                throw new ArgumentNullException(nameof(sourceNodeModel));
+            }
+
+            if (targetNodeModel == null) {
+                throw new ArgumentNullException(nameof(targetNodeModel));
+            }
+
+            var nodeIds = GetConnectedNodeIds(sourceNodeModel, outputPortKind);
+            var nodeIdsWithoutTarget = new List<string>();
+            var removed = false;
+            for (var i = 0; i < nodeIds.Count; i++) {
+                if (nodeIds[i] == targetNodeModel.NodeId) {
+                    removed = true;
+                    continue;
+                }
+
+                nodeIdsWithoutTarget.Add(nodeIds[i]);
+            }
+
+            if (!removed) {
+                return false;
+            }
+
+            SetConnectedNodeIds(sourceNodeModel, outputPortKind, nodeIdsWithoutTarget);
+            return true;
+        }
+
+        /// <summary>
+        /// 指定したノード同士を接続できるかを判定
+        /// </summary>
+        /// <param name="sourceNodeModel">接続元ノード Model</param>
+        /// <param name="targetNodeModel">接続先ノード Model</param>
+        /// <param name="errorMessage">接続できない理由</param>
+        /// <returns>接続できる場合は true</returns>
+        public bool CanConnect(NodeEditorModel sourceNodeModel, NodeEditorModel targetNodeModel, out string errorMessage) {
+            return CanConnect(AnimationGraphOutputPortKind.Next, sourceNodeModel, targetNodeModel, out errorMessage);
+        }
+
+        /// <summary>
+        /// 指定した output port から接続できるかを判定
+        /// </summary>
+        /// <param name="outputPortKind">接続元 output port 種別</param>
+        /// <param name="sourceNodeModel">接続元ノード Model</param>
+        /// <param name="targetNodeModel">接続先ノード Model</param>
+        /// <param name="errorMessage">接続できない理由</param>
+        /// <returns>接続できる場合は true</returns>
+        internal bool CanConnect(AnimationGraphOutputPortKind outputPortKind, NodeEditorModel sourceNodeModel, NodeEditorModel targetNodeModel, out string errorMessage) {
+            if (sourceNodeModel == null) {
+                throw new ArgumentNullException(nameof(sourceNodeModel));
+            }
+
+            if (targetNodeModel == null) {
+                throw new ArgumentNullException(nameof(targetNodeModel));
+            }
+
+            if (!ContainsNode(sourceNodeModel) || !ContainsNode(targetNodeModel)) {
+                errorMessage = "Node is not contained in AnimationGraphAsset";
+                return false;
+            }
+
+            if (sourceNodeModel.NodeId == targetNodeModel.NodeId) {
+                errorMessage = "Self-loop connection is not allowed";
+                return false;
+            }
+
+            if (targetNodeModel.NodeType == typeof(StartNode)) {
+                errorMessage = "StartNode cannot receive input connections";
+                return false;
+            }
+
+            if (!CanUseOutputPort(sourceNodeModel, outputPortKind)) {
+                errorMessage = "Output port is not available for this node";
+                return false;
+            }
+
+            var nodeIds = GetConnectedNodeIds(sourceNodeModel, outputPortKind);
+            for (var i = 0; i < nodeIds.Count; i++) {
+                if (nodeIds[i] != targetNodeModel.NodeId) {
+                    continue;
+                }
+
+                errorMessage = "Duplicate connection is not allowed";
+                return false;
+            }
+
+            if (!CanConnectLoopScope(outputPortKind, sourceNodeModel, targetNodeModel, out errorMessage)) {
+                return false;
+            }
+
+            if (HasPath(targetNodeModel.NodeId, sourceNodeModel.NodeId)) {
+                errorMessage = "Cycle connection is not allowed";
+                return false;
+            }
+
+            errorMessage = string.Empty;
+            return true;
+        }
+
+        /// <summary>
+        /// 指定したノードを削除できるかを判定
+        /// </summary>
+        /// <param name="nodeModel">判定するノード Model</param>
+        /// <returns>削除できる場合は true</returns>
+        public bool CanRemoveNode(NodeEditorModel nodeModel) {
+            return nodeModel != null && nodeModel.NodeId != StartNodeId && ContainsNode(nodeModel);
+        }
+
+        /// <summary>
+        /// 指定したノードを複製できるかを判定
+        /// </summary>
+        /// <param name="nodeModel">判定するノード Model</param>
+        /// <returns>複製できる場合は true</returns>
+        public bool CanDuplicateNode(NodeEditorModel nodeModel) {
+            return CanRemoveNode(nodeModel);
         }
 
         /// <summary>
@@ -179,7 +519,7 @@ namespace UnityAnimationGraph.Editor {
                 RemoveNodeModel(nodeModel, node.NodeId);
             }
 
-            nodeModel = new NodeEditorModel(node);
+            nodeModel = NodeEditorModel.Create(node);
             _nodes.Add(nodeModel);
             _nodeModelsById.Add(node.NodeId, nodeModel);
             return nodeModel;
@@ -201,6 +541,322 @@ namespace UnityAnimationGraph.Editor {
                 _nodes.RemoveAt(i);
                 return;
             }
+        }
+
+        /// <summary>
+        /// 指定したノード Model が GraphAsset に含まれるかを判定
+        /// </summary>
+        /// <param name="nodeModel">判定するノード Model</param>
+        /// <returns>GraphAsset に含まれる場合は true</returns>
+        private bool ContainsNode(NodeEditorModel nodeModel) {
+            return nodeModel != null && _graphAsset != null && _graphAsset.TryGetNode(nodeModel.NodeId, out var node) && node == nodeModel.Node;
+        }
+
+        /// <summary>
+        /// 指定した output port を利用できるかを判定
+        /// </summary>
+        /// <param name="nodeModel">判定するノード Model</param>
+        /// <param name="outputPortKind">判定する output port 種別</param>
+        /// <returns>利用できる場合は true</returns>
+        private static bool CanUseOutputPort(NodeEditorModel nodeModel, AnimationGraphOutputPortKind outputPortKind) {
+            return outputPortKind switch {
+                AnimationGraphOutputPortKind.Next => true,
+                AnimationGraphOutputPortKind.False => nodeModel is BranchNodeEditorModel,
+                AnimationGraphOutputPortKind.Loop => nodeModel is LoopNodeEditorModel,
+                _ => false,
+            };
+        }
+
+        /// <summary>
+        /// LoopNode の内外をまたぐ接続でないかを判定
+        /// </summary>
+        /// <param name="outputPortKind">接続元 output port 種別</param>
+        /// <param name="sourceNodeModel">接続元ノード Model</param>
+        /// <param name="targetNodeModel">接続先ノード Model</param>
+        /// <param name="errorMessage">接続できない理由</param>
+        /// <returns>接続できる場合は true</returns>
+        private bool CanConnectLoopScope(AnimationGraphOutputPortKind outputPortKind, NodeEditorModel sourceNodeModel, NodeEditorModel targetNodeModel, out string errorMessage) {
+            var sourceLoopOwner = FindLoopOwner(sourceNodeModel.NodeId);
+            var targetLoopOwner = FindLoopOwner(targetNodeModel.NodeId);
+            if (outputPortKind == AnimationGraphOutputPortKind.Loop) {
+                if (targetLoopOwner != null && targetLoopOwner.NodeId != sourceNodeModel.NodeId) {
+                    errorMessage = "Node is already contained in another LoopNode";
+                    return false;
+                }
+
+                if (!CanAddNodeToLoop((LoopNodeEditorModel)sourceNodeModel, targetNodeModel, out errorMessage)) {
+                    return false;
+                }
+
+                errorMessage = string.Empty;
+                return true;
+            }
+
+            if (sourceLoopOwner != null && targetLoopOwner == null) {
+                if (!CanAddNodeToLoop(sourceLoopOwner, targetNodeModel, out errorMessage)) {
+                    return false;
+                }
+
+                errorMessage = string.Empty;
+                return true;
+            }
+
+            if (targetLoopOwner != null && sourceLoopOwner == null) {
+                if (!CanAddNodeToLoop(targetLoopOwner, sourceNodeModel, out errorMessage)) {
+                    return false;
+                }
+
+                errorMessage = string.Empty;
+                return true;
+            }
+
+            if (sourceLoopOwner != null && targetLoopOwner.NodeId != sourceLoopOwner.NodeId) {
+                errorMessage = "Loop body node cannot connect outside its LoopNode";
+                return false;
+            }
+
+            if (targetLoopOwner != null && sourceLoopOwner.NodeId != targetLoopOwner.NodeId) {
+                errorMessage = "Loop body node cannot receive connections from outside its LoopNode";
+                return false;
+            }
+
+            errorMessage = string.Empty;
+            return true;
+        }
+
+        /// <summary>
+        /// 指定したノードを LoopNode に追加できるかを判定
+        /// </summary>
+        /// <param name="loopNodeModel">追加先の LoopNodeEditorModel</param>
+        /// <param name="targetNodeModel">追加するノード Model</param>
+        /// <param name="errorMessage">追加できない理由</param>
+        /// <returns>追加できる場合は true</returns>
+        private bool CanAddNodeToLoop(LoopNodeEditorModel loopNodeModel, NodeEditorModel targetNodeModel, out string errorMessage) {
+            if (targetNodeModel.NodeType == typeof(StartNode)) {
+                errorMessage = "LoopNode cannot contain StartNode";
+                return false;
+            }
+
+            if (targetNodeModel.NodeId == loopNodeModel.NodeId) {
+                errorMessage = "LoopNode cannot contain itself";
+                return false;
+            }
+
+            var prospectiveLoopNodeIds = new HashSet<string>(loopNodeModel.LoopNodeIds, StringComparer.Ordinal);
+            prospectiveLoopNodeIds.Add(targetNodeModel.NodeId);
+
+            var targetConnectedNodeIds = GetPhysicalConnectedNodeIds(targetNodeModel);
+            for (var i = 0; i < targetConnectedNodeIds.Count; i++) {
+                if (prospectiveLoopNodeIds.Contains(targetConnectedNodeIds[i])) {
+                    continue;
+                }
+
+                errorMessage = "Loop body node already connects outside its LoopNode";
+                return false;
+            }
+
+            for (var i = 0; i < _nodes.Count; i++) {
+                var sourceNodeModel = _nodes[i];
+                if (prospectiveLoopNodeIds.Contains(sourceNodeModel.NodeId)) {
+                    continue;
+                }
+
+                var connectedNodeIds = GetPhysicalConnectedNodeIds(sourceNodeModel);
+                for (var j = 0; j < connectedNodeIds.Count; j++) {
+                    if (connectedNodeIds[j] != targetNodeModel.NodeId) {
+                        continue;
+                    }
+
+                    errorMessage = "Loop body node already receives connections from outside its LoopNode";
+                    return false;
+                }
+            }
+
+            errorMessage = string.Empty;
+            return true;
+        }
+
+        /// <summary>
+        /// 通常接続で LoopNode の内外をまたぐ場合に未所属側を同じ LoopNode へ追加
+        /// </summary>
+        /// <param name="outputPortKind">接続元 output port 種別</param>
+        /// <param name="sourceNodeModel">接続元ノード Model</param>
+        /// <param name="targetNodeModel">接続先ノード Model</param>
+        private void AddUnownedNodeToConnectedLoop(AnimationGraphOutputPortKind outputPortKind, NodeEditorModel sourceNodeModel, NodeEditorModel targetNodeModel) {
+            if (outputPortKind == AnimationGraphOutputPortKind.Loop) {
+                return;
+            }
+
+            var sourceLoopOwner = FindLoopOwner(sourceNodeModel.NodeId);
+            var targetLoopOwner = FindLoopOwner(targetNodeModel.NodeId);
+            if (sourceLoopOwner != null && targetLoopOwner == null) {
+                AddNodeToLoop(sourceLoopOwner, targetNodeModel);
+                return;
+            }
+
+            if (targetLoopOwner != null && sourceLoopOwner == null) {
+                AddNodeToLoop(targetLoopOwner, sourceNodeModel);
+            }
+        }
+
+        /// <summary>
+        /// 指定した LoopNode にノードを追加
+        /// </summary>
+        /// <param name="loopNodeModel">追加先の LoopNodeEditorModel</param>
+        /// <param name="nodeModel">追加するノード Model</param>
+        private static void AddNodeToLoop(LoopNodeEditorModel loopNodeModel, NodeEditorModel nodeModel) {
+            var loopNodeIds = new List<string>(loopNodeModel.LoopNodeIds);
+            for (var i = 0; i < loopNodeIds.Count; i++) {
+                if (loopNodeIds[i] == nodeModel.NodeId) {
+                    return;
+                }
+            }
+
+            loopNodeIds.Add(nodeModel.NodeId);
+            loopNodeModel.SetLoopNodeIds(loopNodeIds);
+        }
+
+        /// <summary>
+        /// 指定したノードが所属する LoopNode を取得
+        /// </summary>
+        /// <param name="nodeId">所属を調べるノード ID</param>
+        /// <returns>所属する LoopNodeEditorModel</returns>
+        private LoopNodeEditorModel FindLoopOwner(string nodeId) {
+            for (var i = 0; i < _nodes.Count; i++) {
+                if (_nodes[i] is not LoopNodeEditorModel loopNodeModel) {
+                    continue;
+                }
+
+                var loopNodeIds = loopNodeModel.LoopNodeIds;
+                for (var j = 0; j < loopNodeIds.Count; j++) {
+                    if (loopNodeIds[j] == nodeId) {
+                        return loopNodeModel;
+                    }
+                }
+            }
+
+            return null;
+        }
+
+        /// <summary>
+        /// 指定した output port の接続先ノード ID 一覧を取得
+        /// </summary>
+        /// <param name="nodeModel">接続元ノード Model</param>
+        /// <param name="outputPortKind">取得する output port 種別</param>
+        /// <returns>接続先ノード ID 一覧</returns>
+        private static IReadOnlyList<string> GetConnectedNodeIds(NodeEditorModel nodeModel, AnimationGraphOutputPortKind outputPortKind) {
+            return outputPortKind switch {
+                AnimationGraphOutputPortKind.Next => nodeModel.NextNodeIds,
+                AnimationGraphOutputPortKind.False when nodeModel is BranchNodeEditorModel branchNodeModel => branchNodeModel.FalseNodeIds,
+                AnimationGraphOutputPortKind.Loop when nodeModel is LoopNodeEditorModel loopNodeModel => loopNodeModel.LoopNodeIds,
+                _ => Array.Empty<string>(),
+            };
+        }
+
+        /// <summary>
+        /// LoopNode の所有関係を除いた物理接続先ノード ID 一覧を取得
+        /// </summary>
+        /// <param name="nodeModel">接続元ノード Model</param>
+        /// <returns>物理接続先ノード ID 一覧</returns>
+        private static IReadOnlyList<string> GetPhysicalConnectedNodeIds(NodeEditorModel nodeModel) {
+            var nodeIds = new List<string>();
+            var nextNodeIds = nodeModel.NextNodeIds;
+            for (var i = 0; i < nextNodeIds.Count; i++) {
+                nodeIds.Add(nextNodeIds[i]);
+            }
+
+            if (nodeModel is BranchNodeEditorModel branchNodeModel) {
+                var falseNodeIds = branchNodeModel.FalseNodeIds;
+                for (var i = 0; i < falseNodeIds.Count; i++) {
+                    nodeIds.Add(falseNodeIds[i]);
+                }
+            }
+
+            return nodeIds;
+        }
+
+        /// <summary>
+        /// 指定した output port の接続先ノード ID 一覧を設定
+        /// </summary>
+        /// <param name="nodeModel">接続元ノード Model</param>
+        /// <param name="outputPortKind">設定する output port 種別</param>
+        /// <param name="nodeIds">設定する接続先ノード ID 一覧</param>
+        private static void SetConnectedNodeIds(NodeEditorModel nodeModel, AnimationGraphOutputPortKind outputPortKind, IReadOnlyList<string> nodeIds) {
+            switch (outputPortKind) {
+                case AnimationGraphOutputPortKind.Next:
+                    nodeModel.SetNextNodeIds(nodeIds);
+                    break;
+                case AnimationGraphOutputPortKind.False:
+                    ((BranchNodeEditorModel)nodeModel).SetFalseNodeIds(nodeIds);
+                    break;
+                case AnimationGraphOutputPortKind.Loop:
+                    ((LoopNodeEditorModel)nodeModel).SetLoopNodeIds(nodeIds);
+                    break;
+            }
+        }
+
+        /// <summary>
+        /// 指定したノード ID から target node ID へ到達できるかを判定
+        /// </summary>
+        /// <param name="startNodeId">探索開始ノード ID</param>
+        /// <param name="targetNodeId">到達判定するノード ID</param>
+        /// <returns>到達できる場合は true</returns>
+        private bool HasPath(string startNodeId, string targetNodeId) {
+            var visitedNodeIds = new HashSet<string>();
+            var nodeIdsToVisit = new Stack<string>();
+            nodeIdsToVisit.Push(startNodeId);
+
+            while (nodeIdsToVisit.Count > 0) {
+                var nodeId = nodeIdsToVisit.Pop();
+                if (!visitedNodeIds.Add(nodeId)) {
+                    continue;
+                }
+
+                if (!_graphAsset.TryGetNode(nodeId, out var node)) {
+                    continue;
+                }
+
+                var nextNodeIds = GetConnectedNodeIds(node);
+                for (var i = 0; i < nextNodeIds.Count; i++) {
+                    var nextNodeId = nextNodeIds[i];
+                    if (nextNodeId == targetNodeId) {
+                        return true;
+                    }
+
+                    nodeIdsToVisit.Push(nextNodeId);
+                }
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// ノードから辿れる接続先ノード ID 一覧を取得
+        /// </summary>
+        /// <param name="node">接続元ノード</param>
+        /// <returns>接続先ノード ID 一覧</returns>
+        private static IReadOnlyList<string> GetConnectedNodeIds(Node node) {
+            var nodeIds = new List<string>();
+            var nextNodeIds = node.NextNodeIds;
+            for (var i = 0; i < nextNodeIds.Count; i++) {
+                nodeIds.Add(nextNodeIds[i]);
+            }
+
+            if (node is BranchNode branchNode) {
+                var falseNodeIds = branchNode.FalseNodeIds;
+                for (var i = 0; i < falseNodeIds.Count; i++) {
+                    nodeIds.Add(falseNodeIds[i]);
+                }
+            }
+
+            if (node is LoopNode loopNode) {
+                var loopNodeIds = loopNode.LoopNodeIds;
+                for (var i = 0; i < loopNodeIds.Count; i++) {
+                    nodeIds.Add(loopNodeIds[i]);
+                }
+            }
+
+            return nodeIds;
         }
 
         /// <summary>

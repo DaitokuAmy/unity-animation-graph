@@ -192,5 +192,30 @@ namespace UnityAnimationGraph.Tests {
                 Object.DestroyImmediate(secondTargetObject);
             }
         }
+
+        /// <summary>
+        /// target binding は target 定義の MonoScript GUID を保持する
+        /// </summary>
+        [Test]
+        public void SetGraph_CopiesTargetDefinitionMonoScriptGuidToBinding() {
+            using var builder = new AnimationGraphTestBuilder();
+            var startNode = builder.CreateStartNode("start");
+            var graphAsset = builder.CreateGraph("start", startNode);
+            var monoScriptGuid = "11111111111111111111111111111111";
+            builder.SetTargetDefinitions(graphAsset, new AnimationGraphTargetDefinition("actor", monoScriptGuid));
+            var gameObject = new GameObject("AnimationGraphRunnerTest");
+
+            try {
+                var runner = gameObject.AddComponent<AnimationGraphRunner>();
+                runner.GraphAsset = graphAsset;
+
+                Assert.That(runner.TargetBindings.Count, Is.EqualTo(1));
+                Assert.That(runner.TargetBindings[0].Key, Is.EqualTo("actor"));
+                Assert.That(runner.TargetBindings[0].MonoScriptGuid, Is.EqualTo(monoScriptGuid));
+            }
+            finally {
+                Object.DestroyImmediate(gameObject);
+            }
+        }
     }
 }

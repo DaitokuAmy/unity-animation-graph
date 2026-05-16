@@ -80,14 +80,14 @@ namespace UnityAnimationGraph.Tests {
             model.SetGraphAsset(graphAsset);
             model.InitializeGraph(Vector2.zero);
 
-            var node = model.AddNode<RouteNode>(nodePosition);
+            var node = model.AddNode<DelayNode>(nodePosition);
 
-            Assert.That(node.NodeType, Is.EqualTo(typeof(RouteNode)));
+            Assert.That(node.NodeType, Is.EqualTo(typeof(DelayNode)));
             Assert.That(node.GraphPosition, Is.EqualTo(nodePosition));
             Assert.That(model.Nodes.Count, Is.EqualTo(2));
             Assert.IsTrue(model.TryGetNode(node.NodeId, out var foundNode));
             Assert.That(foundNode.NodeId, Is.EqualTo(node.NodeId));
-            Assert.That(foundNode.NodeType, Is.EqualTo(typeof(RouteNode)));
+            Assert.That(foundNode.NodeType, Is.EqualTo(typeof(DelayNode)));
         }
 
         /// <summary>
@@ -106,12 +106,12 @@ namespace UnityAnimationGraph.Tests {
             Assert.IsTrue(model.TryGetNode(startNode.NodeId, out var foundStartNode));
             Assert.That(foundStartNode, Is.SameAs(startNode));
 
-            var routeNode = model.AddNode<RouteNode>(Vector2.zero);
-            var routeNodeFromNodes = model.Nodes[1];
+            var delayNode = model.AddNode<DelayNode>(Vector2.zero);
+            var delayNodeFromNodes = model.Nodes[1];
 
-            Assert.That(routeNodeFromNodes, Is.SameAs(routeNode));
-            Assert.IsTrue(model.TryGetNode(routeNode.NodeId, out var foundRouteNode));
-            Assert.That(foundRouteNode, Is.SameAs(routeNode));
+            Assert.That(delayNodeFromNodes, Is.SameAs(delayNode));
+            Assert.IsTrue(model.TryGetNode(delayNode.NodeId, out var foundDelayNode));
+            Assert.That(foundDelayNode, Is.SameAs(delayNode));
         }
 
         /// <summary>
@@ -124,7 +124,7 @@ namespace UnityAnimationGraph.Tests {
             var nextPosition = new Vector2(90.0f, 12.0f);
             model.SetGraphAsset(graphAsset);
             model.InitializeGraph(Vector2.zero);
-            var node = model.AddNode<RouteNode>(Vector2.zero);
+            var node = model.AddNode<DelayNode>(Vector2.zero);
 
             node.SetGraphPosition(nextPosition);
 
@@ -142,7 +142,7 @@ namespace UnityAnimationGraph.Tests {
             var model = new AnimationGraphAssetEditorModel();
             model.SetGraphAsset(graphAsset);
             model.InitializeGraph(Vector2.zero);
-            var node = model.AddNode<RouteNode>(Vector2.zero);
+            var node = model.AddNode<DelayNode>(Vector2.zero);
             var nodeId = node.NodeId;
 
             model.RemoveNode(node);
@@ -152,21 +152,146 @@ namespace UnityAnimationGraph.Tests {
         }
 
         /// <summary>
+        /// NextNodeIds ベースの接続を追加削除できる
+        /// </summary>
+        [Test]
+        public void Connect_UpdatesNextNodeIds() {
+            var graphAsset = CreateSavedGraphAsset();
+            var model = new AnimationGraphAssetEditorModel();
+            model.SetGraphAsset(graphAsset);
+            var startNode = model.InitializeGraph(Vector2.zero);
+            var delayNode = model.AddNode<DelayNode>(Vector2.right);
+
+            Assert.IsTrue(model.Connect(startNode, delayNode, out var errorMessage));
+            Assert.That(errorMessage, Is.EqualTo(string.Empty));
+            Assert.That(startNode.NextNodeIds.Count, Is.EqualTo(1));
+            Assert.That(startNode.NextNodeIds[0], Is.EqualTo(delayNode.NodeId));
+
+            Assert.IsTrue(model.Disconnect(startNode, delayNode));
+            Assert.That(startNode.NextNodeIds, Is.Empty);
+        }
+
+        /// <summary>
+        /// 重複接続、self-loop、cycle は接続できない
+        /// </summary>
+        [Test]
+        public void Connect_PreventsDuplicateSelfLoopAndCycle() {
+            var graphAsset = CreateSavedGraphAsset();
+            var model = new AnimationGraphAssetEditorModel();
+            model.SetGraphAsset(graphAsset);
+            var startNode = model.InitializeGraph(Vector2.zero);
+            var firstNode = model.AddNode<DelayNode>(Vector2.right);
+            var secondNode = model.AddNode<DelayNode>(Vector2.right * 2.0f);
+
+            Assert.IsTrue(model.Connect(startNode, firstNode, out _));
+            Assert.IsFalse(model.Connect(startNode, firstNode, out var duplicateErrorMessage));
+            Assert.That(duplicateErrorMessage, Is.EqualTo("Duplicate connection is not allowed"));
+
+            Assert.IsFalse(model.Connect(firstNode, firstNode, out var selfLoopErrorMessage));
+            Assert.That(selfLoopErrorMessage, Is.EqualTo("Self-loop connection is not allowed"));
+
+            Assert.IsFalse(model.Connect(firstNode, startNode, out var cycleErrorMessage));
+            Assert.That(cycleErrorMessage, Is.EqualTo("Cycle connection is not allowed"));
+
+            Assert.IsTrue(model.Connect(firstNode, secondNode, out _));
+        }
+
+        /// <summary>
+        /// LoopNode に所属する ActionNode から未所属 ActionNode へ接続すると接続先も LoopNode に所属する
+        /// </summary>
+        [Test]
+        public void Connect_AddsNextActionNodeToLoopWhenSourceIsLoopBody() {
+            var graphAsset = CreateSavedGraphAsset();
+            var model = new AnimationGraphAssetEditorModel();
+            model.SetGraphAsset(graphAsset);
+            model.InitializeGraph(Vector2.zero);
+            var loopNodeModel = model.AddNode<LoopNode>(Vector2.right);
+            var bodyNodeModel = model.AddNode<TestActionNode>(Vector2.right * 2.0f);
+            var nextNodeModel = model.AddNode<TestActionNode>(Vector2.right * 3.0f);
+            Assert.IsTrue(graphAsset.TryGetNode(loopNodeModel.NodeId, out var loopNode));
+            AnimationGraphAssetUtility.SetLoopNodeIds((LoopNode)loopNode, new[] { bodyNodeModel.NodeId });
+            model.RefreshNodes();
+
+            Assert.IsTrue(model.Connect(bodyNodeModel, nextNodeModel, out var errorMessage));
+
+            Assert.That(errorMessage, Is.EqualTo(string.Empty));
+            Assert.That(bodyNodeModel.NextNodeIds.Count, Is.EqualTo(1));
+            Assert.That(bodyNodeModel.NextNodeIds[0], Is.EqualTo(nextNodeModel.NodeId));
+            Assert.That(((LoopNode)loopNode).LoopNodeIds.Count, Is.EqualTo(2));
+            Assert.That(((LoopNode)loopNode).LoopNodeIds[0], Is.EqualTo(bodyNodeModel.NodeId));
+            Assert.That(((LoopNode)loopNode).LoopNodeIds[1], Is.EqualTo(nextNodeModel.NodeId));
+        }
+
+        /// <summary>
+        /// LoopNode に取り込むと既存接続がループ外へ出るノードは接続できない
+        /// </summary>
+        [Test]
+        public void Connect_PreventsAddingLoopBodyNodeWithOutsideConnections() {
+            var graphAsset = CreateSavedGraphAsset();
+            var model = new AnimationGraphAssetEditorModel();
+            model.SetGraphAsset(graphAsset);
+            model.InitializeGraph(Vector2.zero);
+            var loopNodeModel = model.AddNode<LoopNode>(Vector2.right);
+            var bodyNodeModel = model.AddNode<DelayNode>(Vector2.right * 2.0f);
+            var candidateNodeModel = model.AddNode<DelayNode>(Vector2.right * 3.0f);
+            var outsideNodeModel = model.AddNode<DelayNode>(Vector2.right * 4.0f);
+            Assert.IsTrue(graphAsset.TryGetNode(loopNodeModel.NodeId, out var loopNode));
+            Assert.IsTrue(model.Connect(candidateNodeModel, outsideNodeModel, out _));
+            AnimationGraphAssetUtility.SetLoopNodeIds((LoopNode)loopNode, new[] { bodyNodeModel.NodeId });
+            model.RefreshNodes();
+
+            Assert.IsFalse(model.Connect(bodyNodeModel, candidateNodeModel, out var errorMessage));
+
+            Assert.That(errorMessage, Is.EqualTo("Loop body node already connects outside its LoopNode"));
+            Assert.That(((LoopNode)loopNode).LoopNodeIds.Count, Is.EqualTo(1));
+            Assert.That(((LoopNode)loopNode).LoopNodeIds[0], Is.EqualTo(bodyNodeModel.NodeId));
+        }
+
+        /// <summary>
+        /// 複数ノードを複製すると選択内の接続も複製される
+        /// </summary>
+        [Test]
+        public void DuplicateNodes_DuplicatesNodesAndInternalConnections() {
+            var graphAsset = CreateSavedGraphAsset();
+            var model = new AnimationGraphAssetEditorModel();
+            var offset = new Vector2(20.0f, 30.0f);
+            model.SetGraphAsset(graphAsset);
+            model.InitializeGraph(Vector2.zero);
+            var firstNode = model.AddNode<DelayNode>(new Vector2(10.0f, 20.0f));
+            var secondNode = model.AddNode<DelayNode>(new Vector2(30.0f, 40.0f));
+            model.Connect(firstNode, secondNode, out _);
+
+            var duplicatedNodes = model.DuplicateNodes(new[] { firstNode, secondNode }, offset);
+
+            Assert.That(duplicatedNodes.Count, Is.EqualTo(2));
+            Assert.That(duplicatedNodes[0].NodeId, Is.Not.EqualTo(firstNode.NodeId));
+            Assert.That(duplicatedNodes[1].NodeId, Is.Not.EqualTo(secondNode.NodeId));
+            Assert.That(duplicatedNodes[0].GraphPosition, Is.EqualTo(firstNode.GraphPosition + offset));
+            Assert.That(duplicatedNodes[1].GraphPosition, Is.EqualTo(secondNode.GraphPosition + offset));
+            Assert.That(duplicatedNodes[0].NextNodeIds.Count, Is.EqualTo(1));
+            Assert.That(duplicatedNodes[0].NextNodeIds[0], Is.EqualTo(duplicatedNodes[1].NodeId));
+        }
+
+        /// <summary>
         /// GraphAsset の target 定義を serialized property 経由で更新できる
         /// </summary>
         [Test]
         public void SetTargetDefinitions_UpdatesGraphAssetDefinitions() {
             var graphAsset = CreateSavedGraphAsset();
             var model = new AnimationGraphAssetEditorModel();
+            var actorScriptGuid = "11111111111111111111111111111111";
+            var cameraScriptGuid = "22222222222222222222222222222222";
             model.SetGraphAsset(graphAsset);
 
-            model.SetTargetDefinitions(new AnimationGraphTargetDefinition("actor"), new AnimationGraphTargetDefinition("camera"));
+            model.SetTargetDefinitions(new AnimationGraphTargetDefinition("actor", actorScriptGuid), new AnimationGraphTargetDefinition("camera", cameraScriptGuid));
 
             Assert.That(model.TargetDefinitions.Count, Is.EqualTo(2));
             Assert.IsTrue(graphAsset.TryGetTargetDefinition("actor", out var actorDefinition));
             Assert.That(actorDefinition.Key, Is.EqualTo("actor"));
+            Assert.That(actorDefinition.MonoScriptGuid, Is.EqualTo(actorScriptGuid));
             Assert.IsTrue(graphAsset.TryGetTargetDefinition("camera", out var cameraDefinition));
             Assert.That(cameraDefinition.Key, Is.EqualTo("camera"));
+            Assert.That(cameraDefinition.MonoScriptGuid, Is.EqualTo(cameraScriptGuid));
 
             model.SetTargetDefinitions(new AnimationGraphTargetDefinition("camera"));
 
@@ -207,7 +332,7 @@ namespace UnityAnimationGraph.Tests {
         public void AddNode_ThrowsWhenGraphAssetIsNotSet() {
             var model = new AnimationGraphAssetEditorModel();
 
-            Assert.Throws<InvalidOperationException>(() => model.AddNode<RouteNode>(Vector2.zero));
+            Assert.Throws<InvalidOperationException>(() => model.AddNode<DelayNode>(Vector2.zero));
         }
 
         /// <summary>

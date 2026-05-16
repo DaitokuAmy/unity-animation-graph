@@ -9,9 +9,13 @@ namespace UnityAnimationGraph {
     public struct AnimationGraphTargetDefinition {
         [SerializeField, Tooltip("Runner が Component 参照を解決するための target key")]
         private string _key;
+        [SerializeField, Tooltip("target key が要求する MonoScript GUID または組み込み Component の予約 GUID")]
+        private string _monoScriptGuid;
 
         /// <summary>target key</summary>
         public string Key => _key ?? string.Empty;
+        /// <summary>target key が要求する MonoScript GUID または組み込み Component の予約 GUID</summary>
+        public string MonoScriptGuid => _monoScriptGuid ?? string.Empty;
 
         /// <summary>
         /// AnimationGraphTargetDefinition を生成
@@ -19,6 +23,17 @@ namespace UnityAnimationGraph {
         /// <param name="key">target key</param>
         public AnimationGraphTargetDefinition(string key) {
             _key = key ?? string.Empty;
+            _monoScriptGuid = string.Empty;
+        }
+
+        /// <summary>
+        /// AnimationGraphTargetDefinition を生成
+        /// </summary>
+        /// <param name="key">target key</param>
+        /// <param name="monoScriptGuid">target key が要求する MonoScript GUID または組み込み Component の予約 GUID</param>
+        public AnimationGraphTargetDefinition(string key, string monoScriptGuid) {
+            _key = key ?? string.Empty;
+            _monoScriptGuid = monoScriptGuid ?? string.Empty;
         }
     }
 }

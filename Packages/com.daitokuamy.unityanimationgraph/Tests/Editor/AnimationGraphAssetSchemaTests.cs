@@ -13,6 +13,8 @@ namespace UnityAnimationGraph.Tests {
         private const string BlackboardDefinitionsPropertyName = "_blackboardDefinitions";
         /// <summary>schema 定義の key フィールド名</summary>
         private const string KeyPropertyName = "_key";
+        /// <summary>target 定義の MonoScript GUID フィールド名</summary>
+        private const string MonoScriptGuidPropertyName = "_monoScriptGuid";
         /// <summary>Blackboard 定義の value type フィールド名</summary>
         private const string ValueTypePropertyName = "_valueType";
         /// <summary>Blackboard 定義の bool default value フィールド名</summary>
@@ -44,6 +46,7 @@ namespace UnityAnimationGraph.Tests {
 
                 Assert.IsTrue(result);
                 Assert.That(definition.Key, Is.EqualTo("camera"));
+                Assert.That(definition.MonoScriptGuid, Is.Empty);
                 Assert.IsFalse(graphAsset.TryGetTargetDefinition("missing", out _));
             }
             finally {
@@ -130,7 +133,9 @@ namespace UnityAnimationGraph.Tests {
             var definitionsProperty = serializedGraph.FindProperty(TargetDefinitionsPropertyName);
             definitionsProperty.arraySize = keys.Length;
             for (var i = 0; i < keys.Length; i++) {
-                definitionsProperty.GetArrayElementAtIndex(i).FindPropertyRelative(KeyPropertyName).stringValue = keys[i];
+                var definitionProperty = definitionsProperty.GetArrayElementAtIndex(i);
+                definitionProperty.FindPropertyRelative(KeyPropertyName).stringValue = keys[i];
+                definitionProperty.FindPropertyRelative(MonoScriptGuidPropertyName).stringValue = string.Empty;
             }
 
             serializedGraph.ApplyModifiedPropertiesWithoutUndo();

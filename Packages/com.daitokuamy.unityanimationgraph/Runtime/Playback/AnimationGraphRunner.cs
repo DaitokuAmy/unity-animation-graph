@@ -10,10 +10,12 @@ namespace UnityAnimationGraph {
     public sealed class AnimationGraphRunner : MonoBehaviour, IAnimationGraphContext {
         [SerializeField, Tooltip("再生する AnimationGraphAsset")]
         private AnimationGraphAsset _graphAsset;
-        [SerializeField, Tooltip("Awake 時に自動再生する場合は有効")]
-        private bool _playOnAwake;
+        [SerializeField, Tooltip("OnEnable 時に自動再生する場合は有効")]
+        private bool _playOnEnabled;
         [SerializeField, Tooltip("Update で自動的に再生時間を進める場合は有効")]
         private bool _tickAutomatically = true;
+        [SerializeField, Tooltip("逆方向に再生する場合は有効")]
+        private bool _inverse;
         [SerializeField, Tooltip("GraphAsset ごとに保持する target binding 一覧")]
         private AnimationGraphTargetBindingGroup[] _targetBindingGroups = Array.Empty<AnimationGraphTargetBindingGroup>();
 
@@ -30,16 +32,25 @@ namespace UnityAnimationGraph {
             set => SetGraph(value);
         }
 
-        /// <summary>Awake 時に自動再生する場合は true</summary>
-        public bool PlayOnAwake {
-            get => _playOnAwake;
-            set => _playOnAwake = value;
+        /// <summary>OnEnable 時に自動再生する場合は true</summary>
+        public bool PlayOnEnabled {
+            get => _playOnEnabled;
+            set => _playOnEnabled = value;
         }
 
         /// <summary>Update で自動的に再生時間を進める場合は true</summary>
         public bool TickAutomatically {
             get => _tickAutomatically;
             set => _tickAutomatically = value;
+        }
+
+        /// <summary>逆方向に再生する場合は true</summary>
+        public bool Inverse {
+            get => _inverse;
+            set {
+                _inverse = value;
+                _player.Inverse = value;
+            }
         }
 
         /// <summary>設定中の評価コンテキスト</summary>
@@ -393,7 +404,13 @@ namespace UnityAnimationGraph {
         /// </summary>
         private void Awake() {
             InitializePlayer();
-            if (_playOnAwake && _graphAsset != null) {
+        }
+
+        /// <summary>
+        /// Unity の有効化時に自動再生を開始
+        /// </summary>
+        private void OnEnable() {
+            if (_playOnEnabled && _graphAsset != null) {
                 Play();
             }
         }
@@ -431,6 +448,7 @@ namespace UnityAnimationGraph {
             }
 
             _player.SetContext(this);
+            _player.Inverse = _inverse;
             if (_graphAsset != null) {
                 _player.SetGraph(_graphAsset);
             }

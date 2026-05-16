@@ -188,9 +188,9 @@ public interface IAnimationGraphContext : IAnimationGraphBlackboard {
 Node
 |-- ControlNode
 |   |-- StartNode
-|   |-- RouteNode
+|   |-- DelayNode
 |   |-- JoinNode
-|   |-- RepeatNode
+|   |-- LoopNode
 |   `-- BranchNode
 `-- ActionNode
     |-- PropertyActionNode<T>
@@ -234,7 +234,7 @@ public interface INodeExecutor {
 
 Scheduler / Player がノードを評価するときは、すでに合成済みの `seed` を渡す。
 seed の合成では `string.GetHashCode()` を使わない。
-.NET / Unity の実行環境差やセッション差の影響を避けるため、FNV-1a などの決定的なハッシュ関数、または `Hash128` を使って graph seed、`NodeId`、repeat iteration などから安定した整数を作る。
+.NET / Unity の実行環境差やセッション差の影響を避けるため、FNV-1a などの決定的なハッシュ関数、または `Hash128` を使って graph seed、`NodeId`、loop iteration などから安定した整数を作る。
 
 `Node` は `INodeExecutor` を明示的に実装する。
 具象ノードからは protected abstract メソッドを override させ、executor API を `Node` の public surface には出さない。
@@ -263,14 +263,14 @@ protected 側は no-op を既定実装とし、キャンセル処理が必要な
 - delay は 0
 - グラフごとに原則 1 つだけ存在する
 
-#### RouteNode
+#### DelayNode
 
 - 後続ノードへ流すための制御点
 - `Delay` を持つ
 - delay は 0 以上にクランプする
 - `NextNodeIds` は 1 つ以上を許可する
 
-`NextNodeIds` による複数出力は `RouteNode` と `BranchNode` のみ許可する。
+`NextNodeIds` による複数出力は `DelayNode` と `BranchNode` のみ許可する。
 通常ノードや他の制御ノードに複数出力がある場合は build error とする。
 
 #### JoinNode
@@ -291,22 +291,22 @@ public enum JoinType {
 `JoinType.Any` は後続展開の開始を早めるだけで、すでにスケジュール済みの他ルートのアクションを自動キャンセルしない。
 キャンセルが必要な場合は、将来の cancellation node または lane policy として別途設計する。
 
-#### RepeatNode
+#### LoopNode
 
-- `RepeatCount` を持つ
-- `RepeatNodeId` を持つ
-- do-while 型の制御ノードとして扱う
-- RepeatNode に到達した時点で、まだ合計実行回数に達していなければ `RepeatNodeId` へ戻る
-- repeat iteration を seed に混ぜ、反復ごとの揺らぎを可能にする
+- `LoopCount` を持つ
+- `LoopNodeIds` を持つ
+- `LoopNodeIds` はループ内容に所属するノード ID 一覧として扱う
+- LoopNode に到達したら `LoopNodeIds` の内容を指定回数実行する
+- loop iteration を seed に混ぜ、反復ごとの揺らぎを可能にする
 - 無限ループは扱わない
 
-`RepeatCount` は 1 以上にクランプする。
-1 の場合、戻り先へは戻らず、RepeatNode の後続へ進む。
+`LoopCount` は 1 以上にクランプする。
+1 の場合、ループ内容を 1 回実行してから LoopNode の後続へ進む。
 
-`RepeatNode.NextNodeIds` は repeat 完了後の after-repeat として扱う。
-`RepeatNodeId` は単一の戻り先であり、並列に戻したい場合は戻り先に `RouteNode` を指定する。
-`RepeatNodeId` に自分自身の `NodeId` を指定した場合は build error とする。
-Scheduler は repeat scope 内の全経路が元の RepeatNode へ到達することを検証し、戻らない経路がある場合は build error とする。
+`LoopNode.NextNodeIds` は loop 完了後の after-loop として扱う。
+`LoopNodeIds` に含まれるノードは LoopNode の外側へ接続できない。
+LoopNode の外側から `LoopNodeIds` に含まれるノードへ通常接続する graph は build error とする。
+`LoopNodeIds` に自分自身の `NodeId` を含めた場合は build error とする。
 
 #### BranchNode
 
@@ -449,7 +449,7 @@ public sealed class AnimationGraphSchedule {
 - `currentPath` に再侵入した場合は cycle error とする
 - cycle error がある場合、schedule build は安全に中断する
 
-RepeatNode の `RepeatNodeId` は通常の DAG edge ではなく、Scheduler が有限回だけ展開する repeat edge として扱う。
+LoopNode の `LoopNodeIds` は通常の after edge ではなく、Scheduler が有限回だけ展開する loop scope として扱う。
 
 ### Serial Flow
 
@@ -487,21 +487,23 @@ Scheduler は到着時刻の早い順にノードを展開する。
 - JoinNode の start time は入力 end time の最小値
 - 遅れて到達する入力は後続展開には使わない
 
-### Repeat Flow
+### Loop Flow
 
-RepeatNode に到達したら、`RepeatCount` を body の合計実行回数として扱う。
-初回の body は RepeatNode に到達するまでにすでに実行済みとみなす。
+LoopNode に到達したら、`LoopCount` を body の合計実行回数として扱う。
+body は `LoopNodeIds` に含まれるノード集合として扱う。
+body 内で入力を持たないノードを iteration start node として展開する。
 
-repeat する場合:
+loop する場合:
 
-- `RepeatNodeId` を iteration start node として展開する
-- iteration は RepeatNode に再到達した時点で終了する
-- selected path が RepeatNode に戻らない場合は build error とする
-- 次 iteration は前 iteration の RepeatNode end time から始める
+- `LoopNodeIds` の node set を独立した schedule scope として展開する
+- iteration は body scope 内のすべての到達可能ノードが終了した時点で終了する
+- body node が LoopNode の外側へ接続する場合は build error とする
+- LoopNode の外側から body node へ通常接続する場合は build error とする
+- 次 iteration は前 iteration の body scope end time から始める
 - seed に iteration index を混ぜる
 
-RepeatNode の後続ノードは、全 repeat iteration の終了後に展開する。
-Repeat body は iteration ごとに独立した schedule scope として扱い、JoinNode の到着状態と BranchNode の判定は iteration ごとに分離する。
+LoopNode の後続ノードは、全 loop iteration の終了後に展開する。
+Loop body は iteration ごとに独立した schedule scope として扱い、JoinNode の到着状態と BranchNode の判定は iteration ごとに分離する。
 
 ### Branch Flow
 
@@ -632,7 +634,7 @@ Editor 側は必要に応じて例外を捕捉し、UI 表示へ変換する。
 - JoinType.All の最大 end time 合流
 - JoinType.Any の最小 end time 合流
 - cycle detection
-- RepeatNode の inline expansion
+- LoopNode の inline expansion
 - BranchNode の true / false 選択
 - duration 0 node の評価
 - missing target の warning
@@ -655,13 +657,13 @@ Editor 側は次を確認する。
 6. EditorWindow + Presenter + GraphView skeleton
 7. Undo commit flow
 8. AnimationMode preview
-9. Repeat / Branch の UI
+9. Loop / Branch の UI
 10. PlayableDirector など component action node
 
 ## Open Questions
 
 - ノードの永続化を完全に managed reference にするか、ScriptableObject sub asset にするか
-- RepeatNode の戻り先 edge UI をどう表現するか
+- LoopNode の body edge UI をどう表現するか
 - BranchNode の条件指定モデルをどう表現するか
 - Runtime stop 時に変更値を復元するオプションを持つか
 - GraphView API を継続利用するか、将来の Graph Tools Foundation へ移行可能な抽象を置くか

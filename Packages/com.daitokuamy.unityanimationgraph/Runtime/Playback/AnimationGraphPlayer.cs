@@ -53,6 +53,8 @@ namespace UnityAnimationGraph {
         public float Duration => _schedule?.Duration ?? 0.0f;
         /// <summary>Tick の deltaTime に乗算する再生速度</summary>
         public float TimeScale { get; set; } = 1.0f;
+        /// <summary>逆方向へ再生する場合は true</summary>
+        public bool Inverse { get; set; }
 
         /// <summary>
         /// 再生する AnimationGraphAsset を設定
@@ -102,7 +104,10 @@ namespace UnityAnimationGraph {
         /// <returns>再生完了を待機する handle</returns>
         public AnimationGraphPlayHandle Play() {
             EnsureSchedule();
-            if (IsEndTime(_currentTime)) {
+            if (Inverse && IsStartTime(_currentTime)) {
+                _currentTime = Duration;
+            }
+            else if (!Inverse && IsEndTime(_currentTime)) {
                 _currentTime = 0.0f;
             }
 
@@ -144,7 +149,7 @@ namespace UnityAnimationGraph {
             EnsureSchedule();
             _currentTime = Mathf.Clamp(time, 0.0f, Duration);
             EvaluateCurrentTime(_currentTime, false, _currentTime);
-            if (_state == AnimationGraphPlayerState.Playing && IsEndTime(_currentTime)) {
+            if (_state == AnimationGraphPlayerState.Playing && IsPlaybackEndTime(_currentTime)) {
                 _state = AnimationGraphPlayerState.Stopped;
                 CompleteCurrentPlay(PlayStatus.Completed);
             }
@@ -162,9 +167,10 @@ namespace UnityAnimationGraph {
             EnsureSchedule();
             var previousTime = _currentTime;
             var scaledDeltaTime = Mathf.Max(0.0f, deltaTime * TimeScale);
-            _currentTime = Mathf.Clamp(_currentTime + scaledDeltaTime, 0.0f, Duration);
+            var signedDeltaTime = Inverse ? -scaledDeltaTime : scaledDeltaTime;
+            _currentTime = Mathf.Clamp(_currentTime + signedDeltaTime, 0.0f, Duration);
             EvaluateCurrentTime(_currentTime, true, previousTime);
-            if (IsEndTime(_currentTime)) {
+            if (IsPlaybackEndTime(_currentTime)) {
                 _state = AnimationGraphPlayerState.Stopped;
                 CompleteCurrentPlay(PlayStatus.Completed);
             }
@@ -281,22 +287,19 @@ namespace UnityAnimationGraph {
         /// 現在時刻の active node を評価
         /// </summary>
         /// <param name="currentTime">評価時刻</param>
-        /// <param name="includeCrossedInstantNodes">通過した duration 0 node も評価する場合は true</param>
+        /// <param name="includeCrossedNodes">通過した node の端時刻も評価する場合は true</param>
         /// <param name="previousTime">直前時刻</param>
-        private void EvaluateCurrentTime(float currentTime, bool includeCrossedInstantNodes, float previousTime) {
+        private void EvaluateCurrentTime(float currentTime, bool includeCrossedNodes, float previousTime) {
             _nextActiveScheduledNodes.Clear();
             var nodes = _schedule.Nodes;
-            for (var i = 0; i < nodes.Count; i++) {
-                var scheduledNode = nodes[i];
-                if (!IsActive(scheduledNode, currentTime, includeCrossedInstantNodes, previousTime)) {
-                    continue;
+            if (currentTime < previousTime - TimeComparisonEpsilon) {
+                for (var i = nodes.Count - 1; i >= 0; i--) {
+                    EvaluateScheduledNodeAtCurrentTime(nodes[i], currentTime, includeCrossedNodes, previousTime);
                 }
-
-                var executor = (INodeExecutor)scheduledNode.Node;
-                var localTime = CalculateLocalTime(scheduledNode, currentTime);
-                executor.Evaluate(scheduledNode.Seed, localTime, scheduledNode.Duration, _context);
-                if (scheduledNode.Duration > TimeComparisonEpsilon) {
-                    _nextActiveScheduledNodes.Add(scheduledNode);
+            }
+            else {
+                for (var i = 0; i < nodes.Count; i++) {
+                    EvaluateScheduledNodeAtCurrentTime(nodes[i], currentTime, includeCrossedNodes, previousTime);
                 }
             }
 
@@ -306,26 +309,93 @@ namespace UnityAnimationGraph {
         }
 
         /// <summary>
+        /// scheduled node を現在時刻または通過した端時刻で評価
+        /// </summary>
+        /// <param name="scheduledNode">評価対象の scheduled node</param>
+        /// <param name="currentTime">評価時刻</param>
+        /// <param name="includeCrossedNodes">通過した node の端時刻も評価する場合は true</param>
+        /// <param name="previousTime">直前時刻</param>
+        private void EvaluateScheduledNodeAtCurrentTime(ScheduledNode scheduledNode, float currentTime, bool includeCrossedNodes, float previousTime) {
+            if (IsActive(scheduledNode, currentTime, includeCrossedNodes, previousTime)) {
+                EvaluateScheduledNode(scheduledNode, CalculateLocalTime(scheduledNode, currentTime));
+                if (scheduledNode.Duration > TimeComparisonEpsilon) {
+                    _nextActiveScheduledNodes.Add(scheduledNode);
+                }
+
+                return;
+            }
+
+            if (IsCrossedEndTime(scheduledNode, currentTime, includeCrossedNodes, previousTime)) {
+                EvaluateScheduledNode(scheduledNode, scheduledNode.Duration);
+                return;
+            }
+
+            if (IsCrossedStartTime(scheduledNode, currentTime, includeCrossedNodes, previousTime)) {
+                EvaluateScheduledNode(scheduledNode, 0.0f);
+            }
+        }
+
+        /// <summary>
         /// 指定ノードが現在時刻で active か判定
         /// </summary>
         /// <param name="scheduledNode">判定対象の scheduled node</param>
         /// <param name="currentTime">判定時刻</param>
-        /// <param name="includeCrossedInstantNodes">通過した duration 0 node も評価する場合は true</param>
+        /// <param name="includeCrossedNodes">通過した node の端時刻も評価する場合は true</param>
         /// <param name="previousTime">直前時刻</param>
         /// <returns>active の場合は true</returns>
-        private bool IsActive(ScheduledNode scheduledNode, float currentTime, bool includeCrossedInstantNodes, float previousTime) {
+        private bool IsActive(ScheduledNode scheduledNode, float currentTime, bool includeCrossedNodes, float previousTime) {
             if (scheduledNode.Duration <= TimeComparisonEpsilon) {
                 if (Mathf.Abs(currentTime - scheduledNode.StartTime) <= TimeComparisonEpsilon) {
                     return true;
                 }
 
-                return includeCrossedInstantNodes
-                    && previousTime - TimeComparisonEpsilon <= scheduledNode.StartTime
-                    && scheduledNode.StartTime <= currentTime + TimeComparisonEpsilon;
+                return includeCrossedNodes && ContainsTimeBetween(previousTime, currentTime, scheduledNode.StartTime);
             }
 
             return scheduledNode.StartTime - TimeComparisonEpsilon <= currentTime
                 && currentTime <= scheduledNode.EndTime + TimeComparisonEpsilon;
+        }
+
+        /// <summary>
+        /// 前回時刻と今回時刻の間で non-zero duration node の終了時刻を通過したか判定
+        /// </summary>
+        /// <param name="scheduledNode">判定対象の scheduled node</param>
+        /// <param name="currentTime">判定時刻</param>
+        /// <param name="includeCrossedNodes">通過した node の端時刻も評価する場合は true</param>
+        /// <param name="previousTime">直前時刻</param>
+        /// <returns>終了時刻を通過した場合は true</returns>
+        private bool IsCrossedEndTime(ScheduledNode scheduledNode, float currentTime, bool includeCrossedNodes, float previousTime) {
+            return includeCrossedNodes
+                && scheduledNode.Duration > TimeComparisonEpsilon
+                && previousTime < scheduledNode.EndTime - TimeComparisonEpsilon
+                && scheduledNode.EndTime + TimeComparisonEpsilon < currentTime;
+        }
+
+        /// <summary>
+        /// 前回時刻と今回時刻の間で non-zero duration node の開始時刻を逆方向に通過したか判定
+        /// </summary>
+        /// <param name="scheduledNode">判定対象の scheduled node</param>
+        /// <param name="currentTime">判定時刻</param>
+        /// <param name="includeCrossedNodes">通過した node の端時刻も評価する場合は true</param>
+        /// <param name="previousTime">直前時刻</param>
+        /// <returns>開始時刻を逆方向に通過した場合は true</returns>
+        private bool IsCrossedStartTime(ScheduledNode scheduledNode, float currentTime, bool includeCrossedNodes, float previousTime) {
+            return includeCrossedNodes
+                && scheduledNode.Duration > TimeComparisonEpsilon
+                && currentTime < scheduledNode.StartTime - TimeComparisonEpsilon
+                && scheduledNode.StartTime + TimeComparisonEpsilon < previousTime;
+        }
+
+        /// <summary>
+        /// 指定時刻が 2 つの時刻の間に含まれるか判定
+        /// </summary>
+        /// <param name="from">片方の時刻</param>
+        /// <param name="to">もう片方の時刻</param>
+        /// <param name="time">判定対象時刻</param>
+        /// <returns>含まれる場合は true</returns>
+        private bool ContainsTimeBetween(float from, float to, float time) {
+            return Mathf.Min(from, to) - TimeComparisonEpsilon <= time
+                && time <= Mathf.Max(from, to) + TimeComparisonEpsilon;
         }
 
         /// <summary>
@@ -343,12 +413,40 @@ namespace UnityAnimationGraph {
         }
 
         /// <summary>
+        /// scheduled node を指定 local time で評価
+        /// </summary>
+        /// <param name="scheduledNode">評価対象の scheduled node</param>
+        /// <param name="localTime">評価に使用する local time</param>
+        private void EvaluateScheduledNode(ScheduledNode scheduledNode, float localTime) {
+            var executor = (INodeExecutor)scheduledNode.Node;
+            executor.Evaluate(scheduledNode.Seed, localTime, scheduledNode.Duration, _context);
+        }
+
+        /// <summary>
         /// 指定時刻が終了時刻か判定
         /// </summary>
         /// <param name="time">判定対象時刻</param>
         /// <returns>終了時刻の場合は true</returns>
         private bool IsEndTime(float time) {
             return Mathf.Abs(time - Duration) <= TimeComparisonEpsilon;
+        }
+
+        /// <summary>
+        /// 指定時刻が開始時刻か判定
+        /// </summary>
+        /// <param name="time">判定対象時刻</param>
+        /// <returns>開始時刻の場合は true</returns>
+        private bool IsStartTime(float time) {
+            return Mathf.Abs(time) <= TimeComparisonEpsilon;
+        }
+
+        /// <summary>
+        /// 現在の再生方向に対する終了時刻か判定
+        /// </summary>
+        /// <param name="time">判定対象時刻</param>
+        /// <returns>再生方向の終了時刻の場合は true</returns>
+        private bool IsPlaybackEndTime(float time) {
+            return Inverse ? IsStartTime(time) : IsEndTime(time);
         }
     }
 }

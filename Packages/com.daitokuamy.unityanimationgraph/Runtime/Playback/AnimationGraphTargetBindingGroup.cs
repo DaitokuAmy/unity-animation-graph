@@ -40,9 +40,10 @@ namespace UnityAnimationGraph {
 
             var nextBindings = new AnimationGraphTargetBinding[targetDefinitions.Count];
             for (var i = 0; i < targetDefinitions.Count; i++) {
-                var key = targetDefinitions[i].Key;
+                var definition = targetDefinitions[i];
+                var key = definition.Key;
                 TryGetBinding(key, out var currentBinding);
-                nextBindings[i] = new AnimationGraphTargetBinding(key, currentBinding.Target);
+                nextBindings[i] = new AnimationGraphTargetBinding(key, currentBinding.Target, definition.MonoScriptGuid);
             }
 
             _bindings = nextBindings;
@@ -60,7 +61,7 @@ namespace UnityAnimationGraph {
                 return false;
             }
 
-            _bindings[bindingIndex] = new AnimationGraphTargetBinding(key, target);
+            _bindings[bindingIndex] = new AnimationGraphTargetBinding(key, target, _bindings[bindingIndex].MonoScriptGuid);
             return true;
         }
 

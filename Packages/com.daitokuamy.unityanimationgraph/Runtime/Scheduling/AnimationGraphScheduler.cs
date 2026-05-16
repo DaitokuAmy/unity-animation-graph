@@ -270,8 +270,9 @@ namespace UnityAnimationGraph {
                 if (node is BranchNode branchNode) {
                     VisitNodeIds(node, branchNode.FalseNodeIds);
                 }
-                else if (node is RepeatNode repeatNode) {
-                    ValidateRepeatNode(repeatNode);
+                else if (node is LoopNode loopNode) {
+                    ValidateLoopNode(loopNode);
+                    VisitNodeIds(node, loopNode.LoopNodeIds);
                 }
 
                 currentPath.Remove(node.NodeId);
@@ -298,28 +299,68 @@ namespace UnityAnimationGraph {
                     return;
                 }
 
-                if (node is RouteNode || node is BranchNode) {
+                if (node is DelayNode || node is BranchNode || node is LoopNode) {
                     return;
                 }
 
-                throw new InvalidOperationException($"Node '{node.NodeId}' has multiple outputs but is not RouteNode or BranchNode");
+                throw new InvalidOperationException($"Node '{node.NodeId}' has multiple outputs but is not DelayNode, BranchNode, or LoopNode");
             }
 
-            void ValidateRepeatNode(RepeatNode repeatNode) {
-                if (string.IsNullOrEmpty(repeatNode.RepeatNodeId)) {
-                    if (repeatNode.RepeatCount <= 1) {
-                        return;
+            void ValidateLoopNode(LoopNode loopNode) {
+                var loopNodeIds = loopNode.LoopNodeIds;
+                var loopNodeIdSet = new HashSet<string>(loopNodeIds.Count, StringComparer.Ordinal);
+                for (var i = 0; i < loopNodeIds.Count; i++) {
+                    var loopNodeId = loopNodeIds[i];
+                    if (string.IsNullOrEmpty(loopNodeId)) {
+                        throw new InvalidOperationException($"LoopNode '{loopNode.NodeId}' has empty loop node id");
                     }
 
-                    throw new InvalidOperationException($"RepeatNode '{repeatNode.NodeId}' has empty repeat node id");
+                    if (loopNodeId == loopNode.NodeId) {
+                        throw new InvalidOperationException($"LoopNode '{loopNode.NodeId}' cannot contain itself");
+                    }
+
+                    if (!loopNodeIdSet.Add(loopNodeId)) {
+                        throw new InvalidOperationException($"LoopNode '{loopNode.NodeId}' has duplicated loop node '{loopNodeId}'");
+                    }
+
+                    if (!nodeMap.TryGetValue(loopNodeId, out var bodyNode)) {
+                        throw new InvalidOperationException($"Loop node '{loopNodeId}' does not exist");
+                    }
+
+                    if (bodyNode is StartNode) {
+                        throw new InvalidOperationException($"LoopNode '{loopNode.NodeId}' cannot contain StartNode");
+                    }
                 }
 
-                if (repeatNode.RepeatNodeId == repeatNode.NodeId) {
-                    throw new InvalidOperationException($"RepeatNode '{repeatNode.NodeId}' cannot repeat to itself");
+                ValidateLoopBodyIsolation(loopNode, loopNodeIdSet);
+            }
+
+            void ValidateLoopBodyIsolation(LoopNode loopNode, HashSet<string> loopNodeIdSet) {
+                foreach (var loopNodeId in loopNodeIdSet) {
+                    var bodyNode = nodeMap[loopNodeId];
+                    var nextNodeIds = GetPhysicalNextNodeIds(bodyNode);
+                    for (var i = 0; i < nextNodeIds.Count; i++) {
+                        if (loopNodeIdSet.Contains(nextNodeIds[i])) {
+                            continue;
+                        }
+
+                        throw new InvalidOperationException($"Loop body node '{bodyNode.NodeId}' cannot connect outside LoopNode '{loopNode.NodeId}'");
+                    }
                 }
 
-                if (!nodeMap.ContainsKey(repeatNode.RepeatNodeId)) {
-                    throw new InvalidOperationException($"Repeat node '{repeatNode.RepeatNodeId}' does not exist");
+                foreach (var nodePair in nodeMap) {
+                    if (loopNodeIdSet.Contains(nodePair.Key)) {
+                        continue;
+                    }
+
+                    var nextNodeIds = GetPhysicalNextNodeIds(nodePair.Value);
+                    for (var i = 0; i < nextNodeIds.Count; i++) {
+                        if (!loopNodeIdSet.Contains(nextNodeIds[i])) {
+                            continue;
+                        }
+
+                        throw new InvalidOperationException($"Loop body node '{nextNodeIds[i]}' cannot receive connections from outside LoopNode '{loopNode.NodeId}'");
+                    }
                 }
             }
 
@@ -335,16 +376,16 @@ namespace UnityAnimationGraph {
         /// <param name="incomingTime">scope の開始時刻</param>
         /// <param name="seedSalt">評価単位を分けるシード salt</param>
         /// <param name="terminalNodeId">scope の終端ノード ID</param>
-        /// <param name="blockedNodeIds">scope から直接到達してはいけないノード ID 一覧</param>
+        /// <param name="allowedNodeIds">scope 内で到達できるノード ID 一覧</param>
         /// <param name="buildContext">スケジュール build 全体の状態</param>
         /// <returns>scope の終了時刻</returns>
         private float BuildScope(IReadOnlyList<string> startNodeIds, float incomingTime, int seedSalt, string terminalNodeId,
-            IReadOnlyList<string> blockedNodeIds, ref ScheduleBuildContext buildContext) {
+            IReadOnlyList<string> allowedNodeIds, ref ScheduleBuildContext buildContext) {
             if (startNodeIds.Count == 0) {
                 return incomingTime;
             }
 
-            var nextNodeIdsByNodeId = BuildNextNodeIdsByNodeId(startNodeIds, seedSalt, terminalNodeId, blockedNodeIds, ref buildContext, out var incomingCounts);
+            var nextNodeIdsByNodeId = BuildNextNodeIdsByNodeId(startNodeIds, seedSalt, terminalNodeId, allowedNodeIds, ref buildContext, out var incomingCounts);
             ValidateScopeTerminalReachability(terminalNodeId, nextNodeIdsByNodeId);
             ValidateIncomingCounts(_nodeMap, incomingCounts);
 
@@ -365,17 +406,18 @@ namespace UnityAnimationGraph {
         /// <param name="startNodeIds">scope の開始ノード ID 一覧</param>
         /// <param name="seedSalt">評価単位を分けるシード salt</param>
         /// <param name="terminalNodeId">scope の終端ノード ID</param>
-        /// <param name="blockedNodeIds">scope から直接到達してはいけないノード ID 一覧</param>
+        /// <param name="allowedNodeIds">scope 内で到達できるノード ID 一覧</param>
         /// <param name="buildContext">スケジュール build 全体の状態</param>
         /// <param name="incomingCounts">到達可能なノードの入次数</param>
         /// <returns>ノード ID ごとの後続ノード ID 一覧</returns>
-        private Dictionary<string, IReadOnlyList<string>> BuildNextNodeIdsByNodeId(IReadOnlyList<string> startNodeIds, int seedSalt, string terminalNodeId, IReadOnlyList<string> blockedNodeIds,
+        private Dictionary<string, IReadOnlyList<string>> BuildNextNodeIdsByNodeId(IReadOnlyList<string> startNodeIds, int seedSalt, string terminalNodeId, IReadOnlyList<string> allowedNodeIds,
             ref ScheduleBuildContext buildContext, out Dictionary<string, int> incomingCounts) {
             var nextNodeIdsByNodeId = new Dictionary<string, IReadOnlyList<string>>(_nodeMap.Count, StringComparer.Ordinal);
             var incomingCountMap = new Dictionary<string, int>(_nodeMap.Count, StringComparer.Ordinal);
             var visited = new HashSet<string>(_nodeMap.Count, StringComparer.Ordinal);
             var currentPath = new HashSet<string>(_nodeMap.Count, StringComparer.Ordinal);
             var startNodeIdSet = new HashSet<string>(startNodeIds.Count, StringComparer.Ordinal);
+            var allowedNodeIdSet = allowedNodeIds == null ? null : new HashSet<string>(allowedNodeIds, StringComparer.Ordinal);
             var graphSeed = buildContext.GraphSeed;
             var context = buildContext.Context;
 
@@ -404,8 +446,8 @@ namespace UnityAnimationGraph {
                         throw new InvalidOperationException($"Node '{node.NodeId}' has empty next node id");
                     }
 
-                    if (ContainsBlockedNodeId(nextNodeId)) {
-                        throw new InvalidOperationException($"Repeat body cannot connect to after-repeat node '{nextNodeId}'");
+                    if (!ContainsAllowedNodeId(nextNodeId)) {
+                        throw new InvalidOperationException($"Loop body cannot connect outside loop to node '{nextNodeId}'");
                     }
 
                     if (!_nodeMap.TryGetValue(nextNodeId, out var nextNode)) {
@@ -421,18 +463,8 @@ namespace UnityAnimationGraph {
                 visited.Add(node.NodeId);
             }
 
-            bool ContainsBlockedNodeId(string nodeId) {
-                if (blockedNodeIds == null) {
-                    return false;
-                }
-
-                for (var i = 0; i < blockedNodeIds.Count; i++) {
-                    if (blockedNodeIds[i] == nodeId) {
-                        return true;
-                    }
-                }
-
-                return false;
+            bool ContainsAllowedNodeId(string nodeId) {
+                return allowedNodeIdSet == null || allowedNodeIdSet.Contains(nodeId);
             }
 
             for (var i = 0; i < startNodeIds.Count; i++) {
@@ -441,8 +473,8 @@ namespace UnityAnimationGraph {
                     throw new InvalidOperationException("Scope has empty start node id");
                 }
 
-                if (ContainsBlockedNodeId(startNodeId)) {
-                    throw new InvalidOperationException($"Repeat body cannot start from after-repeat node '{startNodeId}'");
+                if (!ContainsAllowedNodeId(startNodeId)) {
+                    throw new InvalidOperationException($"Loop body cannot start outside loop from node '{startNodeId}'");
                 }
 
                 if (!startNodeIdSet.Add(startNodeId)) {
@@ -473,7 +505,7 @@ namespace UnityAnimationGraph {
             }
 
             if (!nextNodeIdsByNodeId.ContainsKey(terminalNodeId)) {
-                throw new InvalidOperationException($"Repeat body does not reach RepeatNode '{terminalNodeId}'");
+                throw new InvalidOperationException($"Scope does not reach terminal node '{terminalNodeId}'");
             }
 
             var reachableMap = new Dictionary<string, bool>(nextNodeIdsByNodeId.Count, StringComparer.Ordinal);
@@ -518,7 +550,7 @@ namespace UnityAnimationGraph {
                     continue;
                 }
 
-                throw new InvalidOperationException($"Repeat body node '{nextNodeIdsPair.Key}' does not reach RepeatNode '{terminalNodeId}'");
+                throw new InvalidOperationException($"Scope node '{nextNodeIdsPair.Key}' does not reach terminal node '{terminalNodeId}'");
             }
         }
 
@@ -612,11 +644,11 @@ namespace UnityAnimationGraph {
                 var duration = ValidateTimeValue(executor.CalculateDuration(seed, buildContext.Context), "duration", node);
                 var startTime = resolvedIncomingTime + delay;
                 var endTime = startTime + duration;
-                buildContext.ScheduledNodes.Add(new ScheduledNode(node, startTime, duration, seed, buildContext.StableOrder));
+                buildContext.ScheduledNodes.Add(new ScheduledNode(node, startTime, delay, duration, seed, buildContext.StableOrder));
                 buildContext.StableOrder++;
 
-                if (node is RepeatNode repeatNode && node.NodeId != terminalNodeId) {
-                    endTime = BuildRepeat(repeatNode, endTime, seedSalt, ref buildContext);
+                if (node is LoopNode loopNode && node.NodeId != terminalNodeId) {
+                    endTime = BuildLoop(loopNode, endTime, seedSalt, ref buildContext);
                 }
 
                 scopeEndTime = Mathf.Max(scopeEndTime, endTime);
@@ -636,38 +668,61 @@ namespace UnityAnimationGraph {
         }
 
         /// <summary>
-        /// RepeatNode の戻り先を指定回数だけ展開
+        /// LoopNode のループ内容を指定回数だけ展開
         /// </summary>
-        /// <param name="repeatNode">展開する RepeatNode</param>
-        /// <param name="incomingTime">RepeatNode の終了時刻</param>
+        /// <param name="loopNode">展開する LoopNode</param>
+        /// <param name="incomingTime">LoopNode の終了時刻</param>
         /// <param name="seedSalt">親 scope のシード salt</param>
         /// <param name="buildContext">スケジュール build 全体の状態</param>
-        /// <returns>RepeatNode の繰り返し終了時刻</returns>
-        private float BuildRepeat(RepeatNode repeatNode, float incomingTime, int seedSalt, ref ScheduleBuildContext buildContext) {
-            if (repeatNode.RepeatNodeId == repeatNode.NodeId) {
-                throw new InvalidOperationException($"RepeatNode '{repeatNode.NodeId}' cannot repeat to itself");
-            }
-
-            if (repeatNode.RepeatCount <= 1) {
+        /// <returns>LoopNode のループ終了時刻</returns>
+        private float BuildLoop(LoopNode loopNode, float incomingTime, int seedSalt, ref ScheduleBuildContext buildContext) {
+            if (loopNode.LoopNodeIds.Count == 0) {
                 return incomingTime;
             }
 
-            if (string.IsNullOrEmpty(repeatNode.RepeatNodeId)) {
-                throw new InvalidOperationException($"RepeatNode '{repeatNode.NodeId}' has empty repeat node id");
+            var loopStartNodeIds = GetLoopStartNodeIds(loopNode);
+            var loopEndTime = incomingTime;
+            for (var i = 0; i < loopNode.LoopCount; i++) {
+                var iterationSeedSalt = CreateNodeSeed(seedSalt, loopNode.NodeId, i);
+                loopEndTime = BuildScope(loopStartNodeIds, loopEndTime, iterationSeedSalt, null, loopNode.LoopNodeIds, ref buildContext);
             }
 
-            if (!_nodeMap.ContainsKey(repeatNode.RepeatNodeId)) {
-                throw new InvalidOperationException($"Repeat node '{repeatNode.RepeatNodeId}' does not exist");
+            return loopEndTime;
+        }
+
+        /// <summary>
+        /// LoopNode の開始ノード ID 一覧を取得
+        /// </summary>
+        /// <param name="loopNode">取得対象の LoopNode</param>
+        /// <returns>LoopNode の開始ノード ID 一覧</returns>
+        private IReadOnlyList<string> GetLoopStartNodeIds(LoopNode loopNode) {
+            var loopNodeIds = loopNode.LoopNodeIds;
+            var loopNodeIdSet = new HashSet<string>(loopNodeIds, StringComparer.Ordinal);
+            var incomingNodeIds = new HashSet<string>(loopNodeIds.Count, StringComparer.Ordinal);
+            for (var i = 0; i < loopNodeIds.Count; i++) {
+                var bodyNode = _nodeMap[loopNodeIds[i]];
+                var nextNodeIds = GetPhysicalNextNodeIds(bodyNode);
+                for (var j = 0; j < nextNodeIds.Count; j++) {
+                    if (loopNodeIdSet.Contains(nextNodeIds[j])) {
+                        incomingNodeIds.Add(nextNodeIds[j]);
+                    }
+                }
             }
 
-            var repeatStartNodeIds = new[] { repeatNode.RepeatNodeId };
-            var repeatEndTime = incomingTime;
-            for (var i = 1; i < repeatNode.RepeatCount; i++) {
-                var iterationSeedSalt = CreateNodeSeed(seedSalt, repeatNode.NodeId, i);
-                repeatEndTime = BuildScope(repeatStartNodeIds, repeatEndTime, iterationSeedSalt, repeatNode.NodeId, repeatNode.NextNodeIds, ref buildContext);
+            var startNodeIds = new List<string>();
+            for (var i = 0; i < loopNodeIds.Count; i++) {
+                if (incomingNodeIds.Contains(loopNodeIds[i])) {
+                    continue;
+                }
+
+                startNodeIds.Add(loopNodeIds[i]);
             }
 
-            return repeatEndTime;
+            if (startNodeIds.Count == 0) {
+                throw new InvalidOperationException($"LoopNode '{loopNode.NodeId}' has no loop start node");
+            }
+
+            return startNodeIds;
         }
 
         /// <summary>
@@ -728,6 +783,28 @@ namespace UnityAnimationGraph {
             }
 
             return node.NextNodeIds;
+        }
+
+        /// <summary>
+        /// 条件評価に依存しない物理的な後続ノード ID 一覧を取得
+        /// </summary>
+        /// <param name="node">取得元ノード</param>
+        /// <returns>物理的な後続ノード ID 一覧</returns>
+        private IReadOnlyList<string> GetPhysicalNextNodeIds(Node node) {
+            var nodeIds = new List<string>();
+            var nextNodeIds = node.NextNodeIds;
+            for (var i = 0; i < nextNodeIds.Count; i++) {
+                nodeIds.Add(nextNodeIds[i]);
+            }
+
+            if (node is BranchNode branchNode) {
+                var falseNodeIds = branchNode.FalseNodeIds;
+                for (var i = 0; i < falseNodeIds.Count; i++) {
+                    nodeIds.Add(falseNodeIds[i]);
+                }
+            }
+
+            return nodeIds;
         }
 
         /// <summary>

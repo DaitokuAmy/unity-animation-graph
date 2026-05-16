@@ -8,10 +8,10 @@ namespace UnityAnimationGraph.Tests {
     /// </summary>
     public sealed class AnimationGraphPlayerTests {
         /// <summary>
-        /// Tick は現在時刻で active なノードだけを評価する
+        /// Tick は現在時刻で active なノードと終了時刻を通過したノードを評価する
         /// </summary>
         [Test]
-        public void Tick_EvaluatesOnlyActiveNodes() {
+        public void Tick_EvaluatesActiveNodesAndCrossedEndTime() {
             using var builder = new AnimationGraphTestBuilder();
             var startNode = builder.CreateStartNode("start", "first");
             var firstNode = builder.CreateActionNode("first", 2.0f, "second");
@@ -28,9 +28,80 @@ namespace UnityAnimationGraph.Tests {
 
             player.Tick(2.0f);
 
-            Assert.That(firstNode.EvaluateCount, Is.EqualTo(1));
+            Assert.That(firstNode.EvaluateCount, Is.EqualTo(2));
+            Assert.That(firstNode.LastLocalTime, Is.EqualTo(2.0f).Within(0.0001f));
             Assert.That(secondNode.EvaluateCount, Is.EqualTo(1));
             Assert.That(secondNode.LastLocalTime, Is.EqualTo(0.5f).Within(0.0001f));
+        }
+
+        /// <summary>
+        /// Tick は前回時刻と今回時刻の間で終了したノードを終了時刻で評価する
+        /// </summary>
+        [Test]
+        public void Tick_EvaluatesEndTimeWhenNodeEndsBetweenFrames() {
+            using var builder = new AnimationGraphTestBuilder();
+            var startNode = builder.CreateStartNode("start", "first");
+            var firstNode = builder.CreateActionNode("first", 1.0f, "second");
+            var secondNode = builder.CreateActionNode("second", 2.0f);
+            var graphAsset = builder.CreateGraph("start", startNode, firstNode, secondNode);
+            var player = CreatePlayer(graphAsset);
+
+            player.Play();
+            player.Tick(0.98f);
+            player.Tick(0.04f);
+
+            Assert.That(firstNode.EvaluateCount, Is.EqualTo(2));
+            Assert.That(firstNode.LastLocalTime, Is.EqualTo(1.0f).Within(0.0001f));
+            Assert.That(secondNode.EvaluateCount, Is.EqualTo(1));
+            Assert.That(secondNode.LastLocalTime, Is.EqualTo(0.02f).Within(0.0001f));
+        }
+
+        /// <summary>
+        /// DelayNode の待機時間を過ぎるまで後続ノードを評価しない
+        /// </summary>
+        [Test]
+        public void Tick_DelayNodeWaitsBeforeNextNodeStarts() {
+            using var builder = new AnimationGraphTestBuilder();
+            var startNode = builder.CreateStartNode("start", "delay");
+            var delayNode = builder.CreateNode<DelayNode>("delay", "action");
+            var actionNode = builder.CreateActionNode("action", 1.0f);
+            builder.SetDelay(delayNode, 1.0f);
+            var graphAsset = builder.CreateGraph("start", startNode, delayNode, actionNode);
+            var player = CreatePlayer(graphAsset);
+
+            player.Play();
+            player.Tick(0.5f);
+
+            Assert.That(actionNode.EvaluateCount, Is.EqualTo(0));
+
+            player.Tick(0.5f);
+
+            Assert.That(actionNode.EvaluateCount, Is.EqualTo(1));
+            Assert.That(actionNode.LastLocalTime, Is.EqualTo(0.0f).Within(0.0001f));
+        }
+
+        /// <summary>
+        /// Tick は逆再生で前回時刻と今回時刻の間で開始時刻を通過したノードを開始時刻で評価する
+        /// </summary>
+        [Test]
+        public void Tick_EvaluatesStartTimeWhenNodeStartsBetweenInverseFrames() {
+            using var builder = new AnimationGraphTestBuilder();
+            var startNode = builder.CreateStartNode("start", "first");
+            var firstNode = builder.CreateActionNode("first", 1.0f, "second");
+            var secondNode = builder.CreateActionNode("second", 2.0f);
+            var graphAsset = builder.CreateGraph("start", startNode, firstNode, secondNode);
+            var player = CreatePlayer(graphAsset);
+
+            player.Seek(1.02f);
+            player.Inverse = true;
+            player.Play();
+            player.Tick(0.04f);
+
+            Assert.That(player.CurrentTime, Is.EqualTo(0.98f).Within(0.0001f));
+            Assert.That(firstNode.EvaluateCount, Is.EqualTo(1));
+            Assert.That(firstNode.LastLocalTime, Is.EqualTo(0.98f).Within(0.0001f));
+            Assert.That(secondNode.EvaluateCount, Is.EqualTo(2));
+            Assert.That(secondNode.LastLocalTime, Is.EqualTo(0.0f).Within(0.0001f));
         }
 
         /// <summary>
@@ -51,6 +122,26 @@ namespace UnityAnimationGraph.Tests {
 
             Assert.That(player.CurrentTime, Is.EqualTo(0.5f).Within(0.0001f));
             Assert.That(actionNode.LastLocalTime, Is.EqualTo(0.5f).Within(0.0001f));
+        }
+
+        /// <summary>
+        /// Tick は Inverse が有効な場合に再生時間を逆方向へ進める
+        /// </summary>
+        [Test]
+        public void Tick_AdvancesTimeBackwardsWhenInverse() {
+            using var builder = new AnimationGraphTestBuilder();
+            var startNode = builder.CreateStartNode("start", "action");
+            var actionNode = builder.CreateActionNode("action", 2.0f);
+            var graphAsset = builder.CreateGraph("start", startNode, actionNode);
+            var player = CreatePlayer(graphAsset);
+
+            player.Seek(1.0f);
+            player.Inverse = true;
+            player.Play();
+            player.Tick(0.25f);
+
+            Assert.That(player.CurrentTime, Is.EqualTo(0.75f).Within(0.0001f));
+            Assert.That(actionNode.LastLocalTime, Is.EqualTo(0.75f).Within(0.0001f));
         }
 
         /// <summary>
@@ -93,6 +184,29 @@ namespace UnityAnimationGraph.Tests {
             player.Tick(1.0f);
 
             Assert.That(actionNode.CancelCount, Is.EqualTo(0));
+            Assert.IsTrue(handle.IsDone);
+            Assert.IsTrue(handle.IsCompleted);
+            Assert.IsFalse(handle.IsInterrupted);
+        }
+
+        /// <summary>
+        /// 逆再生で自然完了した PlayHandle は完了状態になる
+        /// </summary>
+        [Test]
+        public void Tick_CompletesPlayHandleOnInverseNaturalCompletion() {
+            using var builder = new AnimationGraphTestBuilder();
+            var startNode = builder.CreateStartNode("start", "action");
+            var actionNode = builder.CreateActionNode("action", 1.0f);
+            var graphAsset = builder.CreateGraph("start", startNode, actionNode);
+            var player = CreatePlayer(graphAsset);
+
+            player.Seek(1.0f);
+            player.Inverse = true;
+            var handle = player.Play();
+            player.Tick(1.0f);
+
+            Assert.That(actionNode.CancelCount, Is.EqualTo(0));
+            Assert.That(actionNode.LastLocalTime, Is.EqualTo(0.0f).Within(0.0001f));
             Assert.IsTrue(handle.IsDone);
             Assert.IsTrue(handle.IsCompleted);
             Assert.IsFalse(handle.IsInterrupted);
