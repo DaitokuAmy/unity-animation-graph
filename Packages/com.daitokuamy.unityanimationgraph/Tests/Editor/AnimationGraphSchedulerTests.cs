@@ -180,6 +180,24 @@ namespace UnityAnimationGraph.Tests {
         }
 
         /// <summary>
+        /// Schedule node 数が上限を超えた場合は build を中断する
+        /// </summary>
+        [Test]
+        public void BuildSchedule_ThrowsWhenScheduledNodeCountExceedsLimit() {
+            using var builder = new AnimationGraphTestBuilder();
+            var startNode = builder.CreateStartNode("start", "loop");
+            var loopNode = builder.CreateNode<LoopNode>("loop", "after");
+            var bodyNode = builder.CreateActionNode("body", 1.0f);
+            var afterNode = builder.CreateActionNode("after", 1.0f);
+            builder.SetLoop(loopNode, 10, "body");
+            var graphAsset = builder.CreateGraph("start", startNode, loopNode, bodyNode, afterNode);
+            var scheduler = new AnimationGraphScheduler();
+            scheduler.SetGraph(graphAsset);
+
+            Assert.Throws<InvalidOperationException>(() => scheduler.BuildSchedule(new TestAnimationGraphContext(), maxScheduledNodeCount: 5));
+        }
+
+        /// <summary>
         /// RandomSeed が有効な場合は schedule build ごとに default seed を生成する
         /// </summary>
         [Test]

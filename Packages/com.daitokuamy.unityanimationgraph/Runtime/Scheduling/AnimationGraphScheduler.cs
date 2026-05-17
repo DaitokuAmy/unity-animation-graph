@@ -13,6 +13,8 @@ namespace UnityAnimationGraph {
         private const uint FnvPrime = 16777619u;
         /// <summary>同時刻として扱う時刻差</summary>
         private const float TimeComparisonEpsilon = 0.00001f;
+        /// <summary>Schedule node 数の上限なしを表す値</summary>
+        private const int UnlimitedScheduledNodeCount = 0;
 
         private static readonly Comparison<ScheduledNode> ScheduledNodeComparison = CompareScheduledNodes;
 
@@ -75,6 +77,8 @@ namespace UnityAnimationGraph {
             public IAnimationGraphContext Context { get; }
             /// <summary>スケジュール済みノード一覧</summary>
             public List<ScheduledNode> ScheduledNodes { get; }
+            /// <summary>Schedule node 数の上限</summary>
+            public int MaxScheduledNodeCount { get; }
             /// <summary>安定順序</summary>
             public int StableOrder { get; set; }
             /// <summary>リクエスト順序</summary>
@@ -86,10 +90,12 @@ namespace UnityAnimationGraph {
             /// <param name="graphSeed">グラフ全体のシード</param>
             /// <param name="context">評価コンテキスト</param>
             /// <param name="scheduledNodes">スケジュール済みノード一覧</param>
-            public ScheduleBuildContext(int graphSeed, IAnimationGraphContext context, List<ScheduledNode> scheduledNodes) {
+            /// <param name="maxScheduledNodeCount">Schedule node 数の上限。0 以下の場合は上限なし</param>
+            public ScheduleBuildContext(int graphSeed, IAnimationGraphContext context, List<ScheduledNode> scheduledNodes, int maxScheduledNodeCount) {
                 GraphSeed = graphSeed;
                 Context = context;
                 ScheduledNodes = scheduledNodes;
+                MaxScheduledNodeCount = maxScheduledNodeCount;
                 StableOrder = 0;
                 RequestOrder = 0;
             }
@@ -149,8 +155,9 @@ namespace UnityAnimationGraph {
         /// </summary>
         /// <param name="context">評価コンテキスト</param>
         /// <param name="overrideSeed">グラフのシードを一時的に上書きする値</param>
+        /// <param name="maxScheduledNodeCount">Schedule node 数の上限。0 以下の場合は上限なし</param>
         /// <returns>構築した評価スケジュール</returns>
-        public AnimationGraphSchedule BuildSchedule(IAnimationGraphContext context, int? overrideSeed = null) {
+        public AnimationGraphSchedule BuildSchedule(IAnimationGraphContext context, int? overrideSeed = null, int maxScheduledNodeCount = UnlimitedScheduledNodeCount) {
             if (_graphAsset == null || _startNode == null || _startNodeIds == null || _nodeMap == null) {
                 throw new InvalidOperationException("AnimationGraphAsset is not set");
             }
@@ -161,7 +168,7 @@ namespace UnityAnimationGraph {
 
             var graphSeed = overrideSeed ?? _graphAsset.GraphSeed;
             var scheduledNodes = new List<ScheduledNode>(_nodeMap.Count);
-            var buildContext = new ScheduleBuildContext(graphSeed, context, scheduledNodes);
+            var buildContext = new ScheduleBuildContext(graphSeed, context, scheduledNodes, Mathf.Max(0, maxScheduledNodeCount));
             BuildScope(_startNodeIds, 0.0f, 0, null, null, ref buildContext);
             scheduledNodes.Sort(ScheduledNodeComparison);
 
@@ -179,10 +186,11 @@ namespace UnityAnimationGraph {
         /// <param name="graphAsset">構築元の AnimationGraphAsset</param>
         /// <param name="context">評価コンテキスト</param>
         /// <param name="overrideSeed">グラフのシードを一時的に上書きする値</param>
+        /// <param name="maxScheduledNodeCount">Schedule node 数の上限。0 以下の場合は上限なし</param>
         /// <returns>構築した評価スケジュール</returns>
-        public AnimationGraphSchedule Build(AnimationGraphAsset graphAsset, IAnimationGraphContext context, int? overrideSeed = null) {
+        public AnimationGraphSchedule Build(AnimationGraphAsset graphAsset, IAnimationGraphContext context, int? overrideSeed = null, int maxScheduledNodeCount = UnlimitedScheduledNodeCount) {
             SetGraph(graphAsset);
-            return BuildSchedule(context, overrideSeed);
+            return BuildSchedule(context, overrideSeed, maxScheduledNodeCount);
         }
 
         /// <summary>
@@ -702,7 +710,7 @@ namespace UnityAnimationGraph {
                 var duration = ValidateTimeValue(executor.CalculateDuration(seed, buildContext.Context), "duration", node);
                 var startTime = resolvedIncomingTime + delay;
                 var endTime = startTime + duration;
-                buildContext.ScheduledNodes.Add(new ScheduledNode(node, startTime, delay, duration, seed, buildContext.StableOrder));
+                AddScheduledNode(new ScheduledNode(node, startTime, delay, duration, seed, buildContext.StableOrder), ref buildContext);
                 buildContext.StableOrder++;
 
                 if (node is LoopNode loopNode && node.NodeId != terminalNodeId) {
@@ -723,6 +731,20 @@ namespace UnityAnimationGraph {
             }
 
             return scopeEndTime;
+        }
+
+        /// <summary>
+        /// Schedule node 数の上限を確認して追加
+        /// </summary>
+        /// <param name="scheduledNode">追加する ScheduledNode</param>
+        /// <param name="buildContext">スケジュール build 全体の状態</param>
+        private static void AddScheduledNode(ScheduledNode scheduledNode, ref ScheduleBuildContext buildContext) {
+            if (buildContext.MaxScheduledNodeCount > UnlimitedScheduledNodeCount
+                && buildContext.ScheduledNodes.Count >= buildContext.MaxScheduledNodeCount) {
+                throw new InvalidOperationException($"Schedule node count exceeded limit ({buildContext.MaxScheduledNodeCount})");
+            }
+
+            buildContext.ScheduledNodes.Add(scheduledNode);
         }
 
         /// <summary>
