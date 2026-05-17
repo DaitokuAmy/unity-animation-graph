@@ -199,36 +199,36 @@ namespace UnityAnimationGraph.Editor {
 
         private static float GetBlackboardDefaultValueHeight(SerializedProperty elementProperty) {
             var valueTypeProperty = elementProperty.FindPropertyRelative(ValueTypePropertyName);
-            var valueType = (AnimationGraphValueType)valueTypeProperty.enumValueIndex;
+            var valueType = (BlackboardValueType)valueTypeProperty.enumValueIndex;
             var valuePropertyName = GetBlackboardDefaultValuePropertyName(valueType);
             if (string.IsNullOrEmpty(valuePropertyName)) {
                 return EditorGUIUtility.singleLineHeight;
             }
 
             var propertyHeight = EditorGUI.GetPropertyHeight(elementProperty.FindPropertyRelative(valuePropertyName), new GUIContent("Default"), true);
-            var fallbackHeight = valueType is AnimationGraphValueType.Vector2 or AnimationGraphValueType.Vector3 or AnimationGraphValueType.Vector4
+            var fallbackHeight = valueType is BlackboardValueType.Vector2 or BlackboardValueType.Vector3 or BlackboardValueType.Vector4
                 ? EditorGUIUtility.singleLineHeight * 2.0f + ElementVerticalSpacing
                 : EditorGUIUtility.singleLineHeight;
             return Mathf.Max(propertyHeight, fallbackHeight);
         }
 
-        private static string GetBlackboardDefaultValuePropertyName(AnimationGraphValueType valueType) {
+        private static string GetBlackboardDefaultValuePropertyName(BlackboardValueType valueType) {
             return valueType switch {
-                AnimationGraphValueType.Bool => DefaultBoolValuePropertyName,
-                AnimationGraphValueType.Int => DefaultIntValuePropertyName,
-                AnimationGraphValueType.Float => DefaultFloatValuePropertyName,
-                AnimationGraphValueType.String => DefaultStringValuePropertyName,
-                AnimationGraphValueType.Vector2 => DefaultVector2ValuePropertyName,
-                AnimationGraphValueType.Vector3 => DefaultVector3ValuePropertyName,
-                AnimationGraphValueType.Color => DefaultColorValuePropertyName,
-                AnimationGraphValueType.Vector4 => DefaultVector4ValuePropertyName,
+                BlackboardValueType.Bool => DefaultBoolValuePropertyName,
+                BlackboardValueType.Int => DefaultIntValuePropertyName,
+                BlackboardValueType.Float => DefaultFloatValuePropertyName,
+                BlackboardValueType.String => DefaultStringValuePropertyName,
+                BlackboardValueType.Vector2 => DefaultVector2ValuePropertyName,
+                BlackboardValueType.Vector3 => DefaultVector3ValuePropertyName,
+                BlackboardValueType.Color => DefaultColorValuePropertyName,
+                BlackboardValueType.Vector4 => DefaultVector4ValuePropertyName,
                 _ => string.Empty,
             };
         }
 
         private static void DrawBlackboardDefaultValue(Rect rect, SerializedProperty elementProperty) {
             var valueTypeProperty = elementProperty.FindPropertyRelative(ValueTypePropertyName);
-            var valueType = (AnimationGraphValueType)valueTypeProperty.enumValueIndex;
+            var valueType = (BlackboardValueType)valueTypeProperty.enumValueIndex;
             var valuePropertyName = GetBlackboardDefaultValuePropertyName(valueType);
 
             if (string.IsNullOrEmpty(valuePropertyName)) {
@@ -285,7 +285,7 @@ namespace UnityAnimationGraph.Editor {
 
         private static void ResetBlackboardDefinitionProperty(SerializedProperty elementProperty) {
             elementProperty.FindPropertyRelative(KeyPropertyName).stringValue = string.Empty;
-            elementProperty.FindPropertyRelative(ValueTypePropertyName).enumValueIndex = (int)AnimationGraphValueType.Bool;
+            elementProperty.FindPropertyRelative(ValueTypePropertyName).enumValueIndex = (int)BlackboardValueType.Bool;
             elementProperty.FindPropertyRelative(DefaultBoolValuePropertyName).boolValue = false;
             elementProperty.FindPropertyRelative(DefaultIntValuePropertyName).intValue = 0;
             elementProperty.FindPropertyRelative(DefaultFloatValuePropertyName).floatValue = 0.0f;

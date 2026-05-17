@@ -38,14 +38,14 @@ namespace UnityAnimationGraph.Editor {
         private const string ActionTargetKeyPropertyName = "_targetKey";
         /// <summary>DelayNode delay property name</summary>
         private const string DelayPropertyName = "_delay";
-        /// <summary>FlagBranchNode flag key property name</summary>
-        private const string FlagBranchFlagKeyPropertyName = "_flagKey";
         /// <summary>JoinNode join type property name</summary>
         private const string JoinTypePropertyName = "_joinType";
         /// <summary>LoopNode のループ実行回数フィールド名</summary>
         private const string LoopCountPropertyName = "_loopCount";
-        /// <summary>BranchNode の false 側後続ノード ID フィールド名</summary>
-        private const string FalseNodeIdsPropertyName = "_falseNodeIds";
+        /// <summary>BranchNode の拡張 Port 後続ノード ID リストフィールド名</summary>
+        private const string BranchExtensionNodeIdsPropertyName = "_extensionNodeIds";
+        /// <summary>BranchNodeIdList の後続ノード ID フィールド名</summary>
+        private const string BranchNodeIdsPropertyName = "_nodeIds";
         /// <summary>LoopNode のループ内容ノード ID フィールド名</summary>
         private const string LoopNodeIdsPropertyName = "_loopNodeIds";
         /// <summary>AnimationGraphAsset の asset GUID フィールド名</summary>
@@ -551,25 +551,6 @@ namespace UnityAnimationGraph.Editor {
         }
 
         /// <summary>
-        /// Sets the flag key of a FlagBranchNode.
-        /// </summary>
-        /// <param name="node">Target FlagBranchNode</param>
-        /// <param name="flagKey">Flag key to set</param>
-        public static void SetFlagBranchNodeFlagKey(FlagBranchNode node, string flagKey) {
-            if (node == null) {
-                throw new ArgumentNullException(nameof(node));
-            }
-
-            var undoName = "Set Animation Graph Flag Key";
-            Undo.RecordObject(node, undoName);
-
-            var serializedNode = new SerializedObject(node);
-            serializedNode.FindProperty(FlagBranchFlagKeyPropertyName).stringValue = flagKey ?? string.Empty;
-            serializedNode.ApplyModifiedProperties();
-            EditorUtility.SetDirty(node);
-        }
-
-        /// <summary>
         /// Sets the join type of a JoinNode.
         /// </summary>
         /// <param name="node">Target JoinNode</param>
@@ -586,6 +567,46 @@ namespace UnityAnimationGraph.Editor {
             serializedNode.FindProperty(JoinTypePropertyName).enumValueIndex = (int)joinType;
             serializedNode.ApplyModifiedProperties();
             EditorUtility.SetDirty(node);
+        }
+
+        /// <summary>
+        /// GraphView 詳細 field の string 値を設定
+        /// </summary>
+        /// <param name="node">設定対象の Node</param>
+        /// <param name="field">設定対象 field</param>
+        /// <param name="value">設定する値</param>
+        internal static void SetNodeDetailFieldValue(Node node, NodeDetailField field, string value) {
+            SetNodeDetailFieldValue(node, field, SerializedPropertyType.String, property => property.stringValue = value ?? string.Empty);
+        }
+
+        /// <summary>
+        /// GraphView 詳細 field の bool 値を設定
+        /// </summary>
+        /// <param name="node">設定対象の Node</param>
+        /// <param name="field">設定対象 field</param>
+        /// <param name="value">設定する値</param>
+        internal static void SetNodeDetailFieldValue(Node node, NodeDetailField field, bool value) {
+            SetNodeDetailFieldValue(node, field, SerializedPropertyType.Boolean, property => property.boolValue = value);
+        }
+
+        /// <summary>
+        /// GraphView 詳細 field の int 値を設定
+        /// </summary>
+        /// <param name="node">設定対象の Node</param>
+        /// <param name="field">設定対象 field</param>
+        /// <param name="value">設定する値</param>
+        internal static void SetNodeDetailFieldValue(Node node, NodeDetailField field, int value) {
+            SetNodeDetailFieldValue(node, field, SerializedPropertyType.Integer, property => property.intValue = value);
+        }
+
+        /// <summary>
+        /// GraphView 詳細 field の float 値を設定
+        /// </summary>
+        /// <param name="node">設定対象の Node</param>
+        /// <param name="field">設定対象 field</param>
+        /// <param name="value">設定する値</param>
+        internal static void SetNodeDetailFieldValue(Node node, NodeDetailField field, float value) {
+            SetNodeDetailFieldValue(node, field, SerializedPropertyType.Float, property => property.floatValue = value);
         }
 
         /// <summary>
@@ -608,28 +629,29 @@ namespace UnityAnimationGraph.Editor {
         }
 
         /// <summary>
-        /// BranchNode の false 側後続ノード ID 一覧を設定
+        /// BranchNode の拡張 Port 後続ノード ID 一覧を設定
         /// </summary>
         /// <param name="node">設定対象の BranchNode</param>
-        /// <param name="falseNodeIds">設定する false 側後続ノード ID 一覧</param>
-        public static void SetBranchFalseNodeIds(BranchNode node, IReadOnlyList<string> falseNodeIds) {
+        /// <param name="extensionIndex">設定する拡張 Branch Port index</param>
+        /// <param name="nodeIds">設定する後続ノード ID 一覧</param>
+        public static void SetBranchExtensionNodeIds(BranchNode node, int extensionIndex, IReadOnlyList<string> nodeIds) {
             if (node == null) {
                 throw new ArgumentNullException(nameof(node));
             }
 
-            if (falseNodeIds == null) {
-                throw new ArgumentNullException(nameof(falseNodeIds));
+            if (extensionIndex < 0 || node.ExtensionPortCount <= extensionIndex) {
+                throw new ArgumentOutOfRangeException(nameof(extensionIndex));
+            }
+
+            if (nodeIds == null) {
+                throw new ArgumentNullException(nameof(nodeIds));
             }
 
             var undoName = "Set Animation Graph Branch Connections";
             Undo.RecordObject(node, undoName);
 
             var serializedNode = new SerializedObject(node);
-            var falseNodeIdsProperty = serializedNode.FindProperty(FalseNodeIdsPropertyName);
-            falseNodeIdsProperty.arraySize = falseNodeIds.Count;
-            for (var i = 0; i < falseNodeIds.Count; i++) {
-                falseNodeIdsProperty.GetArrayElementAtIndex(i).stringValue = falseNodeIds[i] ?? string.Empty;
-            }
+            SetBranchExtensionNodeIdsProperty(serializedNode, extensionIndex, node.ExtensionPortCount, nodeIds);
 
             serializedNode.ApplyModifiedProperties();
             EditorUtility.SetDirty(node);
@@ -717,14 +739,20 @@ namespace UnityAnimationGraph.Editor {
                 }
 
                 if (current is BranchNode branchNode) {
-                    var falseNodeIds = branchNode.FalseNodeIds;
-                    for (var j = 0; j < falseNodeIds.Count; j++) {
-                        if (falseNodeIds[j] != node.NodeId) {
-                            continue;
+                    for (var j = 0; j < branchNode.ExtensionPortCount; j++) {
+                        var extensionNodeIds = branchNode.GetExtensionNodeIds(j);
+                        for (var k = 0; k < extensionNodeIds.Count; k++) {
+                            if (extensionNodeIds[k] != node.NodeId) {
+                                continue;
+                            }
+
+                            hasReference = true;
+                            break;
                         }
 
-                        hasReference = true;
-                        break;
+                        if (hasReference) {
+                            break;
+                        }
                     }
                 }
 
@@ -747,34 +775,15 @@ namespace UnityAnimationGraph.Editor {
                 Undo.RecordObject(current, undoName);
                 var serializedNode = new SerializedObject(current);
                 var nextNodeIdsProperty = serializedNode.FindProperty(NextNodeIdsPropertyName);
-                for (var j = nextNodeIdsProperty.arraySize - 1; j >= 0; j--) {
-                    if (nextNodeIdsProperty.GetArrayElementAtIndex(j).stringValue != node.NodeId) {
-                        continue;
-                    }
-
-                    nextNodeIdsProperty.DeleteArrayElementAtIndex(j);
-                }
+                RemoveStringArrayValue(nextNodeIdsProperty, node.NodeId);
 
                 if (current is BranchNode) {
-                    var falseNodeIdsProperty = serializedNode.FindProperty(FalseNodeIdsPropertyName);
-                    for (var j = falseNodeIdsProperty.arraySize - 1; j >= 0; j--) {
-                        if (falseNodeIdsProperty.GetArrayElementAtIndex(j).stringValue != node.NodeId) {
-                            continue;
-                        }
-
-                        falseNodeIdsProperty.DeleteArrayElementAtIndex(j);
-                    }
+                    RemoveBranchNodeIdReferences(serializedNode, node.NodeId);
                 }
 
                 if (current is LoopNode) {
                     var loopNodeIdsProperty = serializedNode.FindProperty(LoopNodeIdsPropertyName);
-                    for (var j = loopNodeIdsProperty.arraySize - 1; j >= 0; j--) {
-                        if (loopNodeIdsProperty.GetArrayElementAtIndex(j).stringValue != node.NodeId) {
-                            continue;
-                        }
-
-                        loopNodeIdsProperty.DeleteArrayElementAtIndex(j);
-                    }
+                    RemoveStringArrayValue(loopNodeIdsProperty, node.NodeId);
                 }
 
                 serializedNode.ApplyModifiedProperties();
@@ -801,7 +810,7 @@ namespace UnityAnimationGraph.Editor {
         /// </summary>
         /// <param name="graphAsset">設定対象の AnimationGraphAsset</param>
         /// <param name="definitions">設定する target 定義一覧</param>
-        public static void SetTargetDefinitions(AnimationGraphAsset graphAsset, IReadOnlyList<AnimationGraphTargetDefinition> definitions) {
+        public static void SetTargetDefinitions(AnimationGraphAsset graphAsset, IReadOnlyList<TargetDefinition> definitions) {
             if (graphAsset == null) {
                 throw new ArgumentNullException(nameof(graphAsset));
             }
@@ -831,7 +840,7 @@ namespace UnityAnimationGraph.Editor {
         /// </summary>
         /// <param name="graphAsset">設定対象の AnimationGraphAsset</param>
         /// <param name="definitions">設定する Blackboard 定義一覧</param>
-        public static void SetBlackboardDefinitions(AnimationGraphAsset graphAsset, IReadOnlyList<AnimationGraphBlackboardDefinition> definitions) {
+        public static void SetBlackboardDefinitions(AnimationGraphAsset graphAsset, IReadOnlyList<BlackboardDefinition> definitions) {
             if (graphAsset == null) {
                 throw new ArgumentNullException(nameof(graphAsset));
             }
@@ -897,8 +906,12 @@ namespace UnityAnimationGraph.Editor {
             serializedNode.FindProperty(NextNodeIdsPropertyName).arraySize = 0;
             serializedNode.FindProperty(EnterSignalsPropertyName).arraySize = 0;
             serializedNode.FindProperty(ExitSignalsPropertyName).arraySize = 0;
-            if (node is BranchNode) {
-                serializedNode.FindProperty(FalseNodeIdsPropertyName).arraySize = 0;
+            if (node is BranchNode branchNode) {
+                var extensionNodeIdsProperty = serializedNode.FindProperty(BranchExtensionNodeIdsPropertyName);
+                extensionNodeIdsProperty.arraySize = branchNode.ExtensionPortCount;
+                for (var i = 0; i < extensionNodeIdsProperty.arraySize; i++) {
+                    extensionNodeIdsProperty.GetArrayElementAtIndex(i).FindPropertyRelative(BranchNodeIdsPropertyName).arraySize = 0;
+                }
             }
 
             if (node is LoopNode) {
@@ -920,12 +933,83 @@ namespace UnityAnimationGraph.Editor {
             serializedSignal.ApplyModifiedPropertiesWithoutUndo();
         }
 
+        private static void SetNodeDetailFieldValue(Node node, NodeDetailField field, SerializedPropertyType expectedPropertyType, Action<SerializedProperty> setValue) {
+            if (node == null) {
+                throw new ArgumentNullException(nameof(node));
+            }
+
+            if (setValue == null) {
+                throw new ArgumentNullException(nameof(setValue));
+            }
+
+            var undoName = string.IsNullOrEmpty(field.Label)
+                ? "Set Animation Graph Node Detail"
+                : $"Set Animation Graph {field.Label}";
+            Undo.RecordObject(node, undoName);
+
+            var serializedNode = new SerializedObject(node);
+            var property = serializedNode.FindProperty(field.PropertyPath);
+            if (property == null) {
+                throw new ArgumentException($"Node detail field '{field.PropertyPath}' was not found", nameof(field));
+            }
+
+            if (property.propertyType != expectedPropertyType) {
+                throw new ArgumentException($"Node detail field '{field.PropertyPath}' is not {expectedPropertyType}", nameof(field));
+            }
+
+            setValue(property);
+            serializedNode.ApplyModifiedProperties();
+            EditorUtility.SetDirty(node);
+        }
+
+        private static void SetBranchExtensionNodeIdsProperty(SerializedObject serializedNode, int extensionIndex, int extensionPortCount, IReadOnlyList<string> nodeIds) {
+            var extensionNodeIdsProperty = serializedNode.FindProperty(BranchExtensionNodeIdsPropertyName);
+            extensionNodeIdsProperty.arraySize = Math.Max(extensionPortCount, extensionIndex + 1);
+            var nodeIdsProperty = extensionNodeIdsProperty.GetArrayElementAtIndex(extensionIndex).FindPropertyRelative(BranchNodeIdsPropertyName);
+            SetStringArrayProperty(nodeIdsProperty, nodeIds);
+        }
+
+        private static void SetStringArrayProperty(SerializedProperty property, IReadOnlyList<string> values) {
+            if (property == null) {
+                return;
+            }
+
+            property.arraySize = values.Count;
+            for (var i = 0; i < values.Count; i++) {
+                property.GetArrayElementAtIndex(i).stringValue = values[i] ?? string.Empty;
+            }
+        }
+
+        private static void RemoveBranchNodeIdReferences(SerializedObject serializedNode, string nodeId) {
+            var extensionNodeIdsProperty = serializedNode.FindProperty(BranchExtensionNodeIdsPropertyName);
+            if (extensionNodeIdsProperty != null) {
+                for (var i = 0; i < extensionNodeIdsProperty.arraySize; i++) {
+                    var nodeIdsProperty = extensionNodeIdsProperty.GetArrayElementAtIndex(i).FindPropertyRelative(BranchNodeIdsPropertyName);
+                    RemoveStringArrayValue(nodeIdsProperty, nodeId);
+                }
+            }
+        }
+
+        private static void RemoveStringArrayValue(SerializedProperty property, string value) {
+            if (property == null) {
+                return;
+            }
+
+            for (var i = property.arraySize - 1; i >= 0; i--) {
+                if (property.GetArrayElementAtIndex(i).stringValue != value) {
+                    continue;
+                }
+
+                property.DeleteArrayElementAtIndex(i);
+            }
+        }
+
         /// <summary>
         /// Blackboard 定義の SerializedProperty に値を設定
         /// </summary>
         /// <param name="definitionProperty">設定対象の SerializedProperty</param>
         /// <param name="definition">設定する Blackboard 定義</param>
-        private static void SetBlackboardDefinitionProperty(SerializedProperty definitionProperty, AnimationGraphBlackboardDefinition definition) {
+        private static void SetBlackboardDefinitionProperty(SerializedProperty definitionProperty, BlackboardDefinition definition) {
             definitionProperty.FindPropertyRelative(KeyPropertyName).stringValue = definition.Key;
             definitionProperty.FindPropertyRelative(ValueTypePropertyName).enumValueIndex = (int)definition.ValueType;
             definitionProperty.FindPropertyRelative(DefaultBoolValuePropertyName).boolValue = definition.DefaultBoolValue;

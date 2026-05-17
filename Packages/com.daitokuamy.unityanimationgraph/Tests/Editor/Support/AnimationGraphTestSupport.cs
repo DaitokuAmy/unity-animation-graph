@@ -20,8 +20,10 @@ namespace UnityAnimationGraph.Tests {
         private const string ExitSignalsPropertyName = "_exitSignals";
         /// <summary>Signal の ID フィールド名</summary>
         private const string SignalIdPropertyName = "_signalId";
-        /// <summary>BranchNode の false 側後続ノード ID フィールド名</summary>
-        private const string FalseNodeIdsPropertyName = "_falseNodeIds";
+        /// <summary>BranchNode の拡張 Port 後続ノード ID リストフィールド名</summary>
+        private const string BranchExtensionNodeIdsPropertyName = "_extensionNodeIds";
+        /// <summary>BranchNodeIdList の後続ノード ID フィールド名</summary>
+        private const string BranchNodeIdsPropertyName = "_nodeIds";
         /// <summary>DelayNode の待機時間フィールド名</summary>
         private const string DelayPropertyName = "_delay";
         /// <summary>LoopNode の実行回数フィールド名</summary>
@@ -145,7 +147,7 @@ namespace UnityAnimationGraph.Tests {
         /// </summary>
         /// <param name="graphAsset">設定対象の AnimationGraphAsset</param>
         /// <param name="definitions">設定する target 定義一覧</param>
-        public void SetTargetDefinitions(AnimationGraphAsset graphAsset, params AnimationGraphTargetDefinition[] definitions) {
+        public void SetTargetDefinitions(AnimationGraphAsset graphAsset, params TargetDefinition[] definitions) {
             var serializedGraph = new SerializedObject(graphAsset);
             var definitionsProperty = serializedGraph.FindProperty(TargetDefinitionsPropertyName);
             definitionsProperty.arraySize = definitions.Length;
@@ -163,7 +165,7 @@ namespace UnityAnimationGraph.Tests {
         /// </summary>
         /// <param name="graphAsset">設定対象の AnimationGraphAsset</param>
         /// <param name="definitions">設定する Blackboard 定義一覧</param>
-        public void SetBlackboardDefinitions(AnimationGraphAsset graphAsset, params AnimationGraphBlackboardDefinition[] definitions) {
+        public void SetBlackboardDefinitions(AnimationGraphAsset graphAsset, params BlackboardDefinition[] definitions) {
             var serializedGraph = new SerializedObject(graphAsset);
             var definitionsProperty = serializedGraph.FindProperty(BlackboardDefinitionsPropertyName);
             definitionsProperty.arraySize = definitions.Length;
@@ -275,13 +277,14 @@ namespace UnityAnimationGraph.Tests {
         }
 
         /// <summary>
-        /// BranchNode の false 側接続を設定
+        /// BranchNode の拡張 Port 接続を設定
         /// </summary>
         /// <param name="branchNode">設定対象 BranchNode</param>
-        /// <param name="falseNodeIds">false 側後続ノード ID 一覧</param>
-        public void SetFalseNodeIds(BranchNode branchNode, params string[] falseNodeIds) {
+        /// <param name="extensionIndex">設定する拡張 Branch Port index</param>
+        /// <param name="nodeIds">後続ノード ID 一覧</param>
+        public void SetBranchExtensionNodeIds(BranchNode branchNode, int extensionIndex, params string[] nodeIds) {
             var serializedNode = new SerializedObject(branchNode);
-            SetStringArray(serializedNode.FindProperty(FalseNodeIdsPropertyName), falseNodeIds);
+            SetBranchExtensionNodeIds(serializedNode, branchNode.ExtensionPortCount, extensionIndex, nodeIds);
             serializedNode.ApplyModifiedPropertiesWithoutUndo();
         }
 
@@ -340,8 +343,12 @@ namespace UnityAnimationGraph.Tests {
             serializedNode.FindProperty(NodeIdPropertyName).stringValue = nodeId;
             serializedNode.FindProperty(GraphPositionPropertyName).vector2Value = Vector2.zero;
             SetStringArray(serializedNode.FindProperty(NextNodeIdsPropertyName), nextNodeIds);
-            if (node is BranchNode) {
-                SetStringArray(serializedNode.FindProperty(FalseNodeIdsPropertyName), Array.Empty<string>());
+            if (node is BranchNode branchNode) {
+                var extensionNodeIdsProperty = serializedNode.FindProperty(BranchExtensionNodeIdsPropertyName);
+                extensionNodeIdsProperty.arraySize = branchNode.ExtensionPortCount;
+                for (var i = 0; i < extensionNodeIdsProperty.arraySize; i++) {
+                    SetStringArray(extensionNodeIdsProperty.GetArrayElementAtIndex(i).FindPropertyRelative(BranchNodeIdsPropertyName), Array.Empty<string>());
+                }
             }
 
             if (node is LoopNode) {
@@ -349,6 +356,12 @@ namespace UnityAnimationGraph.Tests {
             }
 
             serializedNode.ApplyModifiedPropertiesWithoutUndo();
+        }
+
+        private void SetBranchExtensionNodeIds(SerializedObject serializedNode, int extensionPortCount, int extensionIndex, IReadOnlyList<string> nodeIds) {
+            var extensionNodeIdsProperty = serializedNode.FindProperty(BranchExtensionNodeIdsPropertyName);
+            extensionNodeIdsProperty.arraySize = Math.Max(extensionPortCount, extensionIndex + 1);
+            SetStringArray(extensionNodeIdsProperty.GetArrayElementAtIndex(extensionIndex).FindPropertyRelative(BranchNodeIdsPropertyName), nodeIds);
         }
 
         /// <summary>
@@ -711,8 +724,33 @@ namespace UnityAnimationGraph.Tests {
         public bool Condition { get; set; }
 
         /// <inheritdoc/>
-        protected override bool EvaluateConditionInternal(int seed, IAnimationGraphContext context) {
-            return Condition;
+        protected override int EvaluateBranchPortIndex(int seed, IAnimationGraphContext context) {
+            return Condition ? 0 : 1;
+        }
+
+        /// <inheritdoc/>
+        protected override int GetExtensionPortCount() {
+            return 1;
+        }
+    }
+
+    /// <summary>
+    /// テスト用の複数 Port branch node
+    /// </summary>
+    internal sealed class TestMultiBranchNode : BranchNode {
+        /// <summary>評価後に選択する Branch Port index</summary>
+        public int SelectedPortIndex { get; set; }
+        /// <summary>拡張 Branch Port の数</summary>
+        public int ExtensionCount { get; set; } = 2;
+
+        /// <inheritdoc/>
+        protected override int EvaluateBranchPortIndex(int seed, IAnimationGraphContext context) {
+            return SelectedPortIndex;
+        }
+
+        /// <inheritdoc/>
+        protected override int GetExtensionPortCount() {
+            return ExtensionCount;
         }
     }
 }

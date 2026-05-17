@@ -9,7 +9,7 @@ namespace UnityAnimationGraph {
     public struct Vector3Parameter {
         [SerializeField, Tooltip("値の解決元")]
         private ParameterSource _source;
-        [SerializeField, BlackboardKey(AnimationGraphValueType.Vector3), Tooltip("Blackboard の現在値を参照する key")]
+        [SerializeField, BlackboardKey(BlackboardValueType.Vector3), Tooltip("Blackboard の現在値を参照する key")]
         private string _blackboardKey;
         [SerializeField, Tooltip("Vector3 型の直値")]
         private Vector3 _value;

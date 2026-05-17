@@ -9,7 +9,7 @@ namespace UnityAnimationGraph {
     public struct IntParameter {
         [SerializeField, Tooltip("値の解決元")]
         private ParameterSource _source;
-        [SerializeField, BlackboardKey(AnimationGraphValueType.Int), Tooltip("Blackboard の現在値を参照する key")]
+        [SerializeField, BlackboardKey(BlackboardValueType.Int), Tooltip("Blackboard の現在値を参照する key")]
         private string _blackboardKey;
         [SerializeField, Tooltip("int 型の直値")]
         private int _value;

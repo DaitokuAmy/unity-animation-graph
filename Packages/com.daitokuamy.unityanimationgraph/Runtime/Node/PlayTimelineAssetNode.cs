@@ -17,8 +17,8 @@ namespace UnityAnimationGraph {
 
         /// <inheritdoc/>
         protected override IEnumerable<string> GetPreviewProperties(PlayableDirector playableDirector) {
-            yield return "m_PlayableAsset";
-            yield return "m_DirectorUpdateMode";
+            yield return PreviewPropertyPaths.PlayableDirector.PlayableAsset;
+            yield return PreviewPropertyPaths.PlayableDirector.DirectorUpdateMode;
         }
 
         /// <inheritdoc/>

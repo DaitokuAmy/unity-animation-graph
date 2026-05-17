@@ -31,6 +31,15 @@ namespace UnityAnimationGraph {
             _version = version;
         }
 
+        /// <inheritdoc/>
+        bool IEnumerator.MoveNext() {
+            return !IsDone;
+        }
+
+        /// <inheritdoc/>
+        void IEnumerator.Reset() {
+        }
+
         /// <summary>
         /// await 用の awaiter を取得
         /// </summary>
@@ -47,13 +56,28 @@ namespace UnityAnimationGraph {
             return _player != null && _player.CompletePlay(_version);
         }
 
-        /// <inheritdoc/>
-        bool IEnumerator.MoveNext() {
-            return !IsDone;
+        /// <summary>
+        /// 再生を一時停止
+        /// </summary>
+        /// <returns>一時停止できた場合は true</returns>
+        public bool Pause() {
+            return _player != null && _player.PausePlay(_version);
         }
 
-        /// <inheritdoc/>
-        void IEnumerator.Reset() {
+        /// <summary>
+        /// 一時停止中の再生を再開
+        /// </summary>
+        /// <returns>再開できた場合は true</returns>
+        public bool Resume() {
+            return _player != null && _player.ResumePlay(_version);
+        }
+
+        /// <summary>
+        /// 再生を停止
+        /// </summary>
+        /// <returns>停止できた場合は true</returns>
+        public bool Stop() {
+            return _player != null && _player.StopPlay(_version);
         }
 
         /// <summary>

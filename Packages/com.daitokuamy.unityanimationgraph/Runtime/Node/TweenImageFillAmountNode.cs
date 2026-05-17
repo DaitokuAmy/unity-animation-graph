@@ -16,7 +16,7 @@ namespace UnityAnimationGraph {
 
         /// <inheritdoc/>
         protected override IEnumerable<string> GetPreviewProperties(Image target) {
-            yield return "m_FillAmount";
+            yield return PreviewPropertyPaths.UI.ImageFillAmount;
         }
 
         /// <inheritdoc/>

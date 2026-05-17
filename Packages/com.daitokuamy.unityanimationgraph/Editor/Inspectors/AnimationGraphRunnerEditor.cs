@@ -16,15 +16,15 @@ namespace UnityAnimationGraph.Editor {
         private const string UpdateTypePropertyName = "_updateType";
         /// <summary>AnimationGraphRunner の target binding group 配列フィールド名</summary>
         private const string TargetBindingGroupsPropertyName = "_targetBindingGroups";
-        /// <summary>AnimationGraphTargetBindingGroup の graph asset GUID フィールド名</summary>
+        /// <summary>TargetBindingGroup の graph asset GUID フィールド名</summary>
         private const string GraphAssetGuidPropertyName = "_graphAssetGuid";
-        /// <summary>AnimationGraphTargetBindingGroup の binding 配列フィールド名</summary>
+        /// <summary>TargetBindingGroup の binding 配列フィールド名</summary>
         private const string BindingsPropertyName = "_bindings";
-        /// <summary>AnimationGraphTargetBinding の key フィールド名</summary>
+        /// <summary>TargetBinding の key フィールド名</summary>
         private const string KeyPropertyName = "_key";
-        /// <summary>AnimationGraphTargetBinding の MonoScript GUID フィールド名</summary>
+        /// <summary>TargetBinding の MonoScript GUID フィールド名</summary>
         private const string MonoScriptGuidPropertyName = "_monoScriptGuid";
-        /// <summary>AnimationGraphTargetBinding の target フィールド名</summary>
+        /// <summary>TargetBinding の target フィールド名</summary>
         private const string TargetPropertyName = "_target";
         /// <summary>AnimationGraphAsset の asset GUID フィールド名</summary>
         private const string AssetGuidPropertyName = "_assetGuid";

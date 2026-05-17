@@ -4,34 +4,35 @@ using UnityEngine;
 
 namespace UnityAnimationGraph {
     /// <summary>
-    /// AnimationGraphRunner が自動 Tick する Unity 更新タイミング
-    /// </summary>
-    public enum AnimationGraphRunnerUpdateType {
-        /// <summary>Update で Tick を実行</summary>
-        Update,
-        /// <summary>LateUpdate で Tick を実行</summary>
-        LateUpdate,
-        /// <summary>自動 Tick を行わず、外部から ManualUpdate を呼ぶ</summary>
-        ManualUpdate,
-    }
-
-    /// <summary>
     /// AnimationGraphAsset を MonoBehaviour として再生するコンポーネント
     /// </summary>
+    [ExecuteAlways]
     [DisallowMultipleComponent]
     public sealed class AnimationGraphRunner : MonoBehaviour, IAnimationGraphContext {
+        /// <summary>
+        /// AnimationGraphRunner が自動 Tick する Unity 更新タイミング
+        /// </summary>
+        public enum UpdateType {
+            /// <summary>Update で Tick を実行</summary>
+            Update,
+            /// <summary>LateUpdate で Tick を実行</summary>
+            LateUpdate,
+            /// <summary>自動 Tick を行わず、外部から ManualUpdate を呼ぶ</summary>
+            ManualUpdate,
+        }
+
         [SerializeField, Tooltip("再生する AnimationGraphAsset")]
         private AnimationGraphAsset _graphAsset;
         [SerializeField, Tooltip("OnEnable 時に自動再生する場合は有効")]
         private bool _playOnEnabled;
         [SerializeField, Tooltip("自動 Tick の Unity 更新タイミング")]
-        private AnimationGraphRunnerUpdateType _updateType = AnimationGraphRunnerUpdateType.Update;
+        private UpdateType _updateType = UpdateType.Update;
         [SerializeField, Tooltip("GraphAsset ごとに保持する target binding 一覧")]
-        private AnimationGraphTargetBindingGroup[] _targetBindingGroups = Array.Empty<AnimationGraphTargetBindingGroup>();
+        private TargetBindingGroup[] _targetBindingGroups = Array.Empty<TargetBindingGroup>();
 
         private readonly AnimationGraphPlayer _player = new();
 
-        private AnimationGraphBlackboardValue[] _blackboardValues = Array.Empty<AnimationGraphBlackboardValue>();
+        private BlackboardValue[] _blackboardValues = Array.Empty<BlackboardValue>();
         private int _currentTargetBindingGroupIndex = -1;
         private bool _isGraphStatePrepared;
         private bool _isInitialized;
@@ -49,7 +50,7 @@ namespace UnityAnimationGraph {
         }
 
         /// <summary>自動 Tick の Unity 更新タイミング</summary>
-        public AnimationGraphRunnerUpdateType UpdateType {
+        public UpdateType UpdateMode {
             get => _updateType;
             set => _updateType = value;
         }
@@ -57,9 +58,9 @@ namespace UnityAnimationGraph {
         /// <summary>設定中の評価コンテキスト</summary>
         public IAnimationGraphContext Context => this;
         /// <summary>Runner が保持する Blackboard 現在値一覧</summary>
-        public IReadOnlyList<AnimationGraphBlackboardValue> BlackboardValues => _blackboardValues ?? Array.Empty<AnimationGraphBlackboardValue>();
+        public IReadOnlyList<BlackboardValue> BlackboardValues => _blackboardValues ?? Array.Empty<BlackboardValue>();
         /// <summary>現在の GraphAsset に対応する target binding 一覧</summary>
-        public IReadOnlyList<AnimationGraphTargetBinding> TargetBindings => GetCurrentTargetBindings();
+        public IReadOnlyList<TargetBinding> TargetBindings => GetCurrentTargetBindings();
         /// <summary>構築済みスケジュール</summary>
         public AnimationGraphSchedule Schedule => _player.Schedule;
         /// <summary>現在の再生状態</summary>
@@ -74,124 +75,6 @@ namespace UnityAnimationGraph {
         public float TimeScale {
             get => _player.TimeScale;
             set => _player.TimeScale = value;
-        }
-
-        /// <summary>
-        /// 指定した Signal 型の発火通知を購読
-        /// </summary>
-        /// <param name="callback">Signal 発火時に呼び出す callback</param>
-        /// <typeparam name="TSignal">購読対象の Signal 型</typeparam>
-        public void SubscribeSignal<TSignal>(Action<TSignal> callback) where TSignal : Signal {
-            _player.SubscribeSignal(callback);
-        }
-
-        /// <summary>
-        /// Signal 発火通知の購読をすべて解除
-        /// </summary>
-        public void ClearSignalSubscriptions() {
-            _player.ClearSignalSubscriptions();
-        }
-
-        /// <inheritdoc/>
-        T IAnimationGraphContext.GetTarget<T>(string key) {
-            var group = GetCurrentTargetBindingGroup();
-            if (group != null && group.TryGetTarget(key, out T target)) {
-                return target;
-            }
-
-            throw new InvalidOperationException($"Target '{key}' is not registered or does not match {typeof(T).Name}");
-        }
-
-        /// <inheritdoc/>
-        bool IAnimationGraphContext.TryGetTarget<T>(string key, out T target) {
-            var group = GetCurrentTargetBindingGroup();
-            if (group != null && group.TryGetTarget(key, out target)) {
-                return true;
-            }
-
-            
-            target = null;
-            return false;
-        }
-
-        /// <inheritdoc/>
-        bool IAnimationGraphBlackboard.TryGetBlackboardValue(string key, out bool value) {
-            if (TryGetBlackboardValue(key, out var blackboardValue) && blackboardValue.TryGetValue(out value)) {
-                return true;
-            }
-
-            value = default;
-            return false;
-        }
-
-        /// <inheritdoc/>
-        bool IAnimationGraphBlackboard.TryGetBlackboardValue(string key, out int value) {
-            if (TryGetBlackboardValue(key, out var blackboardValue) && blackboardValue.TryGetValue(out value)) {
-                return true;
-            }
-
-            value = default;
-            return false;
-        }
-
-        /// <inheritdoc/>
-        bool IAnimationGraphBlackboard.TryGetBlackboardValue(string key, out float value) {
-            if (TryGetBlackboardValue(key, out var blackboardValue) && blackboardValue.TryGetValue(out value)) {
-                return true;
-            }
-
-            value = default;
-            return false;
-        }
-
-        /// <inheritdoc/>
-        bool IAnimationGraphBlackboard.TryGetBlackboardValue(string key, out string value) {
-            if (TryGetBlackboardValue(key, out var blackboardValue) && blackboardValue.TryGetValue(out value)) {
-                return true;
-            }
-
-            value = default;
-            return false;
-        }
-
-        /// <inheritdoc/>
-        bool IAnimationGraphBlackboard.TryGetBlackboardValue(string key, out Vector2 value) {
-            if (TryGetBlackboardValue(key, out var blackboardValue) && blackboardValue.TryGetValue(out value)) {
-                return true;
-            }
-
-            value = default;
-            return false;
-        }
-
-        /// <inheritdoc/>
-        bool IAnimationGraphBlackboard.TryGetBlackboardValue(string key, out Vector3 value) {
-            if (TryGetBlackboardValue(key, out var blackboardValue) && blackboardValue.TryGetValue(out value)) {
-                return true;
-            }
-
-            value = default;
-            return false;
-        }
-
-        /// <inheritdoc/>
-        bool IAnimationGraphBlackboard.TryGetBlackboardValue(string key, out Color value) {
-            if (TryGetBlackboardValue(key, out var blackboardValue) && blackboardValue.TryGetValue(out value)) {
-                return true;
-            }
-
-            value = default;
-            return false;
-        }
-
-        /// <inheritdoc/>
-        bool IAnimationGraphBlackboard.TryGetBlackboardValue(string key, out Vector4 value) {
-            if (TryGetBlackboardValue(key, out var blackboardValue) && blackboardValue.TryGetValue(out value)) {
-                return true;
-            }
-
-            value = default;
-            return false;
         }
 
         /// <summary>
@@ -237,21 +120,11 @@ namespace UnityAnimationGraph {
         }
 
         /// <summary>
-        /// 0 秒から指定時刻までを順方向に評価
-        /// </summary>
-        /// <param name="time">評価する時刻</param>
-        public void Seek(float time) {
-            EnsureGraphAsset();
-            InitializePlayer();
-            _player.Seek(time);
-        }
-
-        /// <summary>
         /// ManualUpdate 設定時に再生時間を進めて評価
         /// </summary>
         /// <param name="deltaTime">進める時間</param>
         public void ManualUpdate(float deltaTime) {
-            if (_updateType != AnimationGraphRunnerUpdateType.ManualUpdate) {
+            if (_updateType != UpdateType.ManualUpdate) {
                 return;
             }
 
@@ -263,14 +136,14 @@ namespace UnityAnimationGraph {
         /// </summary>
         /// <param name="graphAsset">再生する AnimationGraphAsset。null の場合は設定を解除</param>
         public void SetGraph(AnimationGraphAsset graphAsset) {
+            var continuation = default(Action);
             if (_isInitialized) {
-                _player.SetGraph(graphAsset);
+                continuation = _player.SetGraphDeferredContinuation(graphAsset);
             }
 
             _graphAsset = graphAsset;
-            ResetBlackboardValues(graphAsset);
-            EnsureTargetBindingGroup(graphAsset);
-            _isGraphStatePrepared = true;
+            PrepareGraphState(graphAsset, true);
+            continuation?.Invoke();
         }
 
         /// <summary>
@@ -285,13 +158,83 @@ namespace UnityAnimationGraph {
         }
 
         /// <summary>
-        /// 指定した GraphAsset GUID に対応する target binding 一覧を取得
+        /// 指定した GraphAsset の target Component を設定
         /// </summary>
-        /// <param name="graphAssetGuid">GraphAsset の asset GUID</param>
-        /// <returns>指定した GraphAsset GUID に対応する target binding 一覧</returns>
-        internal IReadOnlyList<AnimationGraphTargetBinding> GetTargetBindingsByGraphAssetGuid(string graphAssetGuid) {
-            var group = GetTargetBindingGroupByGraphAssetGuid(graphAssetGuid);
-            return group?.Bindings ?? Array.Empty<AnimationGraphTargetBinding>();
+        /// <param name="graphAsset">設定対象の AnimationGraphAsset</param>
+        /// <param name="key">target key</param>
+        /// <param name="target">設定する Component</param>
+        /// <returns>設定できた場合は true</returns>
+        public bool SetTarget(AnimationGraphAsset graphAsset, string key, Component target) {
+            var groupIndex = EnsureTargetBindingGroupIndex(graphAsset);
+            if (groupIndex < 0) {
+                return false;
+            }
+
+            return _targetBindingGroups[groupIndex].SetTarget(key, target);
+        }
+
+        /// <summary>
+        /// 指定した key に対応する target Component を取得
+        /// </summary>
+        /// <param name="key">target key</param>
+        /// <typeparam name="T">取得する Component 型</typeparam>
+        /// <returns>指定した key に対応する target Component</returns>
+        public T GetTarget<T>(string key) where T : Component {
+            if (TryGetTarget(key, out T target)) {
+                return target;
+            }
+
+            throw new InvalidOperationException($"Target '{key}' is not registered or does not match {typeof(T).Name}");
+        }
+
+        /// <summary>
+        /// 指定した GraphAsset の key に対応する target Component を取得
+        /// </summary>
+        /// <param name="graphAsset">取得対象の AnimationGraphAsset</param>
+        /// <param name="key">target key</param>
+        /// <typeparam name="T">取得する Component 型</typeparam>
+        /// <returns>指定した GraphAsset と key に対応する target Component</returns>
+        public T GetTarget<T>(AnimationGraphAsset graphAsset, string key) where T : Component {
+            if (TryGetTarget(graphAsset, key, out T target)) {
+                return target;
+            }
+
+            throw new InvalidOperationException($"Target '{key}' is not registered or does not match {typeof(T).Name}");
+        }
+
+        /// <summary>
+        /// 指定した key に対応する target Component の取得を試行
+        /// </summary>
+        /// <param name="key">target key</param>
+        /// <param name="target">取得した Component</param>
+        /// <typeparam name="T">取得する Component 型</typeparam>
+        /// <returns>取得できた場合は true</returns>
+        public bool TryGetTarget<T>(string key, out T target) where T : Component {
+            var group = GetCurrentTargetBindingGroup();
+            if (group != null && group.TryGetTarget(key, out target)) {
+                return true;
+            }
+
+            target = null;
+            return false;
+        }
+
+        /// <summary>
+        /// 指定した GraphAsset の key に対応する target Component の取得を試行
+        /// </summary>
+        /// <param name="graphAsset">取得対象の AnimationGraphAsset</param>
+        /// <param name="key">target key</param>
+        /// <param name="target">取得した Component</param>
+        /// <typeparam name="T">取得する Component 型</typeparam>
+        /// <returns>取得できた場合は true</returns>
+        public bool TryGetTarget<T>(AnimationGraphAsset graphAsset, string key, out T target) where T : Component {
+            var group = GetTargetBindingGroup(graphAsset);
+            if (group != null && group.TryGetTarget(key, out target)) {
+                return true;
+            }
+
+            target = null;
+            return false;
         }
 
         /// <summary>
@@ -447,19 +390,150 @@ namespace UnityAnimationGraph {
         }
 
         /// <summary>
+        /// 指定した Signal 型の発火通知を購読
+        /// </summary>
+        /// <param name="callback">Signal 発火時に呼び出す callback</param>
+        /// <typeparam name="TSignal">購読対象の Signal 型</typeparam>
+        public void SubscribeSignal<TSignal>(Action<TSignal> callback) where TSignal : Signal {
+            _player.SubscribeSignal(callback);
+        }
+
+        /// <summary>
+        /// Signal 発火通知の購読をすべて解除
+        /// </summary>
+        public void ClearSignalSubscriptions() {
+            _player.ClearSignalSubscriptions();
+        }
+
+        /// <summary>
         /// スケジュールを再構築
         /// </summary>
         /// <param name="overrideSeed">グラフのシードを一時的に上書きする値</param>
-        public void RebuildSchedule(int? overrideSeed = null) {
+        internal void RebuildSchedule(int? overrideSeed = null) {
             EnsureGraphAsset();
+            PrepareGraphState(_graphAsset, false);
             InitializePlayer();
             _player.RebuildSchedule(overrideSeed);
+        }
+
+        /// <summary>
+        /// 0 秒から指定時刻までを順方向に評価
+        /// </summary>
+        /// <param name="time">評価する時刻</param>
+        internal void Seek(float time) {
+            EnsureGraphAsset();
+            InitializePlayer();
+            _player.Seek(time);
+        }
+
+        /// <summary>
+        /// 指定した GraphAsset GUID に対応する target binding 一覧を取得
+        /// </summary>
+        /// <param name="graphAssetGuid">GraphAsset の asset GUID</param>
+        /// <returns>指定した GraphAsset GUID に対応する target binding 一覧</returns>
+        internal IReadOnlyList<TargetBinding> GetTargetBindingsByGraphAssetGuid(string graphAssetGuid) {
+            var group = GetTargetBindingGroupByGraphAssetGuid(graphAssetGuid);
+            return group?.Bindings ?? Array.Empty<TargetBinding>();
+        }
+
+        /// <inheritdoc/>
+        T IAnimationGraphContext.GetTarget<T>(string key) {
+            return GetTarget<T>(key);
+        }
+
+        /// <inheritdoc/>
+        bool IAnimationGraphContext.TryGetTarget<T>(string key, out T target) {
+            return TryGetTarget(key, out target);
+        }
+
+        /// <inheritdoc/>
+        bool IAnimationGraphBlackboard.TryGetBlackboardValue(string key, out bool value) {
+            if (TryGetBlackboardValue(key, out var blackboardValue) && blackboardValue.TryGetValue(out value)) {
+                return true;
+            }
+
+            value = default;
+            return false;
+        }
+
+        /// <inheritdoc/>
+        bool IAnimationGraphBlackboard.TryGetBlackboardValue(string key, out int value) {
+            if (TryGetBlackboardValue(key, out var blackboardValue) && blackboardValue.TryGetValue(out value)) {
+                return true;
+            }
+
+            value = default;
+            return false;
+        }
+
+        /// <inheritdoc/>
+        bool IAnimationGraphBlackboard.TryGetBlackboardValue(string key, out float value) {
+            if (TryGetBlackboardValue(key, out var blackboardValue) && blackboardValue.TryGetValue(out value)) {
+                return true;
+            }
+
+            value = default;
+            return false;
+        }
+
+        /// <inheritdoc/>
+        bool IAnimationGraphBlackboard.TryGetBlackboardValue(string key, out string value) {
+            if (TryGetBlackboardValue(key, out var blackboardValue) && blackboardValue.TryGetValue(out value)) {
+                return true;
+            }
+
+            value = default;
+            return false;
+        }
+
+        /// <inheritdoc/>
+        bool IAnimationGraphBlackboard.TryGetBlackboardValue(string key, out Vector2 value) {
+            if (TryGetBlackboardValue(key, out var blackboardValue) && blackboardValue.TryGetValue(out value)) {
+                return true;
+            }
+
+            value = default;
+            return false;
+        }
+
+        /// <inheritdoc/>
+        bool IAnimationGraphBlackboard.TryGetBlackboardValue(string key, out Vector3 value) {
+            if (TryGetBlackboardValue(key, out var blackboardValue) && blackboardValue.TryGetValue(out value)) {
+                return true;
+            }
+
+            value = default;
+            return false;
+        }
+
+        /// <inheritdoc/>
+        bool IAnimationGraphBlackboard.TryGetBlackboardValue(string key, out Color value) {
+            if (TryGetBlackboardValue(key, out var blackboardValue) && blackboardValue.TryGetValue(out value)) {
+                return true;
+            }
+
+            value = default;
+            return false;
+        }
+
+        /// <inheritdoc/>
+        bool IAnimationGraphBlackboard.TryGetBlackboardValue(string key, out Vector4 value) {
+            if (TryGetBlackboardValue(key, out var blackboardValue) && blackboardValue.TryGetValue(out value)) {
+                return true;
+            }
+
+            value = default;
+            return false;
         }
 
         /// <summary>
         /// Unity の初期化時に player を準備
         /// </summary>
         private void Awake() {
+            if (!Application.IsPlaying(gameObject)) {
+                return;
+            }
+
             InitializePlayer();
         }
 
@@ -467,16 +541,31 @@ namespace UnityAnimationGraph {
         /// Unity の有効化時に自動再生を開始
         /// </summary>
         private void OnEnable() {
+            if (!Application.IsPlaying(gameObject)) {
+                return;
+            }
+
             if (_playOnEnabled && _graphAsset != null) {
                 Play();
             }
         }
 
         /// <summary>
+        /// Unity の無効化時に再生中ノードへ中断を通知
+        /// </summary>
+        private void OnDisable() {
+            Stop();
+        }
+
+        /// <summary>
         /// Unity の Update 時に自動再生を進める
         /// </summary>
         private void Update() {
-            if (_updateType != AnimationGraphRunnerUpdateType.Update) {
+            if (!Application.IsPlaying(gameObject)) {
+                return;
+            }
+
+            if (_updateType != UpdateType.Update) {
                 return;
             }
 
@@ -487,7 +576,11 @@ namespace UnityAnimationGraph {
         /// Unity の LateUpdate 時に自動再生を進める
         /// </summary>
         private void LateUpdate() {
-            if (_updateType != AnimationGraphRunnerUpdateType.LateUpdate) {
+            if (!Application.IsPlaying(gameObject)) {
+                return;
+            }
+
+            if (_updateType != UpdateType.LateUpdate) {
                 return;
             }
 
@@ -522,9 +615,7 @@ namespace UnityAnimationGraph {
             }
 
             if (!_isGraphStatePrepared) {
-                ResetBlackboardValues(_graphAsset);
-                EnsureTargetBindingGroup(_graphAsset);
-                _isGraphStatePrepared = true;
+                PrepareGraphState(_graphAsset, true);
             }
 
             _player.SetContext(this);
@@ -545,22 +636,82 @@ namespace UnityAnimationGraph {
         }
 
         /// <summary>
+        /// GraphAsset に由来する Runner 状態を準備
+        /// </summary>
+        /// <param name="graphAsset">参照する AnimationGraphAsset</param>
+        /// <param name="resetBlackboardValues">Blackboard 現在値を default value で作り直す場合は true</param>
+        private void PrepareGraphState(AnimationGraphAsset graphAsset, bool resetBlackboardValues) {
+            if (resetBlackboardValues) {
+                ResetBlackboardValues(graphAsset);
+            }
+            else {
+                RefreshBlackboardValues(graphAsset);
+            }
+
+            EnsureTargetBindingGroup(graphAsset);
+            _isGraphStatePrepared = true;
+        }
+
+        /// <summary>
         /// GraphAsset の default value から Blackboard 現在値を作り直す
         /// </summary>
         /// <param name="graphAsset">参照する AnimationGraphAsset</param>
         private void ResetBlackboardValues(AnimationGraphAsset graphAsset) {
             if (graphAsset == null) {
-                _blackboardValues = Array.Empty<AnimationGraphBlackboardValue>();
+                _blackboardValues = Array.Empty<BlackboardValue>();
                 return;
             }
 
             var definitions = graphAsset.BlackboardDefinitions;
-            var blackboardValues = new AnimationGraphBlackboardValue[definitions.Count];
+            var blackboardValues = new BlackboardValue[definitions.Count];
             for (var i = 0; i < definitions.Count; i++) {
-                blackboardValues[i] = new AnimationGraphBlackboardValue(definitions[i]);
+                blackboardValues[i] = new BlackboardValue(definitions[i]);
             }
 
             _blackboardValues = blackboardValues;
+        }
+
+        /// <summary>
+        /// GraphAsset の定義に合わせて Blackboard 現在値を同期
+        /// </summary>
+        /// <param name="graphAsset">参照する AnimationGraphAsset</param>
+        private void RefreshBlackboardValues(AnimationGraphAsset graphAsset) {
+            if (graphAsset == null) {
+                _blackboardValues = Array.Empty<BlackboardValue>();
+                return;
+            }
+
+            var currentValues = _blackboardValues ?? Array.Empty<BlackboardValue>();
+            var definitions = graphAsset.BlackboardDefinitions;
+            var blackboardValues = new BlackboardValue[definitions.Count];
+            for (var i = 0; i < definitions.Count; i++) {
+                var definition = definitions[i];
+                blackboardValues[i] = TryGetCurrentBlackboardValue(currentValues, definition, out var currentValue)
+                    ? currentValue
+                    : new BlackboardValue(definition);
+            }
+
+            _blackboardValues = blackboardValues;
+        }
+
+        /// <summary>
+        /// 指定した Blackboard 定義に対応する現在値の取得を試行
+        /// </summary>
+        /// <param name="currentValues">検索対象の現在値一覧</param>
+        /// <param name="definition">検索する Blackboard 定義</param>
+        /// <param name="value">取得した Blackboard 現在値</param>
+        /// <returns>取得できた場合は true</returns>
+        private bool TryGetCurrentBlackboardValue(IReadOnlyList<BlackboardValue> currentValues, BlackboardDefinition definition, out BlackboardValue value) {
+            for (var i = 0; i < currentValues.Count; i++) {
+                var currentValue = currentValues[i];
+                if (currentValue.Key == definition.Key && currentValue.ValueType == definition.ValueType) {
+                    value = currentValue;
+                    return true;
+                }
+            }
+
+            value = default;
+            return false;
         }
 
         /// <summary>
@@ -568,16 +719,23 @@ namespace UnityAnimationGraph {
         /// </summary>
         /// <param name="graphAsset">参照する AnimationGraphAsset</param>
         private void EnsureTargetBindingGroup(AnimationGraphAsset graphAsset) {
+            _currentTargetBindingGroupIndex = EnsureTargetBindingGroupIndex(graphAsset);
+        }
+
+        /// <summary>
+        /// GraphAsset に対応する target binding group の index を保証
+        /// </summary>
+        /// <param name="graphAsset">参照する AnimationGraphAsset</param>
+        /// <returns>GraphAsset に対応する target binding group の index。保証できない場合は -1</returns>
+        private int EnsureTargetBindingGroupIndex(AnimationGraphAsset graphAsset) {
             if (graphAsset == null) {
-                _currentTargetBindingGroupIndex = -1;
-                return;
+                return -1;
             }
 
             var graphAssetGuid = graphAsset.AssetGuid;
             if (string.IsNullOrEmpty(graphAssetGuid)) {
                 Debug.LogWarning("AnimationGraphAsset の AssetGuid が空です。GraphAsset を初期化してから Runner に設定してください", graphAsset);
-                _currentTargetBindingGroupIndex = -1;
-                return;
+                return -1;
             }
 
             var groupIndex = FindTargetBindingGroupIndex(graphAssetGuid);
@@ -588,14 +746,14 @@ namespace UnityAnimationGraph {
                 _targetBindingGroups[groupIndex].SetTargetDefinitions(graphAsset.TargetDefinitions);
             }
 
-            _currentTargetBindingGroupIndex = groupIndex;
+            return groupIndex;
         }
 
         /// <summary>
         /// 現在の target binding group を取得
         /// </summary>
         /// <returns>現在の target binding group</returns>
-        private AnimationGraphTargetBindingGroup GetCurrentTargetBindingGroup() {
+        private TargetBindingGroup GetCurrentTargetBindingGroup() {
             if (_currentTargetBindingGroupIndex < 0 || _targetBindingGroups == null || _currentTargetBindingGroupIndex >= _targetBindingGroups.Length) {
                 return null;
             }
@@ -608,7 +766,7 @@ namespace UnityAnimationGraph {
         /// </summary>
         /// <param name="graphAssetGuid">GraphAsset の asset GUID</param>
         /// <returns>指定した GraphAsset GUID に対応する target binding group</returns>
-        private AnimationGraphTargetBindingGroup GetTargetBindingGroupByGraphAssetGuid(string graphAssetGuid) {
+        private TargetBindingGroup GetTargetBindingGroupByGraphAssetGuid(string graphAssetGuid) {
             var groupIndex = FindTargetBindingGroupIndex(graphAssetGuid);
             if (groupIndex < 0 || _targetBindingGroups == null || groupIndex >= _targetBindingGroups.Length) {
                 return null;
@@ -618,12 +776,25 @@ namespace UnityAnimationGraph {
         }
 
         /// <summary>
+        /// 指定した GraphAsset に対応する target binding group を取得
+        /// </summary>
+        /// <param name="graphAsset">参照する AnimationGraphAsset</param>
+        /// <returns>指定した GraphAsset に対応する target binding group</returns>
+        private TargetBindingGroup GetTargetBindingGroup(AnimationGraphAsset graphAsset) {
+            if (graphAsset == null) {
+                return null;
+            }
+
+            return GetTargetBindingGroupByGraphAssetGuid(graphAsset.AssetGuid);
+        }
+
+        /// <summary>
         /// 現在の target binding 一覧を取得
         /// </summary>
         /// <returns>現在の target binding 一覧</returns>
-        private IReadOnlyList<AnimationGraphTargetBinding> GetCurrentTargetBindings() {
+        private IReadOnlyList<TargetBinding> GetCurrentTargetBindings() {
             var group = GetCurrentTargetBindingGroup();
-            return group?.Bindings ?? Array.Empty<AnimationGraphTargetBinding>();
+            return group?.Bindings ?? Array.Empty<TargetBinding>();
         }
 
         /// <summary>
@@ -636,7 +807,7 @@ namespace UnityAnimationGraph {
                 return -1;
             }
 
-            var values = _blackboardValues ?? Array.Empty<AnimationGraphBlackboardValue>();
+            var values = _blackboardValues ?? Array.Empty<BlackboardValue>();
             for (var i = 0; i < values.Length; i++) {
                 if (values[i].Key == key) {
                     return i;
@@ -652,7 +823,7 @@ namespace UnityAnimationGraph {
         /// <param name="key">Blackboard key</param>
         /// <param name="value">取得した Blackboard 現在値</param>
         /// <returns>取得できた場合は true</returns>
-        private bool TryGetBlackboardValue(string key, out AnimationGraphBlackboardValue value) {
+        private bool TryGetBlackboardValue(string key, out BlackboardValue value) {
             var valueIndex = FindBlackboardValueIndex(key);
             if (valueIndex < 0) {
                 value = default;
@@ -670,7 +841,7 @@ namespace UnityAnimationGraph {
         /// <param name="valueIndex">取得した Blackboard 現在値の index</param>
         /// <param name="value">取得した Blackboard 現在値</param>
         /// <returns>取得できた場合は true</returns>
-        private bool TryGetBlackboardValueForSet(string key, out int valueIndex, out AnimationGraphBlackboardValue value) {
+        private bool TryGetBlackboardValueForSet(string key, out int valueIndex, out BlackboardValue value) {
             valueIndex = FindBlackboardValueIndex(key);
             if (valueIndex < 0) {
                 value = default;
@@ -691,7 +862,7 @@ namespace UnityAnimationGraph {
                 return -1;
             }
 
-            var groups = _targetBindingGroups ?? Array.Empty<AnimationGraphTargetBindingGroup>();
+            var groups = _targetBindingGroups ?? Array.Empty<TargetBindingGroup>();
             for (var i = 0; i < groups.Length; i++) {
                 var group = groups[i];
                 if (group != null && group.GraphAssetGuid == graphAssetGuid) {
@@ -708,11 +879,11 @@ namespace UnityAnimationGraph {
         /// <param name="graphAssetGuid">GraphAsset の asset GUID</param>
         /// <param name="targetDefinitions">target 定義一覧</param>
         /// <returns>追加した group の index</returns>
-        private int AddTargetBindingGroup(string graphAssetGuid, IReadOnlyList<AnimationGraphTargetDefinition> targetDefinitions) {
-            var groups = _targetBindingGroups ?? Array.Empty<AnimationGraphTargetBindingGroup>();
-            var nextGroups = new AnimationGraphTargetBindingGroup[groups.Length + 1];
+        private int AddTargetBindingGroup(string graphAssetGuid, IReadOnlyList<TargetDefinition> targetDefinitions) {
+            var groups = _targetBindingGroups ?? Array.Empty<TargetBindingGroup>();
+            var nextGroups = new TargetBindingGroup[groups.Length + 1];
             Array.Copy(groups, nextGroups, groups.Length);
-            nextGroups[groups.Length] = new AnimationGraphTargetBindingGroup(graphAssetGuid, targetDefinitions);
+            nextGroups[groups.Length] = new TargetBindingGroup(graphAssetGuid, targetDefinitions);
             _targetBindingGroups = nextGroups;
             return groups.Length;
         }

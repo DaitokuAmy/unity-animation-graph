@@ -106,9 +106,9 @@ namespace UnityAnimationGraph.Editor {
         /// <summary>GraphAsset に含まれる Signal Model 一覧</summary>
         public IReadOnlyList<SignalEditorModel> Signals => _signals;
         /// <summary>GraphAsset が要求する target key 定義一覧</summary>
-        public IReadOnlyList<AnimationGraphTargetDefinition> TargetDefinitions => _graphAsset?.TargetDefinitions ?? Array.Empty<AnimationGraphTargetDefinition>();
+        public IReadOnlyList<TargetDefinition> TargetDefinitions => _graphAsset?.TargetDefinitions ?? Array.Empty<TargetDefinition>();
         /// <summary>GraphAsset が要求する Blackboard key 定義一覧</summary>
-        public IReadOnlyList<AnimationGraphBlackboardDefinition> BlackboardDefinitions => _graphAsset?.BlackboardDefinitions ?? Array.Empty<AnimationGraphBlackboardDefinition>();
+        public IReadOnlyList<BlackboardDefinition> BlackboardDefinitions => _graphAsset?.BlackboardDefinitions ?? Array.Empty<BlackboardDefinition>();
 
         /// <summary>
         /// 操作対象の AnimationGraphAsset を設定
@@ -227,17 +227,19 @@ namespace UnityAnimationGraph.Editor {
                 duplicatedNodeModels[i].SetNextNodeIds(duplicatedNextNodeIds);
 
                 if (sourceNodeModel is BranchNodeEditorModel sourceBranchNodeModel && duplicatedNodeModels[i] is BranchNodeEditorModel duplicatedBranchNodeModel) {
-                    var duplicatedFalseNodeIds = new List<string>();
-                    var falseNodeIds = sourceBranchNodeModel.FalseNodeIds;
-                    for (var j = 0; j < falseNodeIds.Count; j++) {
-                        if (!duplicatedNodeModelsBySourceId.TryGetValue(falseNodeIds[j], out var duplicatedFalseNodeModel)) {
-                            continue;
+                    for (var j = 0; j < sourceBranchNodeModel.ExtensionPortCount; j++) {
+                        var duplicatedExtensionNodeIds = new List<string>();
+                        var extensionNodeIds = sourceBranchNodeModel.GetExtensionNodeIds(j);
+                        for (var k = 0; k < extensionNodeIds.Count; k++) {
+                            if (!duplicatedNodeModelsBySourceId.TryGetValue(extensionNodeIds[k], out var duplicatedExtensionNodeModel)) {
+                                continue;
+                            }
+
+                            duplicatedExtensionNodeIds.Add(duplicatedExtensionNodeModel.NodeId);
                         }
 
-                        duplicatedFalseNodeIds.Add(duplicatedFalseNodeModel.NodeId);
+                        duplicatedBranchNodeModel.SetExtensionNodeIds(j, duplicatedExtensionNodeIds);
                     }
-
-                    duplicatedBranchNodeModel.SetFalseNodeIds(duplicatedFalseNodeIds);
                 }
 
                 if (sourceNodeModel is LoopNodeEditorModel sourceLoopNodeModel && duplicatedNodeModels[i] is LoopNodeEditorModel duplicatedLoopNodeModel) {
@@ -479,6 +481,8 @@ namespace UnityAnimationGraph.Editor {
                 AddLoopValidationMessages(loopNodeModel, messagesByNodeId);
             }
 
+            AddNodeValidationMessages(messagesByNodeId);
+
             return messagesByNodeId;
         }
 
@@ -486,15 +490,15 @@ namespace UnityAnimationGraph.Editor {
         /// 操作対象の AnimationGraphAsset の target 定義を設定
         /// </summary>
         /// <param name="definitions">設定する target 定義一覧</param>
-        public void SetTargetDefinitions(params AnimationGraphTargetDefinition[] definitions) {
-            SetTargetDefinitions((IReadOnlyList<AnimationGraphTargetDefinition>)definitions);
+        public void SetTargetDefinitions(params TargetDefinition[] definitions) {
+            SetTargetDefinitions((IReadOnlyList<TargetDefinition>)definitions);
         }
 
         /// <summary>
         /// 操作対象の AnimationGraphAsset の target 定義を設定
         /// </summary>
         /// <param name="definitions">設定する target 定義一覧</param>
-        public void SetTargetDefinitions(IReadOnlyList<AnimationGraphTargetDefinition> definitions) {
+        public void SetTargetDefinitions(IReadOnlyList<TargetDefinition> definitions) {
             AnimationGraphAssetUtility.SetTargetDefinitions(RequireGraphAsset(), definitions);
         }
 
@@ -502,15 +506,15 @@ namespace UnityAnimationGraph.Editor {
         /// 操作対象の AnimationGraphAsset の Blackboard 定義を設定
         /// </summary>
         /// <param name="definitions">設定する Blackboard 定義一覧</param>
-        public void SetBlackboardDefinitions(params AnimationGraphBlackboardDefinition[] definitions) {
-            SetBlackboardDefinitions((IReadOnlyList<AnimationGraphBlackboardDefinition>)definitions);
+        public void SetBlackboardDefinitions(params BlackboardDefinition[] definitions) {
+            SetBlackboardDefinitions((IReadOnlyList<BlackboardDefinition>)definitions);
         }
 
         /// <summary>
         /// 操作対象の AnimationGraphAsset の Blackboard 定義を設定
         /// </summary>
         /// <param name="definitions">設定する Blackboard 定義一覧</param>
-        public void SetBlackboardDefinitions(IReadOnlyList<AnimationGraphBlackboardDefinition> definitions) {
+        public void SetBlackboardDefinitions(IReadOnlyList<BlackboardDefinition> definitions) {
             AnimationGraphAssetUtility.SetBlackboardDefinitions(RequireGraphAsset(), definitions);
         }
 
@@ -553,12 +557,20 @@ namespace UnityAnimationGraph.Editor {
                 throw new InvalidOperationException("Node is not contained in AnimationGraphAsset");
             }
 
-            var signal = outputPortKind switch {
-                AnimationGraphOutputPortKind.EnterSignal when nodeModel.EnableEnterSignalPort => AnimationGraphAssetUtility.AddEnterSignal(RequireGraphAsset(), nodeModel.Node, signalType, graphPosition),
-                AnimationGraphOutputPortKind.ExitSignal when nodeModel.EnableExitSignalPort => AnimationGraphAssetUtility.AddExitSignal(RequireGraphAsset(), nodeModel.Node, signalType, graphPosition),
-                AnimationGraphOutputPortKind.EnterSignal or AnimationGraphOutputPortKind.ExitSignal => throw new InvalidOperationException("Signal port is not enabled for this node"),
-                _ => throw new InvalidOperationException("Output port is not a Signal port"),
-            };
+            Signal signal;
+            if (outputPortKind == AnimationGraphOutputPortKind.EnterSignal && nodeModel.EnableEnterSignalPort) {
+                signal = AnimationGraphAssetUtility.AddEnterSignal(RequireGraphAsset(), nodeModel.Node, signalType, graphPosition);
+            }
+            else if (outputPortKind == AnimationGraphOutputPortKind.ExitSignal && nodeModel.EnableExitSignalPort) {
+                signal = AnimationGraphAssetUtility.AddExitSignal(RequireGraphAsset(), nodeModel.Node, signalType, graphPosition);
+            }
+            else if (outputPortKind.IsSignal) {
+                throw new InvalidOperationException("Signal port is not enabled for this node");
+            }
+            else {
+                throw new InvalidOperationException("Output port is not a Signal port");
+            }
+
             GetOrAddSignalModel(signal);
             return signal;
         }
@@ -576,13 +588,11 @@ namespace UnityAnimationGraph.Editor {
                 return false;
             }
 
-            switch (outputPortKind) {
-                case AnimationGraphOutputPortKind.EnterSignal:
-                    AnimationGraphAssetUtility.AddEnterSignalReference(sourceNodeModel.Node, targetSignalModel.Signal);
-                    break;
-                case AnimationGraphOutputPortKind.ExitSignal:
-                    AnimationGraphAssetUtility.AddExitSignalReference(sourceNodeModel.Node, targetSignalModel.Signal);
-                    break;
+            if (outputPortKind == AnimationGraphOutputPortKind.EnterSignal) {
+                AnimationGraphAssetUtility.AddEnterSignalReference(sourceNodeModel.Node, targetSignalModel.Signal);
+            }
+            else if (outputPortKind == AnimationGraphOutputPortKind.ExitSignal) {
+                AnimationGraphAssetUtility.AddExitSignalReference(sourceNodeModel.Node, targetSignalModel.Signal);
             }
 
             RefreshSignals();
@@ -605,17 +615,15 @@ namespace UnityAnimationGraph.Editor {
                 throw new ArgumentNullException(nameof(targetSignalModel));
             }
 
-            if (!IsSignalOutputPort(outputPortKind) || !ContainsSignalReference(sourceNodeModel, outputPortKind, targetSignalModel.Signal)) {
+            if (!outputPortKind.IsSignal || !ContainsSignalReference(sourceNodeModel, outputPortKind, targetSignalModel.Signal)) {
                 return false;
             }
 
-            switch (outputPortKind) {
-                case AnimationGraphOutputPortKind.EnterSignal:
-                    AnimationGraphAssetUtility.RemoveEnterSignalReference(sourceNodeModel.Node, targetSignalModel.Signal);
-                    break;
-                case AnimationGraphOutputPortKind.ExitSignal:
-                    AnimationGraphAssetUtility.RemoveExitSignalReference(sourceNodeModel.Node, targetSignalModel.Signal);
-                    break;
+            if (outputPortKind == AnimationGraphOutputPortKind.EnterSignal) {
+                AnimationGraphAssetUtility.RemoveEnterSignalReference(sourceNodeModel.Node, targetSignalModel.Signal);
+            }
+            else if (outputPortKind == AnimationGraphOutputPortKind.ExitSignal) {
+                AnimationGraphAssetUtility.RemoveExitSignalReference(sourceNodeModel.Node, targetSignalModel.Signal);
             }
 
             RefreshSignals();
@@ -644,7 +652,7 @@ namespace UnityAnimationGraph.Editor {
                 return false;
             }
 
-            if (!IsSignalOutputPort(outputPortKind)) {
+            if (!outputPortKind.IsSignal) {
                 errorMessage = "Output port is not a Signal port";
                 return false;
             }
@@ -806,7 +814,7 @@ namespace UnityAnimationGraph.Editor {
                 return false;
             }
 
-            if (outputPortKind is AnimationGraphOutputPortKind.EnterSignal or AnimationGraphOutputPortKind.ExitSignal) {
+            if (outputPortKind.IsSignal) {
                 errorMessage = "Signal port cannot connect to Node";
                 return false;
             }
@@ -1038,20 +1046,23 @@ namespace UnityAnimationGraph.Editor {
         /// <param name="outputPortKind">判定する output port 種別</param>
         /// <returns>利用できる場合は true</returns>
         private static bool CanUseOutputPort(NodeEditorModel nodeModel, AnimationGraphOutputPortKind outputPortKind) {
-            return outputPortKind switch {
-                AnimationGraphOutputPortKind.Next => true,
-                AnimationGraphOutputPortKind.False => nodeModel is BranchNodeEditorModel,
-                AnimationGraphOutputPortKind.Loop => nodeModel is LoopNodeEditorModel,
-                _ => false,
-            };
+            if (outputPortKind.IsNext) {
+                return true;
+            }
+
+            if (outputPortKind.IsBranchExtension && nodeModel is BranchNodeEditorModel branchNodeModel) {
+                return outputPortKind.BranchExtensionIndex < branchNodeModel.ExtensionPortCount;
+            }
+
+            return outputPortKind == AnimationGraphOutputPortKind.Loop && nodeModel is LoopNodeEditorModel;
         }
 
         private static bool CanUseSignalOutputPort(NodeEditorModel nodeModel, AnimationGraphOutputPortKind outputPortKind) {
-            return outputPortKind switch {
-                AnimationGraphOutputPortKind.EnterSignal => nodeModel.EnableEnterSignalPort,
-                AnimationGraphOutputPortKind.ExitSignal => nodeModel.EnableExitSignalPort,
-                _ => false,
-            };
+            if (outputPortKind == AnimationGraphOutputPortKind.EnterSignal) {
+                return nodeModel.EnableEnterSignalPort;
+            }
+
+            return outputPortKind == AnimationGraphOutputPortKind.ExitSignal && nodeModel.EnableExitSignalPort;
         }
 
         private bool IsSignalAttached(Signal signal) {
@@ -1077,15 +1088,13 @@ namespace UnityAnimationGraph.Editor {
         }
 
         private static IReadOnlyList<Signal> GetConnectedSignals(NodeEditorModel nodeModel, AnimationGraphOutputPortKind outputPortKind) {
-            return outputPortKind switch {
-                AnimationGraphOutputPortKind.EnterSignal => nodeModel.EnterSignals,
-                AnimationGraphOutputPortKind.ExitSignal => nodeModel.ExitSignals,
-                _ => Array.Empty<Signal>(),
-            };
-        }
+            if (outputPortKind == AnimationGraphOutputPortKind.EnterSignal) {
+                return nodeModel.EnterSignals;
+            }
 
-        private static bool IsSignalOutputPort(AnimationGraphOutputPortKind outputPortKind) {
-            return outputPortKind is AnimationGraphOutputPortKind.EnterSignal or AnimationGraphOutputPortKind.ExitSignal;
+            return outputPortKind == AnimationGraphOutputPortKind.ExitSignal
+                ? nodeModel.ExitSignals
+                : Array.Empty<Signal>();
         }
 
         /// <summary>
@@ -1193,6 +1202,15 @@ namespace UnityAnimationGraph.Editor {
 
         private bool ContainsLoopBodyNode(LoopNodeEditorModel loopNodeModel, string nodeId) {
             return !string.IsNullOrEmpty(nodeId) && BuildLoopBodyNodeIdSet(loopNodeModel, null).Contains(nodeId);
+        }
+
+        private void AddNodeValidationMessages(Dictionary<string, string> messagesByNodeId) {
+            var context = new NodeValidationContext(TargetDefinitions, BlackboardDefinitions);
+            for (var i = 0; i < _nodes.Count; i++) {
+                var nodeModel = _nodes[i];
+                var message = nodeModel.Node.GetValidationMessage(context);
+                AddNodeValidationMessage(messagesByNodeId, nodeModel.NodeId, message);
+            }
         }
 
         private HashSet<string> BuildLoopBodyNodeIdSet(LoopNodeEditorModel loopNodeModel, Dictionary<string, string> messagesByNodeId) {
@@ -1369,9 +1387,7 @@ namespace UnityAnimationGraph.Editor {
             var nodeModels = _nodes;
             for (var i = 0; i < nodeModels.Count; i++) {
                 var sourceNodeModel = nodeModels[i];
-                if (ContainsConnectedNodeId(sourceNodeModel, AnimationGraphOutputPortKind.Next, targetNodeModel.NodeId)
-                    || ContainsConnectedNodeId(sourceNodeModel, AnimationGraphOutputPortKind.False, targetNodeModel.NodeId)
-                    || ContainsConnectedNodeId(sourceNodeModel, AnimationGraphOutputPortKind.Loop, targetNodeModel.NodeId)) {
+                if (ContainsConnectedNodeId(sourceNodeModel, targetNodeModel.NodeId)) {
                     return true;
                 }
             }
@@ -1379,15 +1395,8 @@ namespace UnityAnimationGraph.Editor {
             return false;
         }
 
-        /// <summary>
-        /// 指定 output port から対象ノードへ接続済みか判定
-        /// </summary>
-        /// <param name="sourceNodeModel">接続元ノード Model</param>
-        /// <param name="outputPortKind">接続元 output port 種別</param>
-        /// <param name="targetNodeId">接続先ノード ID</param>
-        /// <returns>接続済みの場合は true</returns>
-        private bool ContainsConnectedNodeId(NodeEditorModel sourceNodeModel, AnimationGraphOutputPortKind outputPortKind, string targetNodeId) {
-            var nodeIds = GetConnectedNodeIds(sourceNodeModel, outputPortKind);
+        private bool ContainsConnectedNodeId(NodeEditorModel sourceNodeModel, string targetNodeId) {
+            var nodeIds = GetConnectedNodeIds(sourceNodeModel);
             for (var i = 0; i < nodeIds.Count; i++) {
                 if (nodeIds[i] == targetNodeId) {
                     return true;
@@ -1397,6 +1406,18 @@ namespace UnityAnimationGraph.Editor {
             return false;
         }
 
+        private static IReadOnlyList<string> GetConnectedNodeIds(NodeEditorModel nodeModel) {
+            var nodeIds = new List<string>(GetPhysicalConnectedNodeIds(nodeModel));
+            if (nodeModel is LoopNodeEditorModel loopNodeModel) {
+                var loopNodeIds = loopNodeModel.LoopNodeIds;
+                for (var i = 0; i < loopNodeIds.Count; i++) {
+                    nodeIds.Add(loopNodeIds[i]);
+                }
+            }
+
+            return nodeIds;
+        }
+
         /// <summary>
         /// 指定した output port の接続先ノード ID 一覧を取得
         /// </summary>
@@ -1404,12 +1425,17 @@ namespace UnityAnimationGraph.Editor {
         /// <param name="outputPortKind">取得する output port 種別</param>
         /// <returns>接続先ノード ID 一覧</returns>
         private static IReadOnlyList<string> GetConnectedNodeIds(NodeEditorModel nodeModel, AnimationGraphOutputPortKind outputPortKind) {
-            return outputPortKind switch {
-                AnimationGraphOutputPortKind.Next => nodeModel.NextNodeIds,
-                AnimationGraphOutputPortKind.False when nodeModel is BranchNodeEditorModel branchNodeModel => branchNodeModel.FalseNodeIds,
-                AnimationGraphOutputPortKind.Loop when nodeModel is LoopNodeEditorModel loopNodeModel => loopNodeModel.LoopNodeIds,
-                _ => Array.Empty<string>(),
-            };
+            if (outputPortKind.IsNext) {
+                return nodeModel.NextNodeIds;
+            }
+
+            if (outputPortKind.IsBranchExtension && nodeModel is BranchNodeEditorModel branchNodeModel) {
+                return branchNodeModel.GetExtensionNodeIds(outputPortKind.BranchExtensionIndex);
+            }
+
+            return outputPortKind == AnimationGraphOutputPortKind.Loop && nodeModel is LoopNodeEditorModel loopNodeModel
+                ? loopNodeModel.LoopNodeIds
+                : Array.Empty<string>();
         }
 
         /// <summary>
@@ -1425,9 +1451,11 @@ namespace UnityAnimationGraph.Editor {
             }
 
             if (nodeModel is BranchNodeEditorModel branchNodeModel) {
-                var falseNodeIds = branchNodeModel.FalseNodeIds;
-                for (var i = 0; i < falseNodeIds.Count; i++) {
-                    nodeIds.Add(falseNodeIds[i]);
+                for (var i = 0; i < branchNodeModel.ExtensionPortCount; i++) {
+                    var extensionNodeIds = branchNodeModel.GetExtensionNodeIds(i);
+                    for (var j = 0; j < extensionNodeIds.Count; j++) {
+                        nodeIds.Add(extensionNodeIds[j]);
+                    }
                 }
             }
 
@@ -1441,16 +1469,18 @@ namespace UnityAnimationGraph.Editor {
         /// <param name="outputPortKind">設定する output port 種別</param>
         /// <param name="nodeIds">設定する接続先ノード ID 一覧</param>
         private static void SetConnectedNodeIds(NodeEditorModel nodeModel, AnimationGraphOutputPortKind outputPortKind, IReadOnlyList<string> nodeIds) {
-            switch (outputPortKind) {
-                case AnimationGraphOutputPortKind.Next:
-                    nodeModel.SetNextNodeIds(nodeIds);
-                    break;
-                case AnimationGraphOutputPortKind.False:
-                    ((BranchNodeEditorModel)nodeModel).SetFalseNodeIds(nodeIds);
-                    break;
-                case AnimationGraphOutputPortKind.Loop:
-                    ((LoopNodeEditorModel)nodeModel).SetLoopNodeIds(nodeIds);
-                    break;
+            if (outputPortKind.IsNext) {
+                nodeModel.SetNextNodeIds(nodeIds);
+                return;
+            }
+
+            if (outputPortKind.IsBranchExtension) {
+                ((BranchNodeEditorModel)nodeModel).SetExtensionNodeIds(outputPortKind.BranchExtensionIndex, nodeIds);
+                return;
+            }
+
+            if (outputPortKind == AnimationGraphOutputPortKind.Loop) {
+                ((LoopNodeEditorModel)nodeModel).SetLoopNodeIds(nodeIds);
             }
         }
 
@@ -1502,9 +1532,11 @@ namespace UnityAnimationGraph.Editor {
             }
 
             if (node is BranchNode branchNode) {
-                var falseNodeIds = branchNode.FalseNodeIds;
-                for (var i = 0; i < falseNodeIds.Count; i++) {
-                    nodeIds.Add(falseNodeIds[i]);
+                for (var i = 0; i < branchNode.ExtensionPortCount; i++) {
+                    var extensionNodeIds = branchNode.GetExtensionNodeIds(i);
+                    for (var j = 0; j < extensionNodeIds.Count; j++) {
+                        nodeIds.Add(extensionNodeIds[j]);
+                    }
                 }
             }
 

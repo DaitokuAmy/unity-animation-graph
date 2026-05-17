@@ -181,10 +181,14 @@ Inspector には、その GraphAsset の `Target` 定義に対応する `Target 
 
 - `Play()` / `Play(AnimationGraphAsset)`: 再生を開始し、`AnimationGraphPlayHandle` を返す
 - `Pause()` / `Stop()`: 再生の一時停止、停止
-- `Seek(time)`: 0 秒から指定時刻まで順方向に評価する
-- `ManualUpdate(deltaTime)`: `Update Type` が `ManualUpdate` のときだけ手動で時間を進める
-- `SetTarget(key, component)`: Target Binding をコードから差し替える
+- `AnimationGraphPlayHandle.Pause()` / `Resume()` / `Stop()` / `Complete()`: 取得した handle に対応する再生を操作する
+- `ManualUpdate(deltaTime)`: `UpdateMode` が `AnimationGraphRunner.UpdateType.ManualUpdate` のときだけ手動で時間を進める
+- `SetTarget(key, component)`: 現在の GraphAsset に対応する Target Binding をコードから差し替える
+- `SetTarget(graphAsset, key, component)`: 指定した GraphAsset の Target Binding をコードから差し替える
+- `GetTarget<T>(key)` / `TryGetTarget<T>(key, out target)`: 現在の GraphAsset に対応する Target Binding から Component を取得する
+- `GetTarget<T>(graphAsset, key)` / `TryGetTarget<T>(graphAsset, key, out target)`: 指定した GraphAsset の Target Binding から Component を取得する
 - `SetBlackboardValue(key, value)`: Blackboard の現在値を差し替える
+- `UpdateMode`: 自動 Tick の Unity 更新タイミングを切り替える
 - `TimeScale`: `Update` / `LateUpdate` / `ManualUpdate` で進む時間に倍率をかける
 - `SubscribeSignal<TSignal>(callback)` / `ClearSignalSubscriptions()`: Signal 通知を購読、解除する
 
@@ -229,6 +233,7 @@ public sealed class AnimationGraphCoroutineExample : MonoBehaviour {
 ```
 
 `AnimationGraphPlayHandle` は `await` でも待機できます。戻り値は最後まで自然完了した場合に `true` になります。
+また、handle から `Pause()` / `Resume()` / `Stop()` / `Complete()` で、その handle に対応する再生を操作できます。
 
 ```csharp
 using UnityEngine;
@@ -258,11 +263,37 @@ public sealed class ManualAnimationGraphTicker : MonoBehaviour {
     private AnimationGraphRunner _runner;
 
     private void Awake() {
-        _runner.UpdateType = AnimationGraphRunnerUpdateType.ManualUpdate;
+        _runner.UpdateMode = AnimationGraphRunner.UpdateType.ManualUpdate;
     }
 
     private void Update() {
         _runner.ManualUpdate(Time.deltaTime);
+    }
+}
+```
+
+`Target Binding` をコードから差し替える場合:
+
+```csharp
+using UnityEngine;
+using UnityAnimationGraph;
+
+public sealed class AnimationGraphTargetExample : MonoBehaviour {
+    [SerializeField]
+    private AnimationGraphRunner _runner;
+    [SerializeField]
+    private AnimationGraphAsset _openGraph;
+    [SerializeField]
+    private AnimationGraphAsset _closeGraph;
+    [SerializeField]
+    private Transform _actor;
+
+    private void Awake() {
+        _runner.SetTarget(_openGraph, "Actor", _actor);
+        _runner.SetTarget(_closeGraph, "Actor", _actor);
+
+        var closeActor = _runner.GetTarget<Transform>(_closeGraph, "Actor");
+        Debug.Assert(closeActor == _actor);
     }
 }
 ```
@@ -319,6 +350,8 @@ public sealed class AnimationGraphBlackboardExample : MonoBehaviour {
 | `TweenAudioSourcePitchNode` | `AudioSource.pitch` |
 | `PlayParticleSystemNode` | `ParticleSystem` |
 | `PlayTimelineAssetNode` | `PlayableDirector` / `TimelineAsset` |
+| `SetGameObjectActiveNode` | `GameObject.activeSelf` |
+| `SetComponentEnabledNode` | `Component.enabled` |
 
 ## エディタ操作
 
@@ -357,7 +390,7 @@ namespace App.Animation {
         private Vector3 _to = Vector3.up;
         [SerializeField]
         private EaseType _ease = EaseType.EaseOutCubic;
-        [SerializeField, BlackboardKey(AnimationGraphValueType.Vector3)]
+        [SerializeField, BlackboardKey(BlackboardValueType.Vector3)]
         private string _toKey = string.Empty;
 
         protected override float CalculateDuration(int seed, Transform target, IAnimationGraphBlackboard blackboard) {
@@ -369,9 +402,9 @@ namespace App.Animation {
         }
 
         protected override IEnumerable<string> GetPreviewProperties(Transform target) {
-            yield return "m_LocalPosition.x";
-            yield return "m_LocalPosition.y";
-            yield return "m_LocalPosition.z";
+            yield return PreviewPropertyPaths.Transform.LocalPositionX;
+            yield return PreviewPropertyPaths.Transform.LocalPositionY;
+            yield return PreviewPropertyPaths.Transform.LocalPositionZ;
         }
 
         protected override void Evaluate(int seed, Transform target, float localTime, float calculatedDuration, IAnimationGraphBlackboard blackboard) {
@@ -399,7 +432,9 @@ namespace App.Animation {
 - `CalculateDuration` と `CalculateDelay` はスケジュール構築時に使われます。時間を持つ Animation ノードでは明示的に返します
 - `Evaluate` は再生時やプレビュー時に呼ばれ、`localTime / calculatedDuration` から進捗を作れます
 - Blackboard 値を使う場合は、`BlackboardKey` 属性で候補を絞り、`blackboard.TryGetBlackboardValue(...)` で型付きに取得します
-- Editor Preview で変更対象を復元したい場合は、`GetPreviewProperties` で SerializedProperty path を返します
+- Editor Preview で変更対象を復元したい場合は、`GetPreviewProperties` で `PreviewPropertyPaths` の SerializedProperty path を返します
+- GameObject など Component 以外を復元対象にしたい場合は、`ActionNode<TTarget>.GetPreviewObjectProperties` で target object と path を返します
+- ノード設定を EditorWindow 上で検証したい場合は、`Validate(NodeValidationContext context)` を override してエラーメッセージを返します
 
 ## 独自 Signal を追加する
 
@@ -448,5 +483,5 @@ Editor テストは `Packages/com.daitokuamy.unityanimationgraph/Tests/Editor` �
 - `AnimationGraphAsset` の `GraphSeed` はスケジュールや乱数評価の基準になります
 - `RandomSeed` を有効にすると、再生ごとに異なる seed を使います
 - `AnimationGraphRunner.Play()` は `AnimationGraphPlayHandle` を返し、Coroutine の `yield return` や `await` パターンで完了待機できます
+- `AnimationGraphPlayHandle` は対象の再生に対して `Pause()` / `Resume()` / `Stop()` / `Complete()` を実行できます
 - `AnimationGraphRunner.Stop()` は再生中ノードへキャンセルを通知して停止します
-- `AnimationGraphRunner.Seek(time)` は 0 秒から指定時刻までを順方向に評価します

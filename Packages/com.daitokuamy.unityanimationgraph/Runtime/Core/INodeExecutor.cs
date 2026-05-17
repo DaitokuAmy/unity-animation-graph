@@ -26,8 +26,8 @@ namespace UnityAnimationGraph {
         /// Preview 再生時に AnimationMode へ登録するプロパティを取得
         /// </summary>
         /// <param name="context">評価コンテキスト</param>
-        /// <returns>登録対象の Component と SerializedProperty path の一覧</returns>
-        IEnumerable<(Component Component, string PropertyPath)> GetPreviewProperties(IAnimationGraphContext context);
+        /// <returns>登録対象の Object と SerializedProperty path の一覧</returns>
+        IEnumerable<(Object Target, string PropertyPath)> GetPreviewProperties(IAnimationGraphContext context);
 
         /// <summary>
         /// ノード開始時の処理を行う

@@ -15,7 +15,7 @@ namespace UnityAnimationGraph {
 
         /// <inheritdoc/>
         protected override IEnumerable<string> GetPreviewProperties(SpriteRenderer target) {
-            yield return "m_Color.a";
+            yield return PreviewPropertyPaths.Color.A;
         }
 
         /// <inheritdoc/>

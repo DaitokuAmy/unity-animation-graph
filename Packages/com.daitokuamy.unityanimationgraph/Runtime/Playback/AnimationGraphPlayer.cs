@@ -26,7 +26,7 @@ namespace UnityAnimationGraph {
 
         private readonly AnimationGraphScheduler _scheduler = new();
         private readonly Dictionary<Type, List<Action<Signal>>> _signalSubscriptionsByType = new();
-        private readonly Dictionary<int, object> _tweenBaseValuesByStableOrder = new();
+        private readonly TweenBaseValueStore _tweenBaseValues = new();
 
         private List<ScheduledNode> _activeScheduledNodes = new();
         private List<ScheduledNode> _nextActiveScheduledNodes = new();
@@ -61,16 +61,8 @@ namespace UnityAnimationGraph {
         /// </summary>
         /// <param name="graphAsset">再生する AnimationGraphAsset。null の場合は設定を解除</param>
         public void SetGraph(AnimationGraphAsset graphAsset) {
-            if (graphAsset != null) {
-                _scheduler.SetGraph(graphAsset);
-            }
-
-            CompleteCurrentPlay(PlayStatus.Interrupted);
-            _graphAsset = graphAsset;
-            _schedule = null;
-            _currentTime = 0.0f;
-            _state = AnimationGraphPlayerState.Stopped;
-            ClearActiveNodes();
+            var continuation = SetGraphDeferredContinuation(graphAsset);
+            continuation?.Invoke();
         }
 
         /// <summary>
@@ -82,12 +74,13 @@ namespace UnityAnimationGraph {
                 throw new ArgumentNullException(nameof(context));
             }
 
-            CompleteCurrentPlay(PlayStatus.Interrupted);
+            var continuation = CompleteCurrentPlayWithoutInvokingContinuation(PlayStatus.Interrupted);
             _context = context;
             _schedule = null;
             _currentTime = 0.0f;
             _state = AnimationGraphPlayerState.Stopped;
             ClearActiveNodes();
+            continuation?.Invoke();
         }
 
         /// <summary>
@@ -97,16 +90,23 @@ namespace UnityAnimationGraph {
         public void RebuildSchedule(int? overrideSeed = null) {
             EnsureReady();
             _scheduler.SetGraph(_graphAsset);
-            _schedule = _scheduler.BuildSchedule(_context, overrideSeed);
+            var schedule = _scheduler.BuildSchedule(_context, overrideSeed);
+            if (_state == AnimationGraphPlayerState.Playing) {
+                CancelActiveNodes();
+            }
+            else {
+                ClearActiveNodes();
+            }
+
+            _schedule = schedule;
             _currentTime = Mathf.Clamp(_currentTime, 0.0f, Duration);
-            ClearActiveNodes();
         }
 
         /// <summary>
         /// Preview 再生時に復元対象として登録すべき Property を取得
         /// </summary>
-        /// <returns>登録対象の Component と SerializedProperty path の一覧</returns>
-        public IEnumerable<(Component Component, string PropertyPath)> GetPreviewProperties() {
+        /// <returns>登録対象の Object と SerializedProperty path の一覧</returns>
+        public IEnumerable<(UnityEngine.Object Target, string PropertyPath)> GetPreviewProperties() {
             EnsureSchedule();
             foreach (var scheduledNode in _schedule.Nodes) {
                 var executor = (INodeExecutor)scheduledNode.Node;
@@ -180,7 +180,12 @@ namespace UnityAnimationGraph {
         public void Stop() {
             _state = AnimationGraphPlayerState.Stopped;
             _currentTime = 0.0f;
-            CompleteCurrentPlay(PlayStatus.Interrupted);
+            if (_playStatus == PlayStatus.Playing) {
+                CompleteCurrentPlay(PlayStatus.Interrupted);
+                return;
+            }
+
+            ClearActiveNodes();
         }
 
         /// <summary>
@@ -188,8 +193,28 @@ namespace UnityAnimationGraph {
         /// </summary>
         /// <param name="time">評価する時刻</param>
         public void Seek(float time) {
+            Seek(time, true);
+        }
+
+        /// <summary>
+        /// 現在の評価状態を戻さず、0 秒から指定時刻までを順方向に評価
+        /// </summary>
+        /// <param name="time">評価する時刻</param>
+        internal void SeekFromInitialState(float time) {
+            Seek(time, false);
+        }
+
+        /// <summary>
+        /// 指定時刻までを順方向に評価
+        /// </summary>
+        /// <param name="time">評価する時刻</param>
+        /// <param name="resetEvaluatedNodes">現在の評価状態を 0 秒へ戻す場合は true</param>
+        private void Seek(float time, bool resetEvaluatedNodes) {
             EnsureSchedule();
-            ResetEvaluatedNodesToStart(_currentTime);
+            if (resetEvaluatedNodes) {
+                ResetEvaluatedNodesToStart(_currentTime);
+            }
+
             ClearActiveNodes();
             _currentTime = Mathf.Clamp(time, 0.0f, Duration);
             EvaluateCurrentTime(_currentTime, true, 0.0f, false);
@@ -267,6 +292,67 @@ namespace UnityAnimationGraph {
         }
 
         /// <summary>
+        /// 指定 version の再生を一時停止
+        /// </summary>
+        /// <param name="version">再生 version</param>
+        /// <returns>一時停止できた場合は true</returns>
+        internal bool PausePlay(int version) {
+            if (version != _playVersion || _playStatus != PlayStatus.Playing || _state != AnimationGraphPlayerState.Playing) {
+                return false;
+            }
+
+            _state = AnimationGraphPlayerState.Paused;
+            return true;
+        }
+
+        /// <summary>
+        /// 指定 version の一時停止中の再生を再開
+        /// </summary>
+        /// <param name="version">再生 version</param>
+        /// <returns>再開できた場合は true</returns>
+        internal bool ResumePlay(int version) {
+            if (version != _playVersion || _playStatus != PlayStatus.Playing || _state != AnimationGraphPlayerState.Paused) {
+                return false;
+            }
+
+            _state = AnimationGraphPlayerState.Playing;
+            return true;
+        }
+
+        /// <summary>
+        /// 指定 version の再生を停止
+        /// </summary>
+        /// <param name="version">再生 version</param>
+        /// <returns>停止できた場合は true</returns>
+        internal bool StopPlay(int version) {
+            if (version != _playVersion || _playStatus != PlayStatus.Playing) {
+                return false;
+            }
+
+            Stop();
+            return true;
+        }
+
+        /// <summary>
+        /// 再生する AnimationGraphAsset を設定し、再生中断 continuation を呼び出し元へ返す
+        /// </summary>
+        /// <param name="graphAsset">再生する AnimationGraphAsset。null の場合は設定を解除</param>
+        /// <returns>再生中断後に呼び出す continuation</returns>
+        internal Action SetGraphDeferredContinuation(AnimationGraphAsset graphAsset) {
+            if (graphAsset != null) {
+                _scheduler.SetGraph(graphAsset);
+            }
+
+            var continuation = CompleteCurrentPlayWithoutInvokingContinuation(PlayStatus.Interrupted);
+            _graphAsset = graphAsset;
+            _schedule = null;
+            _currentTime = 0.0f;
+            _state = AnimationGraphPlayerState.Stopped;
+            ClearActiveNodes();
+            return continuation;
+        }
+
+        /// <summary>
         /// 指定 version の再生完了 continuation を登録
         /// </summary>
         /// <param name="version">再生 version</param>
@@ -309,8 +395,18 @@ namespace UnityAnimationGraph {
         /// </summary>
         /// <param name="playStatus">設定する完了状態</param>
         private void CompleteCurrentPlay(PlayStatus playStatus) {
+            var continuation = CompleteCurrentPlayWithoutInvokingContinuation(playStatus);
+            continuation?.Invoke();
+        }
+
+        /// <summary>
+        /// 現在の再生 handle を完了状態にし、continuation を呼び出し元へ返す
+        /// </summary>
+        /// <param name="playStatus">設定する完了状態</param>
+        /// <returns>再生完了後に呼び出す continuation</returns>
+        private Action CompleteCurrentPlayWithoutInvokingContinuation(PlayStatus playStatus) {
             if (_playStatus != PlayStatus.Playing) {
-                return;
+                return null;
             }
 
             if (playStatus == PlayStatus.Interrupted) {
@@ -323,7 +419,7 @@ namespace UnityAnimationGraph {
             _playStatus = playStatus;
             var continuation = _playContinuation;
             _playContinuation = null;
-            continuation?.Invoke();
+            return continuation;
         }
 
         /// <summary>
@@ -344,7 +440,7 @@ namespace UnityAnimationGraph {
         private void ClearActiveNodes() {
             _activeScheduledNodes.Clear();
             _nextActiveScheduledNodes.Clear();
-            _tweenBaseValuesByStableOrder.Clear();
+            _tweenBaseValues.Clear();
         }
 
         /// <summary>
@@ -423,7 +519,13 @@ namespace UnityAnimationGraph {
         /// <param name="scheduledNode">判定対象の scheduled node</param>
         /// <returns>active として記録されていた場合は true</returns>
         private bool IsRecordedActive(ScheduledNode scheduledNode) {
-            return _activeScheduledNodes.Contains(scheduledNode);
+            for (var i = 0; i < _activeScheduledNodes.Count; i++) {
+                if (_activeScheduledNodes[i].StableOrder == scheduledNode.StableOrder) {
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         /// <summary>
@@ -543,12 +645,7 @@ namespace UnityAnimationGraph {
         private void EvaluateScheduledNode(ScheduledNode scheduledNode, float localTime) {
             var executor = (INodeExecutor)scheduledNode.Node;
             if (scheduledNode.Node is ITweenNodeExecutor tweenExecutor) {
-                if (!_tweenBaseValuesByStableOrder.TryGetValue(scheduledNode.StableOrder, out var baseValue)) {
-                    baseValue = tweenExecutor.CaptureBaseValue(scheduledNode.Seed, _context);
-                    _tweenBaseValuesByStableOrder[scheduledNode.StableOrder] = baseValue;
-                }
-
-                tweenExecutor.Evaluate(scheduledNode.Seed, localTime, scheduledNode.Duration, _context, baseValue);
+                tweenExecutor.Evaluate(scheduledNode.StableOrder, scheduledNode.Seed, localTime, scheduledNode.Duration, _context, _tweenBaseValues);
                 return;
             }
 
@@ -566,7 +663,7 @@ namespace UnityAnimationGraph {
             }
 
             if (scheduledNode.Node is ITweenNodeExecutor tweenExecutor) {
-                _tweenBaseValuesByStableOrder[scheduledNode.StableOrder] = tweenExecutor.CaptureBaseValue(scheduledNode.Seed, _context);
+                tweenExecutor.CaptureBaseValue(scheduledNode.StableOrder, scheduledNode.Seed, _context, _tweenBaseValues);
             }
 
             ((INodeExecutor)scheduledNode.Node).Enter(scheduledNode.Seed, _context);

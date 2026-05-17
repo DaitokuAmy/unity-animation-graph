@@ -137,6 +137,32 @@ namespace UnityAnimationGraph.Tests {
         }
 
         /// <summary>
+        /// SeekFromInitialState は直前時刻からの巻き戻し評価を行わない
+        /// </summary>
+        [Test]
+        public void SeekFromInitialState_DoesNotResetEvaluatedNodesFromCurrentTime() {
+            using var builder = new AnimationGraphTestBuilder();
+            var events = new List<string>();
+            var startNode = builder.CreateStartNode("start", "first");
+            var firstNode = builder.CreateActionNode("first", 1.0f, "second");
+            var secondNode = builder.CreateActionNode("second", 2.0f);
+            firstNode.ConfigureEvents(events, "first");
+            secondNode.ConfigureEvents(events, "second");
+            var graphAsset = builder.CreateGraph("start", startNode, firstNode, secondNode);
+            var player = CreatePlayer(graphAsset);
+
+            player.Seek(2.0f);
+            events.Clear();
+
+            player.SeekFromInitialState(0.5f);
+
+            Assert.That(events, Is.EqualTo(new[] { "first.Enter", "first.Evaluate" }));
+            Assert.That(player.CurrentTime, Is.EqualTo(0.5f).Within(0.0001f));
+            Assert.That(firstNode.LastLocalTime, Is.EqualTo(0.5f).Within(0.0001f));
+            Assert.That(secondNode.LastLocalTime, Is.EqualTo(1.0f).Within(0.0001f));
+        }
+
+        /// <summary>
         /// RebuildSchedule は GraphAsset の構造変更を反映する
         /// </summary>
         [Test]
@@ -365,6 +391,46 @@ namespace UnityAnimationGraph.Tests {
         }
 
         /// <summary>
+        /// Stop は Seek で記録された Preview 用 active node をクリアする
+        /// </summary>
+        [Test]
+        public void Stop_ClearsPreviewActiveNodesAfterSeek() {
+            using var builder = new AnimationGraphTestBuilder();
+            var startNode = builder.CreateStartNode("start", "action");
+            var actionNode = builder.CreateActionNode("action", 2.0f);
+            var graphAsset = builder.CreateGraph("start", startNode, actionNode);
+            var player = CreatePlayer(graphAsset);
+
+            player.Seek(0.5f);
+            player.Stop();
+            player.Play();
+            player.Tick(0.5f);
+
+            Assert.That(actionNode.EnterCount, Is.EqualTo(2));
+            Assert.That(actionNode.CancelCount, Is.EqualTo(0));
+        }
+
+        /// <summary>
+        /// RebuildSchedule は再生中に active だった node をキャンセルしてから記録をクリアする
+        /// </summary>
+        [Test]
+        public void RebuildSchedule_CancelsActiveNodesDuringPlayback() {
+            using var builder = new AnimationGraphTestBuilder();
+            var startNode = builder.CreateStartNode("start", "action");
+            var actionNode = builder.CreateActionNode("action", 10.0f);
+            var graphAsset = builder.CreateGraph("start", startNode, actionNode);
+            var player = CreatePlayer(graphAsset);
+            var handle = player.Play();
+            player.Tick(1.0f);
+
+            player.RebuildSchedule();
+
+            Assert.That(actionNode.CancelCount, Is.EqualTo(1));
+            Assert.That(player.State, Is.EqualTo(AnimationGraphPlayerState.Playing));
+            Assert.IsFalse(handle.IsDone);
+        }
+
+        /// <summary>
         /// 自然完了した PlayHandle は完了状態になる
         /// </summary>
         [Test]
@@ -431,6 +497,85 @@ namespace UnityAnimationGraph.Tests {
 
             Assert.IsFalse(completed);
             Assert.That(actionNode.ExitCount, Is.EqualTo(1));
+        }
+
+        /// <summary>
+        /// PlayHandle の Pause と Resume は対象の再生を一時停止、再開する
+        /// </summary>
+        [Test]
+        public void PlayHandle_PauseAndResumeControlsPlayback() {
+            using var builder = new AnimationGraphTestBuilder();
+            var startNode = builder.CreateStartNode("start", "action");
+            var actionNode = builder.CreateActionNode("action", 1.0f);
+            var graphAsset = builder.CreateGraph("start", startNode, actionNode);
+            var player = CreatePlayer(graphAsset);
+
+            var handle = player.Play();
+            var paused = handle.Pause();
+            player.Tick(0.5f);
+
+            Assert.IsTrue(paused);
+            Assert.That(player.State, Is.EqualTo(AnimationGraphPlayerState.Paused));
+            Assert.That(player.CurrentTime, Is.EqualTo(0.0f).Within(0.0001f));
+            Assert.That(actionNode.EvaluateCount, Is.EqualTo(0));
+
+            var resumed = handle.Resume();
+            player.Tick(0.5f);
+
+            Assert.IsTrue(resumed);
+            Assert.That(player.State, Is.EqualTo(AnimationGraphPlayerState.Playing));
+            Assert.That(player.CurrentTime, Is.EqualTo(0.5f).Within(0.0001f));
+            Assert.That(actionNode.LastLocalTime, Is.EqualTo(0.5f).Within(0.0001f));
+        }
+
+        /// <summary>
+        /// PlayHandle の Stop は対象の再生を中断する
+        /// </summary>
+        [Test]
+        public void PlayHandle_StopInterruptsPlayback() {
+            using var builder = new AnimationGraphTestBuilder();
+            var startNode = builder.CreateStartNode("start", "action");
+            var actionNode = builder.CreateActionNode("action", 10.0f);
+            var graphAsset = builder.CreateGraph("start", startNode, actionNode);
+            var player = CreatePlayer(graphAsset);
+
+            var handle = player.Play();
+            player.Tick(1.0f);
+            var stopped = handle.Stop();
+
+            Assert.IsTrue(stopped);
+            Assert.That(player.State, Is.EqualTo(AnimationGraphPlayerState.Stopped));
+            Assert.That(player.CurrentTime, Is.EqualTo(0.0f).Within(0.0001f));
+            Assert.That(actionNode.CancelCount, Is.EqualTo(1));
+            Assert.That(actionNode.LastCancelSeed, Is.EqualTo(actionNode.LastSeed));
+            Assert.IsTrue(handle.IsDone);
+            Assert.IsTrue(handle.IsInterrupted);
+            Assert.IsFalse(handle.IsCompleted);
+        }
+
+        /// <summary>
+        /// 古い PlayHandle は現在の再生を操作しない
+        /// </summary>
+        [Test]
+        public void PlayHandle_OperationsReturnFalseWhenHandleIsOld() {
+            using var builder = new AnimationGraphTestBuilder();
+            var startNode = builder.CreateStartNode("start", "action");
+            var actionNode = builder.CreateActionNode("action", 10.0f);
+            var graphAsset = builder.CreateGraph("start", startNode, actionNode);
+            var player = CreatePlayer(graphAsset);
+
+            var firstHandle = player.Play();
+            Assert.IsTrue(firstHandle.Stop());
+
+            var secondHandle = player.Play();
+            Assert.IsTrue(secondHandle.Pause());
+
+            Assert.IsFalse(firstHandle.Pause());
+            Assert.IsFalse(firstHandle.Resume());
+            Assert.IsFalse(firstHandle.Stop());
+            Assert.That(player.State, Is.EqualTo(AnimationGraphPlayerState.Paused));
+            Assert.IsTrue(secondHandle.Resume());
+            Assert.That(player.State, Is.EqualTo(AnimationGraphPlayerState.Playing));
         }
 
         /// <summary>

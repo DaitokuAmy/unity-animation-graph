@@ -8,7 +8,7 @@ namespace UnityAnimationGraph.Editor {
     /// EditorWindow preview 用の一時的な評価コンテキスト
     /// </summary>
     internal sealed class AnimationGraphEditorPreviewContext : IAnimationGraphContext {
-        private readonly Dictionary<string, AnimationGraphBlackboardValue> _blackboardValuesByKey = new(StringComparer.Ordinal);
+        private readonly Dictionary<string, BlackboardValue> _blackboardValuesByKey = new(StringComparer.Ordinal);
         private readonly Dictionary<string, Component> _targetsByKey = new(StringComparer.Ordinal);
         private readonly HashSet<string> _typedTargetKeys = new(StringComparer.Ordinal);
         private readonly List<string> _missingTargetMessages = new();
@@ -25,7 +25,7 @@ namespace UnityAnimationGraph.Editor {
         /// <param name="graphAsset">Preview 対象の AnimationGraphAsset</param>
         /// <param name="rootGameObject">Selection.activeGameObject から取得した preview root</param>
         /// <param name="targetBindings">Runner に設定されている target binding 一覧</param>
-        public AnimationGraphEditorPreviewContext(AnimationGraphAsset graphAsset, GameObject rootGameObject, IReadOnlyList<AnimationGraphTargetBinding> targetBindings = null) {
+        public AnimationGraphEditorPreviewContext(AnimationGraphAsset graphAsset, GameObject rootGameObject, IReadOnlyList<TargetBinding> targetBindings = null) {
             if (graphAsset == null) {
                 throw new ArgumentNullException(nameof(graphAsset));
             }
@@ -39,7 +39,7 @@ namespace UnityAnimationGraph.Editor {
         /// </summary>
         /// <param name="graphAsset">Preview 対象の AnimationGraphAsset</param>
         /// <param name="targetBindings">Runner に設定されている target binding 一覧</param>
-        public void Refresh(AnimationGraphAsset graphAsset, IReadOnlyList<AnimationGraphTargetBinding> targetBindings = null) {
+        public void Refresh(AnimationGraphAsset graphAsset, IReadOnlyList<TargetBinding> targetBindings = null) {
             if (graphAsset == null) {
                 throw new ArgumentNullException(nameof(graphAsset));
             }
@@ -166,9 +166,9 @@ namespace UnityAnimationGraph.Editor {
         /// Blackboard 定義から Preview 用の初期値を構築
         /// </summary>
         /// <param name="definitions">Blackboard 定義一覧</param>
-        private void BuildBlackboardValues(IReadOnlyList<AnimationGraphBlackboardDefinition> definitions) {
+        private void BuildBlackboardValues(IReadOnlyList<BlackboardDefinition> definitions) {
             for (var i = 0; i < definitions.Count; i++) {
-                var value = new AnimationGraphBlackboardValue(definitions[i]);
+                var value = new BlackboardValue(definitions[i]);
                 if (string.IsNullOrEmpty(value.Key)) {
                     continue;
                 }
@@ -181,7 +181,7 @@ namespace UnityAnimationGraph.Editor {
         /// GraphAsset の target 定義を Preview root 上の Component に解決
         /// </summary>
         /// <param name="definitions">Target 定義一覧</param>
-        private void BindTargets(IReadOnlyList<AnimationGraphTargetDefinition> definitions) {
+        private void BindTargets(IReadOnlyList<TargetDefinition> definitions) {
             for (var i = 0; i < definitions.Count; i++) {
                 var definition = definitions[i];
                 var key = definition.Key;
@@ -217,7 +217,7 @@ namespace UnityAnimationGraph.Editor {
         /// Runner に設定された target binding を Preview target として登録
         /// </summary>
         /// <param name="targetBindings">Runner の target binding 一覧</param>
-        private void BindRunnerTargets(IReadOnlyList<AnimationGraphTargetBinding> targetBindings) {
+        private void BindRunnerTargets(IReadOnlyList<TargetBinding> targetBindings) {
             if (targetBindings == null) {
                 return;
             }
@@ -231,7 +231,7 @@ namespace UnityAnimationGraph.Editor {
         /// Runner の target binding を 1 件登録
         /// </summary>
         /// <param name="binding">登録する target binding</param>
-        private void BindRunnerTarget(AnimationGraphTargetBinding binding) {
+        private void BindRunnerTarget(TargetBinding binding) {
             var key = binding.Key;
             if (string.IsNullOrEmpty(key)) {
                 return;
@@ -255,7 +255,7 @@ namespace UnityAnimationGraph.Editor {
         /// <param name="key">Blackboard key</param>
         /// <param name="value">取得した Blackboard 値</param>
         /// <returns>値が見つかった場合は true</returns>
-        private bool TryGetBlackboardEntry(string key, out AnimationGraphBlackboardValue value) {
+        private bool TryGetBlackboardEntry(string key, out BlackboardValue value) {
             if (!string.IsNullOrEmpty(key) && _blackboardValuesByKey.TryGetValue(key, out value)) {
                 return true;
             }

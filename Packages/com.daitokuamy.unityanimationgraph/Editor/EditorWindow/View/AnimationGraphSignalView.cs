@@ -1,12 +1,15 @@
 using System;
 using UnityEditor.Experimental.GraphView;
 using UnityEngine;
+using UnityEngine.UIElements;
 
 namespace UnityAnimationGraph.Editor {
     /// <summary>
     /// SignalEditorModel を表示する GraphView Node
     /// </summary>
     internal sealed class AnimationGraphSignalView : UnityEditor.Experimental.GraphView.Node {
+        private const float TitleBackgroundBrightness = 0.50f;
+
         private static readonly Vector2 DefaultSize = new(180.0f, 70.0f);
         private static readonly Color SignalColor = new(1.0f, 0.70f, 0.24f);
 
@@ -31,7 +34,8 @@ namespace UnityAnimationGraph.Editor {
             style.borderRightColor = SignalColor;
             style.borderBottomColor = SignalColor;
             style.borderLeftColor = SignalColor;
-            titleContainer.style.backgroundColor = new Color(SignalColor.r * 0.32f, SignalColor.g * 0.32f, SignalColor.b * 0.32f, 1.0f);
+            titleContainer.style.backgroundColor = new Color(SignalColor.r * TitleBackgroundBrightness, SignalColor.g * TitleBackgroundBrightness, SignalColor.b * TitleBackgroundBrightness, 1.0f);
+            ApplyTitleStyle();
 
             InputPort = InstantiatePort(Orientation.Horizontal, Direction.Input, Port.Capacity.Single, typeof(Signal));
             InputPort.portName = "In";
@@ -53,6 +57,14 @@ namespace UnityAnimationGraph.Editor {
         public override void OnUnselected() {
             base.OnUnselected();
             SelectionChanged?.Invoke();
+        }
+
+        private void ApplyTitleStyle() {
+            titleContainer.style.unityFontStyleAndWeight = FontStyle.Bold;
+            var titleLabel = titleContainer.Q<Label>();
+            if (titleLabel != null) {
+                titleLabel.style.unityFontStyleAndWeight = FontStyle.Bold;
+            }
         }
     }
 }

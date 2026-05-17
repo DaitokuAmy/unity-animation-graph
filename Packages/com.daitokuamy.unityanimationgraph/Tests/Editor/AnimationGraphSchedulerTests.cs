@@ -95,13 +95,36 @@ namespace UnityAnimationGraph.Tests {
             branchNode.Condition = false;
             var trueActionNode = builder.CreateActionNode("trueAction", 1.0f);
             var falseActionNode = builder.CreateActionNode("falseAction", 2.0f);
-            builder.SetFalseNodeIds(branchNode, "falseAction");
+            builder.SetBranchExtensionNodeIds(branchNode, 0, "falseAction");
             var graphAsset = builder.CreateGraph("start", startNode, branchNode, trueActionNode, falseActionNode);
 
             var schedule = BuildSchedule(graphAsset);
 
             Assert.IsFalse(ContainsNode(schedule, trueActionNode));
             AssertScheduledNode(schedule, falseActionNode, 0.0f, 2.0f);
+        }
+
+        /// <summary>
+        /// BranchNode は任意の拡張 Port を選択できる
+        /// </summary>
+        [Test]
+        public void BuildSchedule_BranchNodeSchedulesSelectedExtensionPort() {
+            using var builder = new AnimationGraphTestBuilder();
+            var startNode = builder.CreateStartNode("start", "branch");
+            var branchNode = builder.CreateNode<TestMultiBranchNode>("branch", "primaryAction");
+            branchNode.SelectedPortIndex = 2;
+            var primaryActionNode = builder.CreateActionNode("primaryAction", 1.0f);
+            var firstExtensionActionNode = builder.CreateActionNode("firstExtensionAction", 2.0f);
+            var secondExtensionActionNode = builder.CreateActionNode("secondExtensionAction", 3.0f);
+            builder.SetBranchExtensionNodeIds(branchNode, 0, "firstExtensionAction");
+            builder.SetBranchExtensionNodeIds(branchNode, 1, "secondExtensionAction");
+            var graphAsset = builder.CreateGraph("start", startNode, branchNode, primaryActionNode, firstExtensionActionNode, secondExtensionActionNode);
+
+            var schedule = BuildSchedule(graphAsset);
+
+            Assert.IsFalse(ContainsNode(schedule, primaryActionNode));
+            Assert.IsFalse(ContainsNode(schedule, firstExtensionActionNode));
+            AssertScheduledNode(schedule, secondExtensionActionNode, 0.0f, 3.0f);
         }
 
         /// <summary>

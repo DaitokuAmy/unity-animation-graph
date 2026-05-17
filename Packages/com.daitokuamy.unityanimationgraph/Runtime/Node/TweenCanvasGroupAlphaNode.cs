@@ -15,7 +15,7 @@ namespace UnityAnimationGraph {
 
         /// <inheritdoc/>
         protected override IEnumerable<string> GetPreviewProperties(CanvasGroup target) {
-            yield return "m_Alpha";
+            yield return PreviewPropertyPaths.UI.CanvasGroupAlpha;
         }
 
         /// <inheritdoc/>

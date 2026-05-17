@@ -566,7 +566,7 @@ namespace UnityAnimationGraph.Tests {
             var cameraScriptGuid = "22222222222222222222222222222222";
             model.SetGraphAsset(graphAsset);
 
-            model.SetTargetDefinitions(new AnimationGraphTargetDefinition("actor", actorScriptGuid), new AnimationGraphTargetDefinition("camera", cameraScriptGuid));
+            model.SetTargetDefinitions(new TargetDefinition("actor", actorScriptGuid), new TargetDefinition("camera", cameraScriptGuid));
 
             Assert.That(model.TargetDefinitions.Count, Is.EqualTo(2));
             Assert.IsTrue(graphAsset.TryGetTargetDefinition("actor", out var actorDefinition));
@@ -576,7 +576,7 @@ namespace UnityAnimationGraph.Tests {
             Assert.That(cameraDefinition.Key, Is.EqualTo("camera"));
             Assert.That(cameraDefinition.MonoScriptGuid, Is.EqualTo(cameraScriptGuid));
 
-            model.SetTargetDefinitions(new AnimationGraphTargetDefinition("camera"));
+            model.SetTargetDefinitions(new TargetDefinition("camera"));
 
             Assert.That(model.TargetDefinitions.Count, Is.EqualTo(1));
             Assert.IsFalse(graphAsset.TryGetTargetDefinition("actor", out _));
@@ -592,7 +592,7 @@ namespace UnityAnimationGraph.Tests {
             var model = new AnimationGraphAssetEditorModel();
             model.SetGraphAsset(graphAsset);
 
-            model.SetBlackboardDefinitions(new AnimationGraphBlackboardDefinition("flag", true), new AnimationGraphBlackboardDefinition("speed", 1.5f));
+            model.SetBlackboardDefinitions(new BlackboardDefinition("flag", true), new BlackboardDefinition("speed", 1.5f));
 
             Assert.That(model.BlackboardDefinitions.Count, Is.EqualTo(2));
             Assert.IsTrue(graphAsset.TryGetBlackboardDefaultValue("flag", out bool flagValue));
@@ -600,7 +600,7 @@ namespace UnityAnimationGraph.Tests {
             Assert.IsTrue(graphAsset.TryGetBlackboardDefaultValue("speed", out float speedValue));
             Assert.That(speedValue, Is.EqualTo(1.5f));
 
-            model.SetBlackboardDefinitions(new AnimationGraphBlackboardDefinition("count", 12));
+            model.SetBlackboardDefinitions(new BlackboardDefinition("count", 12));
 
             Assert.That(model.BlackboardDefinitions.Count, Is.EqualTo(1));
             Assert.IsFalse(graphAsset.TryGetBlackboardDefinition("flag", out _));

@@ -9,7 +9,7 @@ namespace UnityAnimationGraph {
     public struct FloatParameter {
         [SerializeField, Tooltip("値の解決元")]
         private ParameterSource _source;
-        [SerializeField, BlackboardKey(AnimationGraphValueType.Float), Tooltip("Blackboard の現在値を参照する key")]
+        [SerializeField, BlackboardKey(BlackboardValueType.Float), Tooltip("Blackboard の現在値を参照する key")]
         private string _blackboardKey;
         [SerializeField, Tooltip("float 型の直値")]
         private float _value;

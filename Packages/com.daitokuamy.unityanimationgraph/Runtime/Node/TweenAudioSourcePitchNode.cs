@@ -15,7 +15,7 @@ namespace UnityAnimationGraph {
 
         /// <inheritdoc/>
         protected override IEnumerable<string> GetPreviewProperties(AudioSource target) {
-            yield return "m_Pitch";
+            yield return PreviewPropertyPaths.AudioSource.Pitch;
         }
 
         /// <inheritdoc/>

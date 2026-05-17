@@ -15,10 +15,10 @@ namespace UnityAnimationGraph {
 
         /// <inheritdoc/>
         protected override IEnumerable<string> GetPreviewProperties(Light target) {
-            yield return "m_Color.r";
-            yield return "m_Color.g";
-            yield return "m_Color.b";
-            yield return "m_Color.a";
+            yield return PreviewPropertyPaths.Color.R;
+            yield return PreviewPropertyPaths.Color.G;
+            yield return PreviewPropertyPaths.Color.B;
+            yield return PreviewPropertyPaths.Color.A;
         }
 
         /// <inheritdoc/>

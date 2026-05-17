@@ -10,7 +10,7 @@ namespace UnityAnimationGraph.Editor {
     /// <summary>
     /// Animation Graph EditorWindow の View と Model を仲介するクラス
     /// </summary>
-    internal sealed class AnimationGraphEditorPresenter : IDisposable {
+    internal sealed partial class AnimationGraphEditorPresenter : IDisposable {
         /// <summary>
         /// 複製した要素をずらす距離
         /// </summary>
@@ -47,9 +47,44 @@ namespace UnityAnimationGraph.Editor {
         private const string PreviewStopIconName = "PreMatQuad";
 
         /// <summary>
+        /// Preview 先頭 frame ボタンに表示する icon 名
+        /// </summary>
+        private const string PreviewFirstFrameIconName = "Animation.FirstKey";
+
+        /// <summary>
+        /// Preview 前 frame ボタンに表示する icon 名
+        /// </summary>
+        private const string PreviewPreviousFrameIconName = "Animation.PrevKey";
+
+        /// <summary>
+        /// Preview 次 frame ボタンに表示する icon 名
+        /// </summary>
+        private const string PreviewNextFrameIconName = "Animation.NextKey";
+
+        /// <summary>
+        /// Preview 終端 frame ボタンに表示する icon 名
+        /// </summary>
+        private const string PreviewLastFrameIconName = "Animation.LastKey";
+
+        /// <summary>
         /// Preview 操作ボタンの icon size
         /// </summary>
         private const float PreviewButtonIconSize = 16.0f;
+
+        /// <summary>
+        /// Preview frame rate の初期値
+        /// </summary>
+        private const int DefaultPreviewFrameRate = 30;
+
+        /// <summary>
+        /// Preview frame rate の最小値
+        /// </summary>
+        private const int MinPreviewFrameRate = 1;
+
+        /// <summary>
+        /// Preview frame rate の最大値
+        /// </summary>
+        private const int MaxPreviewFrameRate = 240;
 
         /// <summary>
         /// Preview 時刻比較に使用する許容誤差
@@ -64,11 +99,20 @@ namespace UnityAnimationGraph.Editor {
 
         private ObjectField _graphAssetField;
         private ObjectField _previewSourceField;
+        private ToolbarButton _previewFirstFrameButton;
+        private ToolbarButton _previewPreviousFrameButton;
         private ToolbarButton _previewPlayButton;
         private ToolbarButton _previewStopButton;
+        private ToolbarButton _previewNextFrameButton;
+        private ToolbarButton _previewLastFrameButton;
+        private Image _previewFirstFrameIcon;
+        private Image _previewPreviousFrameIcon;
         private Image _previewPlayIcon;
         private Image _previewStopIcon;
-        private Slider _previewTimeSlider;
+        private Image _previewNextFrameIcon;
+        private Image _previewLastFrameIcon;
+        private IntegerField _previewFrameRateField;
+        private AnimationGraphPreviewTimelineView _previewTimelineView;
         private Label _previewTimeLabel;
         private AnimationGraphSchemaView _schemaView;
         private AnimationGraphView _graphView;
@@ -87,6 +131,8 @@ namespace UnityAnimationGraph.Editor {
         private bool _isEditorPreviewPlaying;
         private bool _ownsAnimationMode;
         private bool _isUpdatingPreviewControls;
+        private bool _hasEditorPreviewInteraction;
+        private int _previewFrameRate = DefaultPreviewFrameRate;
         private double _lastEditorPreviewUpdateTime;
 
         /// <summary>Inspector 表示対象 node ID 一覧が変更されたときに発火</summary>
@@ -97,9 +143,14 @@ namespace UnityAnimationGraph.Editor {
         /// </summary>
         /// <param name="graphAssetField">GraphAsset を表示する ObjectField</param>
         /// <param name="previewSourceField">Preview source を表示する ObjectField</param>
+        /// <param name="previewFirstFrameButton">Preview 先頭 frame button</param>
+        /// <param name="previewPreviousFrameButton">Preview 前 frame button</param>
         /// <param name="previewPlayButton">Preview 再生ボタン</param>
         /// <param name="previewStopButton">Preview 停止ボタン</param>
-        /// <param name="previewTimeSlider">Preview time slider</param>
+        /// <param name="previewNextFrameButton">Preview 次 frame button</param>
+        /// <param name="previewLastFrameButton">Preview 終端 frame button</param>
+        /// <param name="previewFrameRateField">Preview frame rate field</param>
+        /// <param name="previewTimelineView">Preview timeline view</param>
         /// <param name="previewTimeLabel">Preview time label</param>
         /// <param name="schemaView">Target と Blackboard を表示する View</param>
         /// <param name="graphView">GraphView 領域</param>
@@ -109,9 +160,14 @@ namespace UnityAnimationGraph.Editor {
         public void Initialize(
             ObjectField graphAssetField,
             ObjectField previewSourceField,
+            ToolbarButton previewFirstFrameButton,
+            ToolbarButton previewPreviousFrameButton,
             ToolbarButton previewPlayButton,
             ToolbarButton previewStopButton,
-            Slider previewTimeSlider,
+            ToolbarButton previewNextFrameButton,
+            ToolbarButton previewLastFrameButton,
+            IntegerField previewFrameRateField,
+            AnimationGraphPreviewTimelineView previewTimelineView,
             Label previewTimeLabel,
             AnimationGraphSchemaView schemaView,
             AnimationGraphView graphView,
@@ -120,11 +176,22 @@ namespace UnityAnimationGraph.Editor {
             IReadOnlyList<string> initialInspectedNodeIds) {
             _graphAssetField = graphAssetField ?? throw new ArgumentNullException(nameof(graphAssetField));
             _previewSourceField = previewSourceField ?? throw new ArgumentNullException(nameof(previewSourceField));
+            _previewFirstFrameButton = previewFirstFrameButton ?? throw new ArgumentNullException(nameof(previewFirstFrameButton));
+            _previewPreviousFrameButton = previewPreviousFrameButton ?? throw new ArgumentNullException(nameof(previewPreviousFrameButton));
             _previewPlayButton = previewPlayButton ?? throw new ArgumentNullException(nameof(previewPlayButton));
             _previewStopButton = previewStopButton ?? throw new ArgumentNullException(nameof(previewStopButton));
+            _previewNextFrameButton = previewNextFrameButton ?? throw new ArgumentNullException(nameof(previewNextFrameButton));
+            _previewLastFrameButton = previewLastFrameButton ?? throw new ArgumentNullException(nameof(previewLastFrameButton));
+            _previewFirstFrameIcon = CreatePreviewButtonIcon(_previewFirstFrameButton);
+            _previewPreviousFrameIcon = CreatePreviewButtonIcon(_previewPreviousFrameButton);
             _previewPlayIcon = CreatePreviewButtonIcon(_previewPlayButton);
             _previewStopIcon = CreatePreviewButtonIcon(_previewStopButton);
-            _previewTimeSlider = previewTimeSlider ?? throw new ArgumentNullException(nameof(previewTimeSlider));
+            _previewNextFrameIcon = CreatePreviewButtonIcon(_previewNextFrameButton);
+            _previewLastFrameIcon = CreatePreviewButtonIcon(_previewLastFrameButton);
+            _previewFrameRateField = previewFrameRateField ?? throw new ArgumentNullException(nameof(previewFrameRateField));
+            _previewFrameRate = ClampPreviewFrameRate(_previewFrameRateField.value);
+            _previewFrameRateField.SetValueWithoutNotify(_previewFrameRate);
+            _previewTimelineView = previewTimelineView ?? throw new ArgumentNullException(nameof(previewTimelineView));
             _previewTimeLabel = previewTimeLabel ?? throw new ArgumentNullException(nameof(previewTimeLabel));
             _schemaView = schemaView ?? throw new ArgumentNullException(nameof(schemaView));
             _graphView = graphView ?? throw new ArgumentNullException(nameof(graphView));
@@ -133,9 +200,14 @@ namespace UnityAnimationGraph.Editor {
             _footerDefaultColor = _footerLabel.style.color;
 
             _graphAssetField.RegisterValueChangedCallback(OnGraphAssetChanged);
+            _previewFirstFrameButton.clicked += SeekPreviewToFirstFrame;
+            _previewPreviousFrameButton.clicked += StepPreviewToPreviousFrame;
             _previewPlayButton.clicked += ToggleEditorPreviewPlayback;
             _previewStopButton.clicked += StopEditorPreview;
-            _previewTimeSlider.RegisterValueChangedCallback(OnPreviewTimeSliderChanged);
+            _previewNextFrameButton.clicked += StepPreviewToNextFrame;
+            _previewLastFrameButton.clicked += SeekPreviewToLastFrame;
+            _previewFrameRateField.RegisterValueChangedCallback(OnPreviewFrameRateChanged);
+            _previewTimelineView.SeekRequested += OnPreviewTimelineSeekRequested;
             _graphView.NodeCreateRequested += AddNode;
             _graphView.NodeMoved += MoveNode;
             _graphView.SignalMoved += MoveSignal;
@@ -150,8 +222,11 @@ namespace UnityAnimationGraph.Editor {
             _graphView.DuplicateRequested += DuplicateSelection;
             _graphView.DeleteRequested += DeleteSelection;
             _graphView.ActionTargetKeyChanged += SetActionTargetKey;
+            _graphView.DetailStringChanged += SetNodeDetailString;
+            _graphView.DetailBoolChanged += SetNodeDetailBool;
+            _graphView.DetailIntChanged += SetNodeDetailInt;
+            _graphView.DetailFloatChanged += SetNodeDetailFloat;
             _graphView.DelayChanged += SetDelay;
-            _graphView.FlagBranchKeyChanged += SetFlagBranchKey;
             _graphView.JoinTypeChanged += SetJoinType;
             _graphView.LoopCountChanged += SetLoopCount;
             _schemaView.SchemaChanged += OnSchemaChanged;
@@ -168,6 +243,7 @@ namespace UnityAnimationGraph.Editor {
             SetGraphAsset((AnimationGraphAsset)_graphAssetField.value);
             RefreshPreviewSourceFromSelection(false);
             UpdatePreviewControls();
+            EditorApplication.delayCall += RestoreIdleFooterMessage;
             SetInspectorSelectionByIds(initialInspectedNodeIds);
         }
 
@@ -179,6 +255,14 @@ namespace UnityAnimationGraph.Editor {
                 _graphAssetField.UnregisterValueChangedCallback(OnGraphAssetChanged);
             }
 
+            if (_previewFirstFrameButton != null) {
+                _previewFirstFrameButton.clicked -= SeekPreviewToFirstFrame;
+            }
+
+            if (_previewPreviousFrameButton != null) {
+                _previewPreviousFrameButton.clicked -= StepPreviewToPreviousFrame;
+            }
+
             if (_previewPlayButton != null) {
                 _previewPlayButton.clicked -= ToggleEditorPreviewPlayback;
             }
@@ -187,8 +271,20 @@ namespace UnityAnimationGraph.Editor {
                 _previewStopButton.clicked -= StopEditorPreview;
             }
 
-            if (_previewTimeSlider != null) {
-                _previewTimeSlider.UnregisterValueChangedCallback(OnPreviewTimeSliderChanged);
+            if (_previewNextFrameButton != null) {
+                _previewNextFrameButton.clicked -= StepPreviewToNextFrame;
+            }
+
+            if (_previewLastFrameButton != null) {
+                _previewLastFrameButton.clicked -= SeekPreviewToLastFrame;
+            }
+
+            if (_previewFrameRateField != null) {
+                _previewFrameRateField.UnregisterValueChangedCallback(OnPreviewFrameRateChanged);
+            }
+
+            if (_previewTimelineView != null) {
+                _previewTimelineView.SeekRequested -= OnPreviewTimelineSeekRequested;
             }
 
             if (_graphView != null) {
@@ -206,8 +302,11 @@ namespace UnityAnimationGraph.Editor {
                 _graphView.DuplicateRequested -= DuplicateSelection;
                 _graphView.DeleteRequested -= DeleteSelection;
                 _graphView.ActionTargetKeyChanged -= SetActionTargetKey;
+                _graphView.DetailStringChanged -= SetNodeDetailString;
+                _graphView.DetailBoolChanged -= SetNodeDetailBool;
+                _graphView.DetailIntChanged -= SetNodeDetailInt;
+                _graphView.DetailFloatChanged -= SetNodeDetailFloat;
                 _graphView.DelayChanged -= SetDelay;
-                _graphView.FlagBranchKeyChanged -= SetFlagBranchKey;
                 _graphView.JoinTypeChanged -= SetJoinType;
                 _graphView.LoopCountChanged -= SetLoopCount;
             }
@@ -221,6 +320,7 @@ namespace UnityAnimationGraph.Editor {
             }
 
             EditorApplication.update -= OnEditorUpdate;
+            EditorApplication.delayCall -= RestoreIdleFooterMessage;
             EditorApplication.playModeStateChanged -= OnPlayModeStateChanged;
             AssemblyReloadEvents.beforeAssemblyReload -= OnBeforeAssemblyReload;
             Selection.selectionChanged -= OnSelectionChanged;
@@ -235,15 +335,21 @@ namespace UnityAnimationGraph.Editor {
         /// </summary>
         /// <param name="evt">GraphAsset field の変更イベント</param>
         private void OnGraphAssetChanged(ChangeEvent<UnityEngine.Object> evt) {
-            SetGraphAsset((AnimationGraphAsset)evt.newValue);
+            StopEditorPreview();
+            SetGraphAsset((AnimationGraphAsset)evt.newValue, false);
         }
 
         /// <summary>
         /// 編集対象 GraphAsset を設定し、表示状態を更新
         /// </summary>
         /// <param name="graphAsset">編集対象 GraphAsset</param>
-        private void SetGraphAsset(AnimationGraphAsset graphAsset) {
-            StopEditorPreview(null);
+        /// <param name="stopPreview">差し替え前に Preview を停止する場合は true</param>
+        private void SetGraphAsset(AnimationGraphAsset graphAsset, bool stopPreview = true) {
+            if (stopPreview) {
+                StopEditorPreview(null);
+            }
+
+            _hasEditorPreviewInteraction = false;
             _assetModel.SetGraphAsset(graphAsset);
             if (graphAsset != null && !_assetModel.HasStartNode && _assetModel.Nodes.Count == 0) {
                 try {
@@ -267,339 +373,6 @@ namespace UnityAnimationGraph.Editor {
             }
 
             SetFooterMessage(_assetModel.HasStartNode ? graphAsset.name : "Graph is not initialized");
-        }
-
-        /// <summary>
-        /// 指定 type の Node を Graph に追加
-        /// </summary>
-        /// <param name="nodeType">追加する Node type</param>
-        /// <param name="graphPosition">Graph 上の追加位置</param>
-        private void AddNode(Type nodeType, Vector2 graphPosition) {
-            if (!_assetModel.HasGraphAsset) {
-                SetFooterMessage("GraphAsset is not selected", true);
-                return;
-            }
-
-            var nodeModel = _assetModel.AddNode(nodeType, graphPosition);
-            _graphView.Rebuild(_assetModel);
-            _graphView.SelectNodeModels(new[] { nodeModel });
-            UpdateInspectorSelection();
-            if (RefreshPreviewAfterGraphChanged()) {
-                SetFooterMessage($"{nodeModel.DisplayName} added");
-            }
-        }
-
-        /// <summary>
-        /// Node の Graph 上の表示位置を更新
-        /// </summary>
-        /// <param name="nodeModel">移動対象 Node model</param>
-        /// <param name="nodePosition">移動後の表示範囲</param>
-        private void MoveNode(NodeEditorModel nodeModel, Rect nodePosition) {
-            nodeModel.SetGraphPosition(nodePosition.position);
-        }
-
-        /// <summary>
-        /// Signal の Graph 上の表示位置を更新
-        /// </summary>
-        /// <param name="signalModel">移動対象 Signal model</param>
-        /// <param name="signalPosition">移動後の表示範囲</param>
-        private void MoveSignal(SignalEditorModel signalModel, Rect signalPosition) {
-            signalModel.SetGraphPosition(signalPosition.position);
-        }
-
-        /// <summary>
-        /// ActionNode の Target key を更新
-        /// </summary>
-        /// <param name="nodeModel">更新対象 Node model</param>
-        /// <param name="targetKey">Target key</param>
-        private void SetActionTargetKey(NodeEditorModel nodeModel, string targetKey) {
-            if (nodeModel == null) {
-                return;
-            }
-
-            nodeModel.SetActionTargetKey(targetKey);
-            var previewUpdated = RefreshPreviewAfterGraphChanged();
-            RefreshNodeDetails();
-            RefreshInspectorSelection();
-            if (previewUpdated) {
-                SetFooterMessage($"{nodeModel.DisplayName} target: {GetDisplayValue(targetKey)}");
-            }
-        }
-
-        /// <summary>
-        /// DelayNode の待機時間を更新
-        /// </summary>
-        /// <param name="nodeModel">更新対象 DelayNode model</param>
-        /// <param name="delay">待機時間</param>
-        private void SetDelay(DelayNodeEditorModel nodeModel, float delay) {
-            if (nodeModel == null) {
-                return;
-            }
-
-            nodeModel.SetDelay(delay);
-            var previewUpdated = RefreshPreviewAfterGraphChanged();
-            RefreshNodeDetails();
-            RefreshInspectorSelection();
-            if (previewUpdated) {
-                SetFooterMessage($"{nodeModel.DisplayName} delay: {nodeModel.Delay:0.###}");
-            }
-        }
-
-        /// <summary>
-        /// FlagBranchNode の参照 key を更新
-        /// </summary>
-        /// <param name="nodeModel">更新対象 Node model</param>
-        /// <param name="flagKey">参照する flag key</param>
-        private void SetFlagBranchKey(NodeEditorModel nodeModel, string flagKey) {
-            if (nodeModel == null) {
-                return;
-            }
-
-            nodeModel.SetFlagBranchKey(flagKey);
-            var previewUpdated = RefreshPreviewAfterGraphChanged();
-            RefreshNodeDetails();
-            RefreshInspectorSelection();
-            if (previewUpdated) {
-                SetFooterMessage($"{nodeModel.DisplayName} flag: {GetDisplayValue(flagKey)}");
-            }
-        }
-
-        /// <summary>
-        /// JoinNode の join type を更新
-        /// </summary>
-        /// <param name="nodeModel">更新対象 Node model</param>
-        /// <param name="joinType">Join type</param>
-        private void SetJoinType(NodeEditorModel nodeModel, JoinType joinType) {
-            if (nodeModel == null) {
-                return;
-            }
-
-            nodeModel.SetJoinType(joinType);
-            var previewUpdated = RefreshPreviewAfterGraphChanged();
-            RefreshNodeDetails();
-            RefreshInspectorSelection();
-            if (previewUpdated) {
-                SetFooterMessage($"{nodeModel.DisplayName} join: {joinType}");
-            }
-        }
-
-        /// <summary>
-        /// LoopNode の繰り返し回数を更新
-        /// </summary>
-        /// <param name="nodeModel">更新対象 LoopNode model</param>
-        /// <param name="loopCount">繰り返し回数</param>
-        private void SetLoopCount(LoopNodeEditorModel nodeModel, int loopCount) {
-            if (nodeModel == null) {
-                return;
-            }
-
-            nodeModel.SetLoopCount(loopCount);
-            var previewUpdated = RefreshPreviewAfterGraphChanged();
-            RefreshNodeDetails();
-            RefreshInspectorSelection();
-            if (previewUpdated) {
-                SetFooterMessage($"{nodeModel.DisplayName} count: {nodeModel.LoopCount}");
-            }
-        }
-
-        /// <summary>
-        /// Node 同士を接続
-        /// </summary>
-        /// <param name="outputPortKind">接続元 output port</param>
-        /// <param name="sourceNodeModel">接続元 Node model</param>
-        /// <param name="targetNodeModel">接続先 Node model</param>
-        /// <returns>接続できた場合は true</returns>
-        private bool ConnectNodes(AnimationGraphOutputPortKind outputPortKind, NodeEditorModel sourceNodeModel, NodeEditorModel targetNodeModel) {
-            if (!_assetModel.Connect(outputPortKind, sourceNodeModel, targetNodeModel, out var errorMessage)) {
-                SetFooterMessage(errorMessage, true);
-                return false;
-            }
-
-            if (RefreshPreviewAfterGraphChanged()) {
-                SetFooterMessage($"{sourceNodeModel.DisplayName}.{GetOutputPortName(outputPortKind, sourceNodeModel)} -> {targetNodeModel.DisplayName}");
-            }
-
-            return true;
-        }
-
-        /// <summary>
-        /// Node 同士の接続を解除
-        /// </summary>
-        /// <param name="outputPortKind">接続元 output port</param>
-        /// <param name="sourceNodeModel">接続元 Node model</param>
-        /// <param name="targetNodeModel">接続先 Node model</param>
-        private void DisconnectNodes(AnimationGraphOutputPortKind outputPortKind, NodeEditorModel sourceNodeModel, NodeEditorModel targetNodeModel) {
-            if (_assetModel.Disconnect(outputPortKind, sourceNodeModel, targetNodeModel)) {
-                if (RefreshPreviewAfterGraphChanged()) {
-                    SetFooterMessage($"{sourceNodeModel.DisplayName} disconnected");
-                }
-            }
-        }
-
-        /// <summary>
-        /// Node の Signal output を Signal に接続
-        /// </summary>
-        /// <param name="outputPortKind">接続元 output port</param>
-        /// <param name="sourceNodeModel">接続元 Node model</param>
-        /// <param name="targetSignalModel">接続先 Signal model</param>
-        /// <returns>接続できた場合は true</returns>
-        private bool ConnectSignal(AnimationGraphOutputPortKind outputPortKind, NodeEditorModel sourceNodeModel, SignalEditorModel targetSignalModel) {
-            if (!_assetModel.ConnectSignal(outputPortKind, sourceNodeModel, targetSignalModel, out var errorMessage)) {
-                SetFooterMessage(errorMessage, true);
-                return false;
-            }
-
-            if (RefreshPreviewAfterGraphChanged()) {
-                SetFooterMessage($"{sourceNodeModel.DisplayName}.{GetOutputPortName(outputPortKind, sourceNodeModel)} -> {targetSignalModel.DisplayName}");
-            }
-
-            return true;
-        }
-
-        /// <summary>
-        /// Node の Signal output と Signal の接続を解除
-        /// </summary>
-        /// <param name="outputPortKind">接続元 output port</param>
-        /// <param name="sourceNodeModel">接続元 Node model</param>
-        /// <param name="targetSignalModel">接続先 Signal model</param>
-        private void DisconnectSignal(AnimationGraphOutputPortKind outputPortKind, NodeEditorModel sourceNodeModel, SignalEditorModel targetSignalModel) {
-            if (!_assetModel.DisconnectSignal(outputPortKind, sourceNodeModel, targetSignalModel)) {
-                return;
-            }
-
-            if (RefreshPreviewAfterGraphChanged()) {
-                SetFooterMessage($"{targetSignalModel.DisplayName} removed");
-            }
-
-            EditorApplication.delayCall += RefreshGraph;
-        }
-
-        /// <summary>
-        /// 指定 type の Signal を Graph に追加
-        /// </summary>
-        /// <param name="signalType">追加する Signal type</param>
-        /// <param name="graphPosition">Graph 上の追加位置</param>
-        private void AddSignal(Type signalType, Vector2 graphPosition) {
-            if (!_assetModel.HasGraphAsset) {
-                SetFooterMessage("GraphAsset is not selected", true);
-                return;
-            }
-
-            try {
-                var signalModel = _assetModel.AddSignal(signalType, graphPosition);
-                if (RefreshGraphState()) {
-                    SetFooterMessage($"Signal added: {signalModel.DisplayName}");
-                }
-            }
-            catch (Exception exception) {
-                SetFooterMessage(exception.Message, true);
-            }
-        }
-
-        /// <summary>
-        /// GraphView の選択状態を Inspector に反映
-        /// </summary>
-        private void UpdateInspectorSelection() {
-            var selectedNodeModels = _graphView.GetSelectedNodeModels();
-            if (selectedNodeModels.Count > 0) {
-                SetInspectorSelection(selectedNodeModels);
-                return;
-            }
-
-            var selectedSignalModels = _graphView.GetSelectedSignalModels();
-            if (selectedSignalModels.Count > 0) {
-                SetSignalInspectorSelection(selectedSignalModels);
-                return;
-            }
-
-            RefreshInspectorSelection();
-        }
-
-        /// <summary>
-        /// 選択中の Node と Signal を複製用に保持
-        /// </summary>
-        private void CopySelection() {
-            _copiedNodeModels.Clear();
-            _copiedSignalModels.Clear();
-            var selectedNodeModels = _graphView.GetSelectedNodeModels();
-            for (var i = 0; i < selectedNodeModels.Count; i++) {
-                var nodeModel = selectedNodeModels[i];
-                if (!_assetModel.CanDuplicateNode(nodeModel)) {
-                    continue;
-                }
-
-                _copiedNodeModels.Add(nodeModel);
-            }
-
-            var selectedSignalModels = _graphView.GetSelectedSignalModels();
-            for (var i = 0; i < selectedSignalModels.Count; i++) {
-                var signalModel = selectedSignalModels[i];
-                if (!_assetModel.CanDuplicateSignal(signalModel)) {
-                    continue;
-                }
-
-                _copiedSignalModels.Add(signalModel);
-            }
-
-            SetFooterMessage($"{_copiedNodeModels.Count + _copiedSignalModels.Count} item copied");
-        }
-
-        /// <summary>
-        /// 保持している Node と Signal を Graph に貼り付け
-        /// </summary>
-        private void PasteCopiedElements() {
-            if (_copiedNodeModels.Count == 0 && _copiedSignalModels.Count == 0) {
-                SetFooterMessage("No copied item", true);
-                return;
-            }
-
-            var duplicatedNodeModels = _assetModel.DuplicateNodes(_copiedNodeModels, DuplicateOffset);
-            var duplicatedSignalModels = _assetModel.DuplicateSignals(_copiedSignalModels, DuplicateOffset);
-            _graphView.Rebuild(_assetModel);
-            _graphView.SelectGraphElementModels(duplicatedNodeModels, duplicatedSignalModels);
-            UpdateInspectorSelection();
-            if (RefreshPreviewAfterGraphChanged()) {
-                SetFooterMessage($"{duplicatedNodeModels.Count + duplicatedSignalModels.Count} item pasted");
-            }
-        }
-
-        /// <summary>
-        /// 選択中の Node と Signal を複製
-        /// </summary>
-        private void DuplicateSelection() {
-            var selectedNodeModels = _graphView.GetSelectedNodeModels();
-            var selectedSignalModels = _graphView.GetSelectedSignalModels();
-            var duplicatedNodeModels = _assetModel.DuplicateNodes(selectedNodeModels, DuplicateOffset);
-            var duplicatedSignalModels = _assetModel.DuplicateSignals(selectedSignalModels, DuplicateOffset);
-            _graphView.Rebuild(_assetModel);
-            _graphView.SelectGraphElementModels(duplicatedNodeModels, duplicatedSignalModels);
-            UpdateInspectorSelection();
-            if (RefreshPreviewAfterGraphChanged()) {
-                SetFooterMessage($"{duplicatedNodeModels.Count + duplicatedSignalModels.Count} item duplicated");
-            }
-        }
-
-        /// <summary>
-        /// 選択中の edge、Node、Signal を削除
-        /// </summary>
-        private void DeleteSelection() {
-            var selectedEdges = _graphView.GetSelectedEdgeConnections();
-            for (var i = 0; i < selectedEdges.Count; i++) {
-                _assetModel.Disconnect(selectedEdges[i].OutputPortKind, selectedEdges[i].SourceNodeModel, selectedEdges[i].TargetNodeModel);
-            }
-
-            var selectedSignalEdges = _graphView.GetSelectedSignalEdgeConnections();
-            for (var i = 0; i < selectedSignalEdges.Count; i++) {
-                _assetModel.DisconnectSignal(selectedSignalEdges[i].OutputPortKind, selectedSignalEdges[i].SourceNodeModel, selectedSignalEdges[i].TargetSignalModel);
-            }
-
-            var selectedNodeModels = _graphView.GetSelectedNodeModels();
-            _assetModel.RemoveNodes(selectedNodeModels);
-            var selectedSignalModels = _graphView.GetSelectedSignalModels();
-            _assetModel.RemoveSignals(selectedSignalModels);
-            if (RefreshGraphState()) {
-                SetFooterMessage("Selection removed");
-            }
         }
 
         /// <summary>
@@ -628,13 +401,6 @@ namespace UnityAnimationGraph.Editor {
         private void OnSchemaChanged() {
             RefreshPreviewAfterGraphChanged();
             RefreshNodeDetails();
-        }
-
-        /// <summary>
-        /// Node の詳細表示を更新
-        /// </summary>
-        private void RefreshNodeDetails() {
-            _graphView.RefreshNodeDetails();
         }
 
         /// <summary>
@@ -783,6 +549,7 @@ namespace UnityAnimationGraph.Editor {
         /// Selection.activeGameObject を対象に Editor Preview を開始または再開
         /// </summary>
         private void PlayEditorPreview() {
+            _hasEditorPreviewInteraction = true;
             var graphAsset = GetSelectedGraphAsset();
             if (graphAsset == null) {
                 SetFooterMessage("GraphAsset is not selected", true);
@@ -858,6 +625,11 @@ namespace UnityAnimationGraph.Editor {
             _ownsAnimationMode = false;
 
             try {
+                if (player != null && !IsPreviewAnimationModeActive() && !AnimationMode.InAnimationMode()) {
+                    AnimationMode.StartAnimationMode(GetPreviewAnimationModeDriver());
+                    SetOwnsAnimationMode(true);
+                }
+
                 if (player != null && IsPreviewAnimationModeActive()) {
                     AnimationMode.BeginSampling();
                     try {
@@ -888,18 +660,193 @@ namespace UnityAnimationGraph.Editor {
         }
 
         /// <summary>
-        /// Seek スライダーの変更を Preview 評価に反映
+        /// Timeline drag による seek 要求を Preview 評価に反映
         /// </summary>
-        /// <param name="evt">Slider の値変更イベント</param>
-        private void OnPreviewTimeSliderChanged(ChangeEvent<float> evt) {
-            if (_isUpdatingPreviewControls || _editorPreviewPlayer == null) {
+        /// <param name="time">Seek 先の時刻</param>
+        private void OnPreviewTimelineSeekRequested(float time) {
+            _hasEditorPreviewInteraction = true;
+            if (_isUpdatingPreviewControls || !EnsureEditorPreviewForTimelineSeek()) {
+                return;
+            }
+
+            SeekEditorPreview(time, "Preview scrubbed");
+        }
+
+        /// <summary>
+        /// Timeline seek 用に Editor Preview を開始して一時停止状態にする
+        /// </summary>
+        /// <returns>Timeline seek 可能な Preview がある場合は true</returns>
+        private bool EnsureEditorPreviewForTimelineSeek() {
+            if (_editorPreviewPlayer != null) {
+                return true;
+            }
+
+            var graphAsset = GetSelectedGraphAsset();
+            if (graphAsset == null) {
+                SetFooterMessage("GraphAsset is not selected", true);
+                UpdatePreviewControls();
+                return false;
+            }
+
+            if (EditorApplication.isPlayingOrWillChangePlaymode) {
+                SetFooterMessage("Editor preview is available outside Play Mode", true);
+                UpdatePreviewControls();
+                return false;
+            }
+
+            if (!TryStartEditorPreview(graphAsset, out var message)) {
+                SetFooterMessage(message, true);
+                UpdatePreviewControls();
+                return false;
+            }
+
+            _editorPreviewPlayer.Play();
+            _editorPreviewPlayer.Pause();
+            _isEditorPreviewPlaying = false;
+            SetPreviewSchedule(null, _editorPreviewPlayer.Schedule, AnimationGraphPlayerState.Paused, _editorPreviewPlayer.CurrentTime);
+            UpdatePreviewControls();
+            return true;
+        }
+
+        /// <summary>
+        /// Preview frame rate の変更を反映
+        /// </summary>
+        /// <param name="evt">Frame rate field の値変更イベント</param>
+        private void OnPreviewFrameRateChanged(ChangeEvent<int> evt) {
+            if (_isUpdatingPreviewControls) {
+                return;
+            }
+
+            var nextFrameRate = ClampPreviewFrameRate(evt.newValue);
+            _previewFrameRate = nextFrameRate;
+            if (evt.newValue != nextFrameRate) {
+                _previewFrameRateField.SetValueWithoutNotify(nextFrameRate);
+            }
+
+            UpdatePreviewControls();
+        }
+
+        /// <summary>
+        /// Preview を先頭 frame へ seek
+        /// </summary>
+        private void SeekPreviewToFirstFrame() {
+            SeekEditorPreviewFrame(0, "Preview first frame");
+        }
+
+        /// <summary>
+        /// Preview を 1 frame 戻す
+        /// </summary>
+        private void StepPreviewToPreviousFrame() {
+            StepPreviewFrame(-1);
+        }
+
+        /// <summary>
+        /// Preview を 1 frame 進める
+        /// </summary>
+        private void StepPreviewToNextFrame() {
+            StepPreviewFrame(1);
+        }
+
+        /// <summary>
+        /// Preview を終端 frame へ seek
+        /// </summary>
+        private void SeekPreviewToLastFrame() {
+            SeekEditorPreviewFrame(GetPreviewLastFrame(), "Preview last frame");
+        }
+
+        /// <summary>
+        /// Preview を指定 frame 数だけ移動
+        /// </summary>
+        /// <param name="direction">移動方向</param>
+        private void StepPreviewFrame(int direction) {
+            if (_editorPreviewPlayer == null || direction == 0) {
+                return;
+            }
+
+            var framePosition = _editorPreviewPlayer.CurrentTime * _previewFrameRate;
+            var nextFrame = direction > 0
+                ? Mathf.FloorToInt(framePosition + PreviewTimeEpsilon) + 1
+                : Mathf.CeilToInt(framePosition - PreviewTimeEpsilon) - 1;
+            nextFrame = Mathf.Clamp(nextFrame, 0, GetPreviewLastFrame());
+            SeekEditorPreviewFrame(nextFrame, $"Preview frame {nextFrame}");
+        }
+
+        /// <summary>
+        /// Preview を指定 frame へ seek
+        /// </summary>
+        /// <param name="frame">Seek 先 frame</param>
+        /// <param name="messagePrefix">Footer message prefix</param>
+        private void SeekEditorPreviewFrame(int frame, string messagePrefix) {
+            if (_editorPreviewPlayer == null) {
+                return;
+            }
+
+            var clampedFrame = Mathf.Clamp(frame, 0, GetPreviewLastFrame());
+            SeekEditorPreview(GetPreviewTimeForFrame(clampedFrame), messagePrefix);
+        }
+
+        /// <summary>
+        /// Preview を指定時刻へ seek
+        /// </summary>
+        /// <param name="time">Seek 先の時刻</param>
+        /// <param name="messagePrefix">Footer message prefix</param>
+        private void SeekEditorPreview(float time, string messagePrefix) {
+            if (_editorPreviewPlayer == null) {
                 return;
             }
 
             _editorPreviewPlayer.Pause();
             _isEditorPreviewPlaying = false;
-            EvaluateEditorPreview(evt.newValue);
-            SetFooterMessage(CreatePreviewStatusMessage("Preview scrubbed"));
+            EvaluateEditorPreview(Mathf.Clamp(time, 0.0f, _editorPreviewPlayer.Duration));
+            SetFooterMessage(CreatePreviewStatusMessage(messagePrefix));
+        }
+
+        /// <summary>
+        /// Preview の最終 frame index を取得
+        /// </summary>
+        /// <returns>Preview の最終 frame index</returns>
+        private int GetPreviewLastFrame() {
+            if (_editorPreviewPlayer == null) {
+                return 0;
+            }
+
+            return Mathf.Max(0, Mathf.CeilToInt(_editorPreviewPlayer.Duration * _previewFrameRate));
+        }
+
+        /// <summary>
+        /// Preview の現在 frame index を取得
+        /// </summary>
+        /// <returns>Preview の現在 frame index</returns>
+        private int GetCurrentPreviewFrame() {
+            if (_editorPreviewPlayer == null) {
+                return 0;
+            }
+
+            return Mathf.Clamp(Mathf.RoundToInt(_editorPreviewPlayer.CurrentTime * _previewFrameRate), 0, GetPreviewLastFrame());
+        }
+
+        /// <summary>
+        /// Preview frame index を時刻に変換
+        /// </summary>
+        /// <param name="frame">変換する frame index</param>
+        /// <returns>Frame に対応する時刻</returns>
+        private float GetPreviewTimeForFrame(int frame) {
+            if (_editorPreviewPlayer == null) {
+                return 0.0f;
+            }
+
+            var lastFrame = GetPreviewLastFrame();
+            var clampedFrame = Mathf.Clamp(frame, 0, lastFrame);
+            return clampedFrame / (float)_previewFrameRate;
+        }
+
+        /// <summary>
+        /// Preview frame rate を有効範囲に丸める
+        /// </summary>
+        /// <param name="frameRate">丸める frame rate</param>
+        /// <returns>有効範囲内の frame rate</returns>
+        private int ClampPreviewFrameRate(int frameRate) {
+            return Mathf.Clamp(frameRate, MinPreviewFrameRate, MaxPreviewFrameRate);
         }
 
         /// <summary>
@@ -911,7 +858,27 @@ namespace UnityAnimationGraph.Editor {
         private bool TryResolveEditorPreviewStartSource(out GameObject rootGameObject, out AnimationGraphRunner previewRunner) {
             rootGameObject = _editorPreviewRoot;
             previewRunner = _editorPreviewSourceRunner;
-            return rootGameObject != null && previewRunner != null;
+            if ((rootGameObject == null || previewRunner == null)
+                && _previewSourceField != null
+                && _previewSourceField.value is AnimationGraphRunner fieldRunner) {
+                rootGameObject = fieldRunner.gameObject;
+                previewRunner = fieldRunner;
+            }
+
+            if ((rootGameObject == null || previewRunner == null)
+                && TryGetSelectionPreviewSource(out var selectionRootGameObject, out var selectionPreviewRunner)) {
+                rootGameObject = selectionRootGameObject;
+                previewRunner = selectionPreviewRunner;
+            }
+
+            if (rootGameObject == null || previewRunner == null) {
+                return false;
+            }
+
+            _editorPreviewRoot = rootGameObject;
+            _editorPreviewSourceRunner = previewRunner;
+            UpdatePreviewSourceField();
+            return true;
         }
 
         /// <summary>
@@ -1018,6 +985,7 @@ namespace UnityAnimationGraph.Editor {
             }
 
             RebuildPreviewSchedule();
+            UpdatePreviewControls();
             return true;
         }
 
@@ -1098,7 +1066,7 @@ namespace UnityAnimationGraph.Editor {
             EnsureAnimationMode();
             AnimationMode.BeginSampling();
             try {
-                _editorPreviewPlayer.Seek(time);
+                _editorPreviewPlayer.SeekFromInitialState(time);
                 RegisterEditorPreviewPropertyModifications();
             }
             finally {
@@ -1154,15 +1122,18 @@ namespace UnityAnimationGraph.Editor {
             }
 
             foreach (var previewProperty in player.GetPreviewProperties()) {
-                var component = previewProperty.Component;
+                var target = previewProperty.Target;
                 var propertyPath = previewProperty.PropertyPath;
-                if (component == null || string.IsNullOrEmpty(propertyPath)) {
+                if (target == null || string.IsNullOrEmpty(propertyPath)) {
                     continue;
                 }
 
-                var rootGameObject = _editorPreviewRoot != null ? _editorPreviewRoot : component.gameObject;
+                if (!TryGetPreviewRootGameObject(target, out var rootGameObject)) {
+                    continue;
+                }
+
                 var modification = new PropertyModification {
-                    target = component,
+                    target = target,
                     propertyPath = propertyPath,
                 };
                 if (!TryFillPropertyModificationValue(modification)) {
@@ -1170,14 +1141,29 @@ namespace UnityAnimationGraph.Editor {
                 }
 
                 if (AnimationUtility.PropertyModificationToEditorCurveBinding(modification, rootGameObject, out var binding) == null) {
-                    if (rootGameObject == component.gameObject
-                        || AnimationUtility.PropertyModificationToEditorCurveBinding(modification, component.gameObject, out binding) == null) {
+                    var targetGameObject = GetGameObject(target);
+                    if (targetGameObject == null
+                        || rootGameObject == targetGameObject
+                        || AnimationUtility.PropertyModificationToEditorCurveBinding(modification, targetGameObject, out binding) == null) {
                         continue;
                     }
                 }
 
                 AnimationMode.AddPropertyModification(binding, modification, true);
             }
+        }
+
+        private bool TryGetPreviewRootGameObject(UnityEngine.Object target, out GameObject rootGameObject) {
+            rootGameObject = _editorPreviewRoot != null ? _editorPreviewRoot : GetGameObject(target);
+            return rootGameObject != null;
+        }
+
+        private static GameObject GetGameObject(UnityEngine.Object target) {
+            return target switch {
+                Component component => component.gameObject,
+                GameObject gameObject => gameObject,
+                _ => null,
+            };
         }
 
         /// <summary>
@@ -1361,28 +1347,109 @@ namespace UnityAnimationGraph.Editor {
         /// </summary>
         private void UpdatePreviewControls() {
             UpdatePreviewSourceField();
-            if (_previewPlayButton == null || _previewStopButton == null || _previewTimeSlider == null || _previewTimeLabel == null) {
+            if (_previewPlayButton == null || _previewStopButton == null || _previewTimelineView == null || _previewTimeLabel == null) {
                 return;
             }
 
             var hasPreview = _editorPreviewPlayer != null;
-            var currentTime = hasPreview ? _editorPreviewPlayer.CurrentTime : 0.0f;
-            var duration = hasPreview ? _editorPreviewPlayer.Duration : 0.0f;
+            TryGetPreviewTimelineDisplayState(out var currentTime, out var duration);
+            var canShowTimeline = duration > PreviewTimeEpsilon;
+            var canSeekPreview = hasPreview && duration > PreviewTimeEpsilon;
+            var canStartPreviewFromTimeline = !hasPreview && canShowTimeline && CanStartEditorPreviewFromTimeline();
             UpdatePreviewControlIcons();
             _previewPlayButton.SetEnabled(hasPreview || GetSelectedGraphAsset() != null && _editorPreviewSourceRunner != null);
+            _previewFirstFrameButton.SetEnabled(canSeekPreview);
+            _previewPreviousFrameButton.SetEnabled(canSeekPreview);
             _previewStopButton.SetEnabled(hasPreview);
-            _previewTimeSlider.SetEnabled(hasPreview && duration > PreviewTimeEpsilon);
-            _previewTimeSlider.lowValue = 0.0f;
-            _previewTimeSlider.highValue = Mathf.Max(0.0f, duration);
+            _previewNextFrameButton.SetEnabled(canSeekPreview);
+            _previewLastFrameButton.SetEnabled(canSeekPreview);
+            _previewTimelineView.SetEnabled(canShowTimeline);
+            _previewTimelineView.SetSeekable(canSeekPreview || canStartPreviewFromTimeline);
             _isUpdatingPreviewControls = true;
             try {
-                _previewTimeSlider.SetValueWithoutNotify(currentTime);
+                _previewFrameRateField.SetValueWithoutNotify(_previewFrameRate);
+                _previewTimelineView.SetPreviewState(currentTime, duration, _previewFrameRate);
             }
             finally {
                 _isUpdatingPreviewControls = false;
             }
 
-            _previewTimeLabel.text = $"{currentTime:0.00} / {duration:0.00}s";
+            _previewTimeLabel.text = $"{currentTime:0.00} / {duration:0.00}s  F{GetPreviewFrameForTime(currentTime, duration)}";
+        }
+
+        /// <summary>
+        /// Preview Timeline の表示に使用する現在時刻と総時間を取得
+        /// </summary>
+        /// <param name="currentTime">表示する現在時刻</param>
+        /// <param name="duration">表示する総時間</param>
+        /// <returns>表示用の情報を取得できた場合は true</returns>
+        private bool TryGetPreviewTimelineDisplayState(out float currentTime, out float duration) {
+            if (_editorPreviewPlayer != null) {
+                currentTime = _editorPreviewPlayer.CurrentTime;
+                duration = _editorPreviewPlayer.Duration;
+                return true;
+            }
+
+            if (_previewSchedule != null) {
+                duration = _previewSchedule.Duration;
+                currentTime = Mathf.Clamp(_previewTime, 0.0f, duration);
+                return true;
+            }
+
+            if (TryBuildIdlePreviewSchedule(out var previewSchedule)) {
+                currentTime = 0.0f;
+                duration = previewSchedule.Duration;
+                return true;
+            }
+
+            currentTime = 0.0f;
+            duration = 0.0f;
+            return false;
+        }
+
+        /// <summary>
+        /// Timeline 操作から Editor Preview を開始できるか判定
+        /// </summary>
+        /// <returns>開始できる場合は true</returns>
+        private bool CanStartEditorPreviewFromTimeline() {
+            return !EditorApplication.isPlayingOrWillChangePlaymode
+                && GetSelectedGraphAsset() != null
+                && TryResolveEditorPreviewStartSource(out _, out _);
+        }
+
+        /// <summary>
+        /// 停止中の Preview Timeline 表示用に schedule を構築
+        /// </summary>
+        /// <param name="previewSchedule">構築した schedule</param>
+        /// <returns>Schedule を構築できた場合は true</returns>
+        private bool TryBuildIdlePreviewSchedule(out AnimationGraphSchedule previewSchedule) {
+            previewSchedule = null;
+            var graphAsset = GetSelectedGraphAsset();
+            if (graphAsset == null || !TryResolveEditorPreviewStartSource(out var rootGameObject, out var previewRunner)) {
+                return false;
+            }
+
+            try {
+                var targetBindings = GetEditorPreviewTargetBindings(graphAsset, previewRunner);
+                var context = new AnimationGraphEditorPreviewContext(graphAsset, rootGameObject, targetBindings);
+                var scheduler = new AnimationGraphScheduler();
+                previewSchedule = scheduler.Build(graphAsset, context);
+                return previewSchedule != null;
+            }
+            catch {
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// 表示時刻に対応する preview frame index を取得
+        /// </summary>
+        /// <param name="time">表示時刻</param>
+        /// <param name="duration">総時間</param>
+        /// <returns>表示時刻に対応する frame index</returns>
+        private int GetPreviewFrameForTime(float time, float duration) {
+            var lastFrame = Mathf.Max(0, Mathf.CeilToInt(duration * _previewFrameRate));
+            return Mathf.Clamp(Mathf.RoundToInt(time * _previewFrameRate), 0, lastFrame);
         }
 
         /// <summary>
@@ -1409,8 +1476,12 @@ namespace UnityAnimationGraph.Editor {
         private void UpdatePreviewControlIcons() {
             var playIconName = _isEditorPreviewPlaying ? PreviewPauseIconName : PreviewPlayIconName;
             var playTooltip = _isEditorPreviewPlaying ? "Pause preview" : "Play preview";
+            SetPreviewButtonIcon(_previewFirstFrameButton, _previewFirstFrameIcon, PreviewFirstFrameIconName, "Go to first frame");
+            SetPreviewButtonIcon(_previewPreviousFrameButton, _previewPreviousFrameIcon, PreviewPreviousFrameIconName, "Previous frame");
             SetPreviewButtonIcon(_previewPlayButton, _previewPlayIcon, playIconName, playTooltip);
             SetPreviewButtonIcon(_previewStopButton, _previewStopIcon, PreviewStopIconName, "Stop preview and restore sampled values");
+            SetPreviewButtonIcon(_previewNextFrameButton, _previewNextFrameIcon, PreviewNextFrameIconName, "Next frame");
+            SetPreviewButtonIcon(_previewLastFrameButton, _previewLastFrameIcon, PreviewLastFrameIconName, "Go to last frame");
         }
 
         /// <summary>
@@ -1531,135 +1602,6 @@ namespace UnityAnimationGraph.Editor {
         }
 
         /// <summary>
-        /// Node の選択状態を Inspector と永続化用 ID に反映
-        /// </summary>
-        /// <param name="nodeModels">選択中の Node model 一覧</param>
-        private void SetInspectorSelection(IReadOnlyList<NodeEditorModel> nodeModels) {
-            _inspectedNodeIds.Clear();
-            _inspectedSignalIds.Clear();
-            for (var i = 0; i < nodeModels.Count; i++) {
-                _inspectedNodeIds.Add(nodeModels[i].NodeId);
-            }
-
-            _inspectorView.SetSelection(nodeModels);
-            NotifyInspectedNodeIdsChanged();
-        }
-
-        /// <summary>
-        /// Signal の選択状態を Inspector と保持 ID に反映
-        /// </summary>
-        /// <param name="signalModels">選択中の Signal model 一覧</param>
-        private void SetSignalInspectorSelection(IReadOnlyList<SignalEditorModel> signalModels) {
-            _inspectedNodeIds.Clear();
-            _inspectedSignalIds.Clear();
-            for (var i = 0; i < signalModels.Count; i++) {
-                _inspectedSignalIds.Add(signalModels[i].SignalId);
-            }
-
-            _inspectorView.SetSignalSelection(signalModels);
-            NotifyInspectedNodeIdsChanged();
-        }
-
-        /// <summary>
-        /// Node ID 一覧から Inspector 選択状態を復元
-        /// </summary>
-        /// <param name="nodeIds">復元する Node ID 一覧</param>
-        private void SetInspectorSelectionByIds(IReadOnlyList<string> nodeIds) {
-            _inspectedNodeIds.Clear();
-            _inspectedSignalIds.Clear();
-            if (nodeIds != null) {
-                for (var i = 0; i < nodeIds.Count; i++) {
-                    if (string.IsNullOrEmpty(nodeIds[i])) {
-                        continue;
-                    }
-
-                    _inspectedNodeIds.Add(nodeIds[i]);
-                }
-            }
-
-            RefreshInspectorSelection();
-        }
-
-        /// <summary>
-        /// 保持している ID から Inspector 選択状態を更新
-        /// </summary>
-        private void RefreshInspectorSelection() {
-            if (_inspectedSignalIds.Count > 0) {
-                RefreshSignalInspectorSelection();
-                return;
-            }
-
-            var nodeModels = new List<NodeEditorModel>();
-            for (var i = _inspectedNodeIds.Count - 1; i >= 0; i--) {
-                if (!_assetModel.TryGetNode(_inspectedNodeIds[i], out var nodeModel)) {
-                    _inspectedNodeIds.RemoveAt(i);
-                    continue;
-                }
-
-                nodeModels.Insert(0, nodeModel);
-            }
-
-            _inspectorView.SetSelection(nodeModels);
-            NotifyInspectedNodeIdsChanged();
-        }
-
-        /// <summary>
-        /// 保持している Signal ID から Inspector 選択状態を更新
-        /// </summary>
-        private void RefreshSignalInspectorSelection() {
-            var signalModels = new List<SignalEditorModel>();
-            for (var i = _inspectedSignalIds.Count - 1; i >= 0; i--) {
-                if (!TryGetSignalModel(_inspectedSignalIds[i], out var signalModel)) {
-                    _inspectedSignalIds.RemoveAt(i);
-                    continue;
-                }
-
-                signalModels.Insert(0, signalModel);
-            }
-
-            _inspectorView.SetSignalSelection(signalModels);
-            NotifyInspectedNodeIdsChanged();
-        }
-
-        /// <summary>
-        /// Signal ID に対応する Signal model の取得を試行
-        /// </summary>
-        /// <param name="signalId">取得する Signal ID</param>
-        /// <param name="signalModel">取得した Signal model</param>
-        /// <returns>取得できた場合は true</returns>
-        private bool TryGetSignalModel(string signalId, out SignalEditorModel signalModel) {
-            var signalModels = _assetModel.Signals;
-            for (var i = 0; i < signalModels.Count; i++) {
-                if (signalModels[i].SignalId != signalId) {
-                    continue;
-                }
-
-                signalModel = signalModels[i];
-                return true;
-            }
-
-            signalModel = null;
-            return false;
-        }
-
-        /// <summary>
-        /// Inspector 選択状態を解除
-        /// </summary>
-        private void ClearInspectorSelection() {
-            _inspectedNodeIds.Clear();
-            _inspectedSignalIds.Clear();
-            _inspectorView.SetSelection(Array.Empty<NodeEditorModel>());
-            NotifyInspectedNodeIdsChanged();
-        }
-
-        /// <summary>
-        /// Inspector 表示対象 Node ID 一覧の変更を通知
-        /// </summary>
-        private void NotifyInspectedNodeIdsChanged() {
-            InspectedNodeIdsChanged?.Invoke(_inspectedNodeIds);
-        }
-
-        /// <summary>
         /// Footer message を表示
         /// </summary>
         /// <param name="message">表示する message</param>
@@ -1674,30 +1616,20 @@ namespace UnityAnimationGraph.Editor {
         }
 
         /// <summary>
-        /// 空文字を表示用の代替文字列に変換
+        /// 初期表示中に残った Preview 開始失敗メッセージを通常の Footer 表示へ戻す
         /// </summary>
-        /// <param name="value">表示する値</param>
-        /// <returns>表示用文字列</returns>
-        private string GetDisplayValue(string value) {
-            return string.IsNullOrEmpty(value) ? "-" : value;
-        }
+        private void RestoreIdleFooterMessage() {
+            if (_footerLabel == null || _hasEditorPreviewInteraction || _editorPreviewPlayer != null) {
+                return;
+            }
 
-        /// <summary>
-        /// Output port の表示名を取得
-        /// </summary>
-        /// <param name="outputPortKind">Output port kind</param>
-        /// <param name="sourceNodeModel">接続元 Node model</param>
-        /// <returns>Output port の表示名</returns>
-        private string GetOutputPortName(AnimationGraphOutputPortKind outputPortKind, NodeEditorModel sourceNodeModel) {
-            return outputPortKind switch {
-                AnimationGraphOutputPortKind.Next when typeof(BranchNode).IsAssignableFrom(sourceNodeModel.NodeType) => "True",
-                AnimationGraphOutputPortKind.Next => "Next",
-                AnimationGraphOutputPortKind.False => "False",
-                AnimationGraphOutputPortKind.Loop => "Loop",
-                AnimationGraphOutputPortKind.EnterSignal => "Enter",
-                AnimationGraphOutputPortKind.ExitSignal => "Exit",
-                _ => outputPortKind.ToString(),
-            };
+            var graphAsset = GetSelectedGraphAsset();
+            if (graphAsset == null) {
+                SetFooterMessage("Select an AnimationGraphAsset");
+                return;
+            }
+
+            SetFooterMessage(_assetModel.HasStartNode ? graphAsset.name : "Graph is not initialized");
         }
 
         /// <summary>
@@ -1734,14 +1666,14 @@ namespace UnityAnimationGraph.Editor {
         /// <param name="graphAsset">Preview 対象の GraphAsset</param>
         /// <param name="runner">Binding 取得元の Runner</param>
         /// <returns>Target binding 一覧</returns>
-        private IReadOnlyList<AnimationGraphTargetBinding> GetEditorPreviewTargetBindings(AnimationGraphAsset graphAsset, AnimationGraphRunner runner) {
+        private IReadOnlyList<TargetBinding> GetEditorPreviewTargetBindings(AnimationGraphAsset graphAsset, AnimationGraphRunner runner) {
             if (graphAsset == null || runner == null) {
-                return Array.Empty<AnimationGraphTargetBinding>();
+                return Array.Empty<TargetBinding>();
             }
 
             var graphAssetGuid = GetGraphAssetGuid(graphAsset);
             return string.IsNullOrEmpty(graphAssetGuid)
-                ? Array.Empty<AnimationGraphTargetBinding>()
+                ? Array.Empty<TargetBinding>()
                 : runner.GetTargetBindingsByGraphAssetGuid(graphAssetGuid);
         }
 

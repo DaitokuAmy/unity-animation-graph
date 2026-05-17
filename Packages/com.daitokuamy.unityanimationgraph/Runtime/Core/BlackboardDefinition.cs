@@ -6,11 +6,11 @@ namespace UnityAnimationGraph {
     /// AnimationGraph が要求する Blackboard key と値型の定義
     /// </summary>
     [Serializable]
-    public struct AnimationGraphBlackboardDefinition {
+    public struct BlackboardDefinition {
         [SerializeField, Tooltip("Blackboard の参照キー")]
         private string _key;
         [SerializeField, Tooltip("Blackboard 値の型")]
-        private AnimationGraphValueType _valueType;
+        private BlackboardValueType _valueType;
         [SerializeField, Tooltip("bool 型の初期値")]
         private bool _defaultBoolValue;
         [SerializeField, Tooltip("int 型の初期値")]
@@ -31,7 +31,7 @@ namespace UnityAnimationGraph {
         /// <summary>Blackboard key</summary>
         public string Key => _key ?? string.Empty;
         /// <summary>Blackboard value type</summary>
-        public AnimationGraphValueType ValueType => _valueType;
+        public BlackboardValueType ValueType => _valueType;
         /// <summary>bool default value</summary>
         public bool DefaultBoolValue => _defaultBoolValue;
         /// <summary>int default value</summary>
@@ -50,11 +50,11 @@ namespace UnityAnimationGraph {
         public Vector4 DefaultVector4Value => _defaultVector4Value;
 
         /// <summary>
-        /// AnimationGraphBlackboardDefinition を生成
+        /// BlackboardDefinition を生成
         /// </summary>
         /// <param name="key">Blackboard key</param>
         /// <param name="valueType">Blackboard value type</param>
-        public AnimationGraphBlackboardDefinition(string key, AnimationGraphValueType valueType) {
+        public BlackboardDefinition(string key, BlackboardValueType valueType) {
             _key = key ?? string.Empty;
             _valueType = valueType;
             _defaultBoolValue = false;
@@ -68,74 +68,74 @@ namespace UnityAnimationGraph {
         }
 
         /// <summary>
-        /// bool default value を持つ AnimationGraphBlackboardDefinition を生成
+        /// bool default value を持つ BlackboardDefinition を生成
         /// </summary>
         /// <param name="key">Blackboard key</param>
         /// <param name="defaultValue">bool default value</param>
-        public AnimationGraphBlackboardDefinition(string key, bool defaultValue) : this(key, AnimationGraphValueType.Bool) {
+        public BlackboardDefinition(string key, bool defaultValue) : this(key, BlackboardValueType.Bool) {
             _defaultBoolValue = defaultValue;
         }
 
         /// <summary>
-        /// int default value を持つ AnimationGraphBlackboardDefinition を生成
+        /// int default value を持つ BlackboardDefinition を生成
         /// </summary>
         /// <param name="key">Blackboard key</param>
         /// <param name="defaultValue">int default value</param>
-        public AnimationGraphBlackboardDefinition(string key, int defaultValue) : this(key, AnimationGraphValueType.Int) {
+        public BlackboardDefinition(string key, int defaultValue) : this(key, BlackboardValueType.Int) {
             _defaultIntValue = defaultValue;
         }
 
         /// <summary>
-        /// float default value を持つ AnimationGraphBlackboardDefinition を生成
+        /// float default value を持つ BlackboardDefinition を生成
         /// </summary>
         /// <param name="key">Blackboard key</param>
         /// <param name="defaultValue">float default value</param>
-        public AnimationGraphBlackboardDefinition(string key, float defaultValue) : this(key, AnimationGraphValueType.Float) {
+        public BlackboardDefinition(string key, float defaultValue) : this(key, BlackboardValueType.Float) {
             _defaultFloatValue = defaultValue;
         }
 
         /// <summary>
-        /// string default value を持つ AnimationGraphBlackboardDefinition を生成
+        /// string default value を持つ BlackboardDefinition を生成
         /// </summary>
         /// <param name="key">Blackboard key</param>
         /// <param name="defaultValue">string default value</param>
-        public AnimationGraphBlackboardDefinition(string key, string defaultValue) : this(key, AnimationGraphValueType.String) {
+        public BlackboardDefinition(string key, string defaultValue) : this(key, BlackboardValueType.String) {
             _defaultStringValue = defaultValue ?? string.Empty;
         }
 
         /// <summary>
-        /// Vector2 default value を持つ AnimationGraphBlackboardDefinition を生成
+        /// Vector2 default value を持つ BlackboardDefinition を生成
         /// </summary>
         /// <param name="key">Blackboard key</param>
         /// <param name="defaultValue">Vector2 default value</param>
-        public AnimationGraphBlackboardDefinition(string key, Vector2 defaultValue) : this(key, AnimationGraphValueType.Vector2) {
+        public BlackboardDefinition(string key, Vector2 defaultValue) : this(key, BlackboardValueType.Vector2) {
             _defaultVector2Value = defaultValue;
         }
 
         /// <summary>
-        /// Vector3 default value を持つ AnimationGraphBlackboardDefinition を生成
+        /// Vector3 default value を持つ BlackboardDefinition を生成
         /// </summary>
         /// <param name="key">Blackboard key</param>
         /// <param name="defaultValue">Vector3 default value</param>
-        public AnimationGraphBlackboardDefinition(string key, Vector3 defaultValue) : this(key, AnimationGraphValueType.Vector3) {
+        public BlackboardDefinition(string key, Vector3 defaultValue) : this(key, BlackboardValueType.Vector3) {
             _defaultVector3Value = defaultValue;
         }
 
         /// <summary>
-        /// Color default value を持つ AnimationGraphBlackboardDefinition を生成
+        /// Color default value を持つ BlackboardDefinition を生成
         /// </summary>
         /// <param name="key">Blackboard key</param>
         /// <param name="defaultValue">Color default value</param>
-        public AnimationGraphBlackboardDefinition(string key, Color defaultValue) : this(key, AnimationGraphValueType.Color) {
+        public BlackboardDefinition(string key, Color defaultValue) : this(key, BlackboardValueType.Color) {
             _defaultColorValue = defaultValue;
         }
 
         /// <summary>
-        /// Vector4 default value を持つ AnimationGraphBlackboardDefinition を生成
+        /// Vector4 default value を持つ BlackboardDefinition を生成
         /// </summary>
         /// <param name="key">Blackboard key</param>
         /// <param name="defaultValue">Vector4 default value</param>
-        public AnimationGraphBlackboardDefinition(string key, Vector4 defaultValue) : this(key, AnimationGraphValueType.Vector4) {
+        public BlackboardDefinition(string key, Vector4 defaultValue) : this(key, BlackboardValueType.Vector4) {
             _defaultVector4Value = defaultValue;
         }
 
@@ -145,7 +145,7 @@ namespace UnityAnimationGraph {
         /// <param name="value">取得した bool default value</param>
         /// <returns>取得できた場合は true</returns>
         public bool TryGetDefaultValue(out bool value) {
-            if (_valueType == AnimationGraphValueType.Bool) {
+            if (_valueType == BlackboardValueType.Bool) {
                 value = _defaultBoolValue;
                 return true;
             }
@@ -160,7 +160,7 @@ namespace UnityAnimationGraph {
         /// <param name="value">取得した int default value</param>
         /// <returns>取得できた場合は true</returns>
         public bool TryGetDefaultValue(out int value) {
-            if (_valueType == AnimationGraphValueType.Int) {
+            if (_valueType == BlackboardValueType.Int) {
                 value = _defaultIntValue;
                 return true;
             }
@@ -175,7 +175,7 @@ namespace UnityAnimationGraph {
         /// <param name="value">取得した float default value</param>
         /// <returns>取得できた場合は true</returns>
         public bool TryGetDefaultValue(out float value) {
-            if (_valueType == AnimationGraphValueType.Float) {
+            if (_valueType == BlackboardValueType.Float) {
                 value = _defaultFloatValue;
                 return true;
             }
@@ -190,7 +190,7 @@ namespace UnityAnimationGraph {
         /// <param name="value">取得した string default value</param>
         /// <returns>取得できた場合は true</returns>
         public bool TryGetDefaultValue(out string value) {
-            if (_valueType == AnimationGraphValueType.String) {
+            if (_valueType == BlackboardValueType.String) {
                 value = _defaultStringValue ?? string.Empty;
                 return true;
             }
@@ -205,7 +205,7 @@ namespace UnityAnimationGraph {
         /// <param name="value">取得した Vector2 default value</param>
         /// <returns>取得できた場合は true</returns>
         public bool TryGetDefaultValue(out Vector2 value) {
-            if (_valueType == AnimationGraphValueType.Vector2) {
+            if (_valueType == BlackboardValueType.Vector2) {
                 value = _defaultVector2Value;
                 return true;
             }
@@ -220,7 +220,7 @@ namespace UnityAnimationGraph {
         /// <param name="value">取得した Vector3 default value</param>
         /// <returns>取得できた場合は true</returns>
         public bool TryGetDefaultValue(out Vector3 value) {
-            if (_valueType == AnimationGraphValueType.Vector3) {
+            if (_valueType == BlackboardValueType.Vector3) {
                 value = _defaultVector3Value;
                 return true;
             }
@@ -235,7 +235,7 @@ namespace UnityAnimationGraph {
         /// <param name="value">取得した Color default value</param>
         /// <returns>取得できた場合は true</returns>
         public bool TryGetDefaultValue(out Color value) {
-            if (_valueType == AnimationGraphValueType.Color) {
+            if (_valueType == BlackboardValueType.Color) {
                 value = _defaultColorValue;
                 return true;
             }
@@ -250,7 +250,7 @@ namespace UnityAnimationGraph {
         /// <param name="value">取得した Vector4 default value</param>
         /// <returns>取得できた場合は true</returns>
         public bool TryGetDefaultValue(out Vector4 value) {
-            if (_valueType == AnimationGraphValueType.Vector4) {
+            if (_valueType == BlackboardValueType.Vector4) {
                 value = _defaultVector4Value;
                 return true;
             }

@@ -15,8 +15,8 @@ namespace UnityAnimationGraph {
 
         /// <inheritdoc/>
         protected override IEnumerable<string> GetPreviewProperties(RectTransform target) {
-            yield return "m_SizeDelta.x";
-            yield return "m_SizeDelta.y";
+            yield return PreviewPropertyPaths.RectTransform.SizeDeltaX;
+            yield return PreviewPropertyPaths.RectTransform.SizeDeltaY;
         }
 
         /// <inheritdoc/>

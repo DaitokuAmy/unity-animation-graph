@@ -255,6 +255,7 @@ namespace UnityAnimationGraph {
         private void ValidateGraphConnections(Dictionary<string, Node> nodeMap) {
             var visited = new HashSet<string>(nodeMap.Count, StringComparer.Ordinal);
             var currentPath = new HashSet<string>(nodeMap.Count, StringComparer.Ordinal);
+            var physicalNextNodeIds = new List<string>();
 
             void Visit(Node node) {
                 if (visited.Contains(node.NodeId)) {
@@ -267,11 +268,15 @@ namespace UnityAnimationGraph {
 
                 VisitNodeIds(node, node.NextNodeIds);
                 if (node is BranchNode branchNode) {
-                    VisitNodeIds(node, branchNode.FalseNodeIds);
+                    for (var i = 0; i < branchNode.ExtensionPortCount; i++) {
+                        VisitNodeIds(node, branchNode.GetExtensionNodeIds(i));
+                    }
                 }
                 else if (node is LoopNode loopNode) {
                     var loopBodyNodeIds = ValidateLoopNode(loopNode);
-                    VisitNodeIds(node, new List<string>(loopBodyNodeIds));
+                    foreach (var loopBodyNodeId in loopBodyNodeIds) {
+                        VisitNodeId(node, loopBodyNodeId);
+                    }
                 }
 
                 currentPath.Remove(node.NodeId);
@@ -280,17 +285,20 @@ namespace UnityAnimationGraph {
 
             void VisitNodeIds(Node sourceNode, IReadOnlyList<string> nodeIds) {
                 for (var i = 0; i < nodeIds.Count; i++) {
-                    var nodeId = nodeIds[i];
-                    if (string.IsNullOrEmpty(nodeId)) {
-                        throw new InvalidOperationException($"Node '{sourceNode.NodeId}' has empty next node id");
-                    }
-
-                    if (!nodeMap.TryGetValue(nodeId, out var node)) {
-                        throw new InvalidOperationException($"Next node '{nodeId}' does not exist");
-                    }
-
-                    Visit(node);
+                    VisitNodeId(sourceNode, nodeIds[i]);
                 }
+            }
+
+            void VisitNodeId(Node sourceNode, string nodeId) {
+                if (string.IsNullOrEmpty(nodeId)) {
+                    throw new InvalidOperationException($"Node '{sourceNode.NodeId}' has empty next node id");
+                }
+
+                if (!nodeMap.TryGetValue(nodeId, out var node)) {
+                    throw new InvalidOperationException($"Next node '{nodeId}' does not exist");
+                }
+
+                Visit(node);
             }
 
             HashSet<string> ValidateLoopNode(LoopNode loopNode) {
@@ -303,9 +311,9 @@ namespace UnityAnimationGraph {
                 var loopExitNodeIds = new HashSet<string>(loopNode.NextNodeIds, StringComparer.Ordinal);
                 foreach (var loopBodyNodeId in loopBodyNodeIds) {
                     var bodyNode = nodeMap[loopBodyNodeId];
-                    var nextNodeIds = GetPhysicalNextNodeIds(bodyNode);
-                    for (var i = 0; i < nextNodeIds.Count; i++) {
-                        if (!loopExitNodeIds.Contains(nextNodeIds[i]) && loopBodyNodeIds.Contains(nextNodeIds[i])) {
+                    CollectPhysicalNextNodeIds(bodyNode, physicalNextNodeIds);
+                    for (var i = 0; i < physicalNextNodeIds.Count; i++) {
+                        if (!loopExitNodeIds.Contains(physicalNextNodeIds[i]) && loopBodyNodeIds.Contains(physicalNextNodeIds[i])) {
                             continue;
                         }
 
@@ -318,13 +326,13 @@ namespace UnityAnimationGraph {
                         continue;
                     }
 
-                    var nextNodeIds = GetPhysicalNextNodeIds(nodePair.Value);
-                    for (var i = 0; i < nextNodeIds.Count; i++) {
-                        if (!loopBodyNodeIds.Contains(nextNodeIds[i])) {
+                    CollectPhysicalNextNodeIds(nodePair.Value, physicalNextNodeIds);
+                    for (var i = 0; i < physicalNextNodeIds.Count; i++) {
+                        if (!loopBodyNodeIds.Contains(physicalNextNodeIds[i])) {
                             continue;
                         }
 
-                        throw new InvalidOperationException($"Loop body node '{nextNodeIds[i]}' cannot receive connections from outside LoopNode '{loopNode.NodeId}'");
+                        throw new InvalidOperationException($"Loop body node '{physicalNextNodeIds[i]}' cannot receive connections from outside LoopNode '{loopNode.NodeId}'");
                     }
                 }
             }
@@ -345,6 +353,7 @@ namespace UnityAnimationGraph {
             var explicitLoopNodeIds = new HashSet<string>(StringComparer.Ordinal);
             var nodeIdsToVisit = new Queue<string>();
             var loopExitNodeIds = new HashSet<string>(loopNode.NextNodeIds, StringComparer.Ordinal);
+            var physicalNextNodeIds = new List<string>();
             var loopNodeIds = loopNode.LoopNodeIds;
             for (var i = 0; i < loopNodeIds.Count; i++) {
                 var loopNodeId = loopNodeIds[i];
@@ -374,9 +383,9 @@ namespace UnityAnimationGraph {
             while (nodeIdsToVisit.Count > 0) {
                 var currentNodeId = nodeIdsToVisit.Dequeue();
                 var bodyNode = nodeMap[currentNodeId];
-                var nextNodeIds = GetPhysicalNextNodeIds(bodyNode);
-                for (var i = 0; i < nextNodeIds.Count; i++) {
-                    var nextNodeId = nextNodeIds[i];
+                CollectPhysicalNextNodeIds(bodyNode, physicalNextNodeIds);
+                for (var i = 0; i < physicalNextNodeIds.Count; i++) {
+                    var nextNodeId = physicalNextNodeIds[i];
                     if (string.IsNullOrEmpty(nextNodeId)) {
                         throw new InvalidOperationException($"Node '{bodyNode.NodeId}' has empty next node id");
                     }
@@ -429,7 +438,7 @@ namespace UnityAnimationGraph {
         /// <param name="buildContext">スケジュール build 全体の状態</param>
         /// <returns>scope の終了時刻</returns>
         private float BuildScope(IReadOnlyList<string> startNodeIds, float incomingTime, int seedSalt, string terminalNodeId,
-            IReadOnlyList<string> allowedNodeIds, ref ScheduleBuildContext buildContext) {
+            HashSet<string> allowedNodeIds, ref ScheduleBuildContext buildContext) {
             if (startNodeIds.Count == 0) {
                 return incomingTime;
             }
@@ -459,14 +468,14 @@ namespace UnityAnimationGraph {
         /// <param name="buildContext">スケジュール build 全体の状態</param>
         /// <param name="incomingCounts">到達可能なノードの入次数</param>
         /// <returns>ノード ID ごとの後続ノード ID 一覧</returns>
-        private Dictionary<string, IReadOnlyList<string>> BuildNextNodeIdsByNodeId(IReadOnlyList<string> startNodeIds, int seedSalt, string terminalNodeId, IReadOnlyList<string> allowedNodeIds,
+        private Dictionary<string, IReadOnlyList<string>> BuildNextNodeIdsByNodeId(IReadOnlyList<string> startNodeIds, int seedSalt, string terminalNodeId, HashSet<string> allowedNodeIds,
             ref ScheduleBuildContext buildContext, out Dictionary<string, int> incomingCounts) {
-            var nextNodeIdsByNodeId = new Dictionary<string, IReadOnlyList<string>>(_nodeMap.Count, StringComparer.Ordinal);
-            var incomingCountMap = new Dictionary<string, int>(_nodeMap.Count, StringComparer.Ordinal);
-            var visited = new HashSet<string>(_nodeMap.Count, StringComparer.Ordinal);
-            var currentPath = new HashSet<string>(_nodeMap.Count, StringComparer.Ordinal);
+            var scopeCapacity = allowedNodeIds == null ? _nodeMap.Count : allowedNodeIds.Count;
+            var nextNodeIdsByNodeId = new Dictionary<string, IReadOnlyList<string>>(scopeCapacity, StringComparer.Ordinal);
+            var incomingCountMap = new Dictionary<string, int>(scopeCapacity, StringComparer.Ordinal);
+            var visited = new HashSet<string>(scopeCapacity, StringComparer.Ordinal);
+            var currentPath = new HashSet<string>(scopeCapacity, StringComparer.Ordinal);
             var startNodeIdSet = new HashSet<string>(startNodeIds.Count, StringComparer.Ordinal);
-            var allowedNodeIdSet = allowedNodeIds == null ? null : new HashSet<string>(allowedNodeIds, StringComparer.Ordinal);
             var graphSeed = buildContext.GraphSeed;
             var context = buildContext.Context;
 
@@ -513,7 +522,7 @@ namespace UnityAnimationGraph {
             }
 
             bool ContainsAllowedNodeId(string nodeId) {
-                return allowedNodeIdSet == null || allowedNodeIdSet.Contains(nodeId);
+                return allowedNodeIds == null || allowedNodeIds.Contains(nodeId);
             }
 
             for (var i = 0; i < startNodeIds.Count; i++) {
@@ -731,11 +740,10 @@ namespace UnityAnimationGraph {
             }
 
             var loopStartNodeIds = GetLoopStartNodeIds(loopNode, loopBodyNodeIds);
-            var loopBodyNodeIdList = new List<string>(loopBodyNodeIds);
             var loopEndTime = incomingTime;
             for (var i = 0; i < loopNode.LoopCount; i++) {
                 var iterationSeedSalt = CreateNodeSeed(seedSalt, loopNode.NodeId, i);
-                loopEndTime = BuildScope(loopStartNodeIds, loopEndTime, iterationSeedSalt, null, loopBodyNodeIdList, ref buildContext);
+                loopEndTime = BuildScope(loopStartNodeIds, loopEndTime, iterationSeedSalt, null, loopBodyNodeIds, ref buildContext);
             }
 
             return loopEndTime;
@@ -749,12 +757,13 @@ namespace UnityAnimationGraph {
         /// <returns>LoopNode の開始ノード ID 一覧</returns>
         private IReadOnlyList<string> GetLoopStartNodeIds(LoopNode loopNode, HashSet<string> loopBodyNodeIds) {
             var incomingNodeIds = new HashSet<string>(loopBodyNodeIds.Count, StringComparer.Ordinal);
+            var physicalNextNodeIds = new List<string>();
             foreach (var loopBodyNodeId in loopBodyNodeIds) {
                 var bodyNode = _nodeMap[loopBodyNodeId];
-                var nextNodeIds = GetPhysicalNextNodeIds(bodyNode);
-                for (var j = 0; j < nextNodeIds.Count; j++) {
-                    if (loopBodyNodeIds.Contains(nextNodeIds[j])) {
-                        incomingNodeIds.Add(nextNodeIds[j]);
+                CollectPhysicalNextNodeIds(bodyNode, physicalNextNodeIds);
+                for (var j = 0; j < physicalNextNodeIds.Count; j++) {
+                    if (loopBodyNodeIds.Contains(physicalNextNodeIds[j])) {
+                        incomingNodeIds.Add(physicalNextNodeIds[j]);
                     }
                 }
             }
@@ -840,32 +849,32 @@ namespace UnityAnimationGraph {
         private IReadOnlyList<string> GetNextNodeIds(Node node, int graphSeed, int seedSalt, IAnimationGraphContext context) {
             if (node is BranchNode branchNode) {
                 var seed = CreateNodeSeed(graphSeed, node.NodeId, seedSalt);
-                return branchNode.EvaluateCondition(seed, context) ? branchNode.TrueNodeIds : branchNode.FalseNodeIds;
+                return branchNode.EvaluateNextNodeIds(seed, context);
             }
 
             return node.NextNodeIds;
         }
 
         /// <summary>
-        /// 条件評価に依存しない物理的な後続ノード ID 一覧を取得
+        /// 条件評価に依存しない物理的な後続ノード ID 一覧を収集
         /// </summary>
         /// <param name="node">取得元ノード</param>
-        /// <returns>物理的な後続ノード ID 一覧</returns>
-        private IReadOnlyList<string> GetPhysicalNextNodeIds(Node node) {
-            var nodeIds = new List<string>();
+        /// <param name="nodeIds">収集先のノード ID 一覧</param>
+        private static void CollectPhysicalNextNodeIds(Node node, List<string> nodeIds) {
+            nodeIds.Clear();
             var nextNodeIds = node.NextNodeIds;
             for (var i = 0; i < nextNodeIds.Count; i++) {
                 nodeIds.Add(nextNodeIds[i]);
             }
 
             if (node is BranchNode branchNode) {
-                var falseNodeIds = branchNode.FalseNodeIds;
-                for (var i = 0; i < falseNodeIds.Count; i++) {
-                    nodeIds.Add(falseNodeIds[i]);
+                for (var i = 0; i < branchNode.ExtensionPortCount; i++) {
+                    var extensionNodeIds = branchNode.GetExtensionNodeIds(i);
+                    for (var j = 0; j < extensionNodeIds.Count; j++) {
+                        nodeIds.Add(extensionNodeIds[j]);
+                    }
                 }
             }
-
-            return nodeIds;
         }
 
         /// <summary>

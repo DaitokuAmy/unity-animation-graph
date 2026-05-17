@@ -15,9 +15,9 @@ namespace UnityAnimationGraph {
 
         /// <inheritdoc/>
         protected override IEnumerable<string> GetPreviewProperties(Transform target) {
-            yield return "m_LocalScale.x";
-            yield return "m_LocalScale.y";
-            yield return "m_LocalScale.z";
+            yield return PreviewPropertyPaths.Transform.LocalScaleX;
+            yield return PreviewPropertyPaths.Transform.LocalScaleY;
+            yield return PreviewPropertyPaths.Transform.LocalScaleZ;
         }
 
         /// <inheritdoc/>

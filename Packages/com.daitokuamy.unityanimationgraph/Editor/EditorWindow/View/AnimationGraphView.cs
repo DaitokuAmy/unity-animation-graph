@@ -46,10 +46,16 @@ namespace UnityAnimationGraph.Editor {
         public event Action DeleteRequested;
         /// <summary>ActionNode target key change request</summary>
         public event Action<NodeEditorModel, string> ActionTargetKeyChanged;
+        /// <summary>Node detail string field change request</summary>
+        public event Action<NodeEditorModel, NodeDetailField, string> DetailStringChanged;
+        /// <summary>Node detail bool field change request</summary>
+        public event Action<NodeEditorModel, NodeDetailField, bool> DetailBoolChanged;
+        /// <summary>Node detail int field change request</summary>
+        public event Action<NodeEditorModel, NodeDetailField, int> DetailIntChanged;
+        /// <summary>Node detail float field change request</summary>
+        public event Action<NodeEditorModel, NodeDetailField, float> DetailFloatChanged;
         /// <summary>DelayNode delay change request</summary>
         public event Action<DelayNodeEditorModel, float> DelayChanged;
-        /// <summary>FlagBranchNode flag key change request</summary>
-        public event Action<NodeEditorModel, string> FlagBranchKeyChanged;
         /// <summary>JoinNode join type change request</summary>
         public event Action<NodeEditorModel, JoinType> JoinTypeChanged;
         /// <summary>LoopNode loop count change request</summary>
@@ -385,7 +391,7 @@ namespace UnityAnimationGraph.Editor {
         private static bool TryGetSignalOutputPort(IEventHandler target, out AnimationGraphNodeView nodeView, out AnimationGraphOutputPortKind outputPortKind) {
             var element = target as VisualElement;
             while (element != null) {
-                if (element is Port port && port.node is AnimationGraphNodeView currentNodeView && currentNodeView.TryGetOutputPortKind(port, out var currentOutputPortKind) && IsSignalOutputPort(currentOutputPortKind)) {
+                if (element is Port port && port.node is AnimationGraphNodeView currentNodeView && currentNodeView.TryGetOutputPortKind(port, out var currentOutputPortKind) && currentOutputPortKind.IsSignal) {
                     nodeView = currentNodeView;
                     outputPortKind = currentOutputPortKind;
                     return true;
@@ -397,10 +403,6 @@ namespace UnityAnimationGraph.Editor {
             nodeView = null;
             outputPortKind = default;
             return false;
-        }
-
-        private static bool IsSignalOutputPort(AnimationGraphOutputPortKind outputPortKind) {
-            return outputPortKind is AnimationGraphOutputPortKind.EnterSignal or AnimationGraphOutputPortKind.ExitSignal;
         }
 
         private static string GetSignalCreateMenuPath(Type signalType) {
@@ -482,8 +484,11 @@ namespace UnityAnimationGraph.Editor {
             var nodeView = new AnimationGraphNodeView(nodeModel, GetTargetDefinitions, GetBlackboardDefinitions);
             nodeView.SelectionChanged += OnNodeViewSelectionChanged;
             nodeView.ActionTargetKeyChanged += OnNodeViewActionTargetKeyChanged;
+            nodeView.DetailStringChanged += OnNodeViewDetailStringChanged;
+            nodeView.DetailBoolChanged += OnNodeViewDetailBoolChanged;
+            nodeView.DetailIntChanged += OnNodeViewDetailIntChanged;
+            nodeView.DetailFloatChanged += OnNodeViewDetailFloatChanged;
             nodeView.DelayChanged += OnNodeViewDelayChanged;
-            nodeView.FlagBranchKeyChanged += OnNodeViewFlagBranchKeyChanged;
             nodeView.JoinTypeChanged += OnNodeViewJoinTypeChanged;
             nodeView.LoopCountChanged += OnNodeViewLoopCountChanged;
             _nodeViewsById.Add(nodeModel.NodeId, nodeView);
@@ -504,7 +509,9 @@ namespace UnityAnimationGraph.Editor {
 
             AddEdgeViews(sourceNodeView, AnimationGraphOutputPortKind.Next, sourceNodeModel.NextNodeIds);
             if (sourceNodeModel is BranchNodeEditorModel branchNodeModel) {
-                AddEdgeViews(sourceNodeView, AnimationGraphOutputPortKind.False, branchNodeModel.FalseNodeIds);
+                for (var i = 0; i < branchNodeModel.ExtensionPortCount; i++) {
+                    AddEdgeViews(sourceNodeView, AnimationGraphOutputPortKind.BranchExtension(i), branchNodeModel.GetExtensionNodeIds(i));
+                }
             }
 
             if (sourceNodeModel is LoopNodeEditorModel loopNodeModel) {
@@ -565,8 +572,11 @@ namespace UnityAnimationGraph.Editor {
                 if (graphElement is AnimationGraphNodeView nodeView) {
                     nodeView.SelectionChanged -= OnNodeViewSelectionChanged;
                     nodeView.ActionTargetKeyChanged -= OnNodeViewActionTargetKeyChanged;
+                    nodeView.DetailStringChanged -= OnNodeViewDetailStringChanged;
+                    nodeView.DetailBoolChanged -= OnNodeViewDetailBoolChanged;
+                    nodeView.DetailIntChanged -= OnNodeViewDetailIntChanged;
+                    nodeView.DetailFloatChanged -= OnNodeViewDetailFloatChanged;
                     nodeView.DelayChanged -= OnNodeViewDelayChanged;
-                    nodeView.FlagBranchKeyChanged -= OnNodeViewFlagBranchKeyChanged;
                     nodeView.JoinTypeChanged -= OnNodeViewJoinTypeChanged;
                     nodeView.LoopCountChanged -= OnNodeViewLoopCountChanged;
                     elementsToRemove.Add(nodeView);
@@ -604,12 +614,24 @@ namespace UnityAnimationGraph.Editor {
             ActionTargetKeyChanged?.Invoke(nodeModel, targetKey);
         }
 
-        private void OnNodeViewDelayChanged(DelayNodeEditorModel nodeModel, float delay) {
-            DelayChanged?.Invoke(nodeModel, delay);
+        private void OnNodeViewDetailStringChanged(NodeEditorModel nodeModel, NodeDetailField field, string value) {
+            DetailStringChanged?.Invoke(nodeModel, field, value);
         }
 
-        private void OnNodeViewFlagBranchKeyChanged(NodeEditorModel nodeModel, string flagKey) {
-            FlagBranchKeyChanged?.Invoke(nodeModel, flagKey);
+        private void OnNodeViewDetailBoolChanged(NodeEditorModel nodeModel, NodeDetailField field, bool value) {
+            DetailBoolChanged?.Invoke(nodeModel, field, value);
+        }
+
+        private void OnNodeViewDetailIntChanged(NodeEditorModel nodeModel, NodeDetailField field, int value) {
+            DetailIntChanged?.Invoke(nodeModel, field, value);
+        }
+
+        private void OnNodeViewDetailFloatChanged(NodeEditorModel nodeModel, NodeDetailField field, float value) {
+            DetailFloatChanged?.Invoke(nodeModel, field, value);
+        }
+
+        private void OnNodeViewDelayChanged(DelayNodeEditorModel nodeModel, float delay) {
+            DelayChanged?.Invoke(nodeModel, delay);
         }
 
         private void OnNodeViewJoinTypeChanged(NodeEditorModel nodeModel, JoinType joinType) {
@@ -677,7 +699,7 @@ namespace UnityAnimationGraph.Editor {
                 && inputPort?.node is AnimationGraphNodeView targetNodeView
                 && targetNodeView.InputPort == inputPort
                 && sourceNodeView.TryGetOutputPortKind(outputPort, out outputPortKind)
-                && !IsSignalOutputPort(outputPortKind)) {
+                && !outputPortKind.IsSignal) {
                 sourceNodeModel = sourceNodeView.NodeModel;
                 targetNodeModel = targetNodeView.NodeModel;
                 return true;
@@ -696,7 +718,7 @@ namespace UnityAnimationGraph.Editor {
                 && inputPort?.node is AnimationGraphSignalView targetSignalView
                 && targetSignalView.InputPort == inputPort
                 && sourceNodeView.TryGetOutputPortKind(outputPort, out outputPortKind)
-                && IsSignalOutputPort(outputPortKind)) {
+                && outputPortKind.IsSignal) {
                 sourceNodeModel = sourceNodeView.NodeModel;
                 targetSignalModel = targetSignalView.SignalModel;
                 return true;
@@ -743,12 +765,12 @@ namespace UnityAnimationGraph.Editor {
             return contentViewContainer.WorldToLocal(worldPosition);
         }
 
-        private IReadOnlyList<AnimationGraphTargetDefinition> GetTargetDefinitions() {
-            return _assetModel?.TargetDefinitions ?? Array.Empty<AnimationGraphTargetDefinition>();
+        private IReadOnlyList<TargetDefinition> GetTargetDefinitions() {
+            return _assetModel?.TargetDefinitions ?? Array.Empty<TargetDefinition>();
         }
 
-        private IReadOnlyList<AnimationGraphBlackboardDefinition> GetBlackboardDefinitions() {
-            return _assetModel?.BlackboardDefinitions ?? Array.Empty<AnimationGraphBlackboardDefinition>();
+        private IReadOnlyList<BlackboardDefinition> GetBlackboardDefinitions() {
+            return _assetModel?.BlackboardDefinitions ?? Array.Empty<BlackboardDefinition>();
         }
 
         private static Label CreateValidationLabel() {

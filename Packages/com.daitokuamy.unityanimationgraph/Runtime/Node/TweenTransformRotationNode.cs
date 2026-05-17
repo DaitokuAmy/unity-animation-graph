@@ -17,10 +17,10 @@ namespace UnityAnimationGraph {
 
         /// <inheritdoc/>
         protected override IEnumerable<string> GetPreviewProperties(Transform target) {
-            yield return "m_LocalRotation.x";
-            yield return "m_LocalRotation.y";
-            yield return "m_LocalRotation.z";
-            yield return "m_LocalRotation.w";
+            yield return PreviewPropertyPaths.Transform.LocalRotationX;
+            yield return PreviewPropertyPaths.Transform.LocalRotationY;
+            yield return PreviewPropertyPaths.Transform.LocalRotationZ;
+            yield return PreviewPropertyPaths.Transform.LocalRotationW;
         }
 
         /// <inheritdoc/>

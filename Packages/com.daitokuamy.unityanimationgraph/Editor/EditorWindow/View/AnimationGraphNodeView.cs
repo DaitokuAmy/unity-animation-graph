@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using UnityEditor;
 using UnityEditor.Experimental.GraphView;
 using UnityEditor.UIElements;
 using UnityEngine;
@@ -22,8 +23,8 @@ namespace UnityAnimationGraph.Editor {
         private static readonly Color PreviewActiveColor = new(1.0f, 0.82f, 0.22f);
 
         private readonly Dictionary<AnimationGraphOutputPortKind, Port> _outputPortsByKind = new();
-        private readonly Func<IReadOnlyList<AnimationGraphTargetDefinition>> _targetDefinitionsProvider;
-        private readonly Func<IReadOnlyList<AnimationGraphBlackboardDefinition>> _blackboardDefinitionsProvider;
+        private readonly Func<IReadOnlyList<TargetDefinition>> _targetDefinitionsProvider;
+        private readonly Func<IReadOnlyList<BlackboardDefinition>> _blackboardDefinitionsProvider;
         private readonly VisualElement _titleProgressFill;
         private readonly VisualElement _detailsContainer;
         private readonly Color _keyColor;
@@ -39,10 +40,16 @@ namespace UnityAnimationGraph.Editor {
         public event Action SelectionChanged;
         /// <summary>ActionNode target key change request</summary>
         public event Action<NodeEditorModel, string> ActionTargetKeyChanged;
+        /// <summary>Node detail string field change request</summary>
+        public event Action<NodeEditorModel, NodeDetailField, string> DetailStringChanged;
+        /// <summary>Node detail bool field change request</summary>
+        public event Action<NodeEditorModel, NodeDetailField, bool> DetailBoolChanged;
+        /// <summary>Node detail int field change request</summary>
+        public event Action<NodeEditorModel, NodeDetailField, int> DetailIntChanged;
+        /// <summary>Node detail float field change request</summary>
+        public event Action<NodeEditorModel, NodeDetailField, float> DetailFloatChanged;
         /// <summary>DelayNode delay change request</summary>
         public event Action<DelayNodeEditorModel, float> DelayChanged;
-        /// <summary>FlagBranchNode flag key change request</summary>
-        public event Action<NodeEditorModel, string> FlagBranchKeyChanged;
         /// <summary>JoinNode join type change request</summary>
         public event Action<NodeEditorModel, JoinType> JoinTypeChanged;
         /// <summary>LoopNode loop count change request</summary>
@@ -54,7 +61,7 @@ namespace UnityAnimationGraph.Editor {
         /// <param name="nodeModel">表示対象の NodeEditorModel</param>
         /// <param name="targetDefinitionsProvider">Provider for target key candidates</param>
         /// <param name="blackboardDefinitionsProvider">Provider for blackboard key candidates</param>
-        public AnimationGraphNodeView(NodeEditorModel nodeModel, Func<IReadOnlyList<AnimationGraphTargetDefinition>> targetDefinitionsProvider, Func<IReadOnlyList<AnimationGraphBlackboardDefinition>> blackboardDefinitionsProvider) {
+        public AnimationGraphNodeView(NodeEditorModel nodeModel, Func<IReadOnlyList<TargetDefinition>> targetDefinitionsProvider, Func<IReadOnlyList<BlackboardDefinition>> blackboardDefinitionsProvider) {
             NodeModel = nodeModel ?? throw new ArgumentNullException(nameof(nodeModel));
             _targetDefinitionsProvider = targetDefinitionsProvider ?? throw new ArgumentNullException(nameof(targetDefinitionsProvider));
             _blackboardDefinitionsProvider = blackboardDefinitionsProvider ?? throw new ArgumentNullException(nameof(blackboardDefinitionsProvider));
@@ -147,8 +154,8 @@ namespace UnityAnimationGraph.Editor {
                 AddLoopCountField(loopNodeModel);
             }
 
-            if (NodeModel.Node is FlagBranchNode flagBranchNode) {
-                AddFlagKeyPopup(flagBranchNode.FlagKey, flagBranchNode.ExpectedValue);
+            for (var i = 0; i < NodeModel.DetailFields.Count; i++) {
+                AddDetailField(NodeModel.DetailFields[i]);
             }
 
             if (NodeModel.Node is JoinNode joinNode) {
@@ -176,9 +183,14 @@ namespace UnityAnimationGraph.Editor {
         }
 
         private void AddOutputPorts(Color keyColor) {
-            AddOutputPort(AnimationGraphOutputPortKind.Next, GetNextPortName(NodeModel.NodeType), Port.Capacity.Multi, keyColor);
-            if (typeof(BranchNode).IsAssignableFrom(NodeModel.NodeType)) {
-                AddOutputPort(AnimationGraphOutputPortKind.False, "False", Port.Capacity.Multi, keyColor);
+            if (NodeModel is BranchNodeEditorModel branchNodeModel) {
+                AddOutputPort(AnimationGraphOutputPortKind.Next, branchNodeModel.PrimaryPortName, Port.Capacity.Multi, keyColor);
+                for (var i = 0; i < branchNodeModel.ExtensionPortCount; i++) {
+                    AddOutputPort(AnimationGraphOutputPortKind.BranchExtension(i), branchNodeModel.GetExtensionPortName(i), Port.Capacity.Multi, keyColor);
+                }
+            }
+            else {
+                AddOutputPort(AnimationGraphOutputPortKind.Next, "Next", Port.Capacity.Multi, keyColor);
             }
 
             if (NodeModel.NodeType == typeof(LoopNode)) {
@@ -208,7 +220,7 @@ namespace UnityAnimationGraph.Editor {
             var outputPort = InstantiatePort(Orientation.Horizontal, Direction.Output, capacity, portType ?? typeof(bool));
             outputPort.portName = portName;
             outputPort.portColor = keyColor;
-            if (IsSignalOutputPort(outputPortKind)) {
+            if (outputPortKind.IsSignal) {
                 outputPort.tooltip = "Connect to Signal";
             }
 
@@ -238,37 +250,6 @@ namespace UnityAnimationGraph.Editor {
             ConfigureInputElement(popup);
             popup.style.marginBottom = 3.0f;
             _detailsContainer.Add(popup);
-        }
-
-        private void AddFlagKeyPopup(string currentFlagKey, bool expectedValue) {
-            var row = new VisualElement {
-                style = {
-                    flexDirection = FlexDirection.Row,
-                    alignItems = Align.Center,
-                },
-            };
-
-            if (!expectedValue) {
-                row.Add(CreateInvertedConditionLabel());
-            }
-
-            var choices = CreateBlackboardKeyChoices(_blackboardDefinitionsProvider(), AnimationGraphValueType.Bool, currentFlagKey);
-            var selectedIndex = FindChoiceIndex(choices, currentFlagKey);
-            var popup = new PopupField<string>(choices, selectedIndex);
-            popup.formatSelectedValueCallback = value => FormatBlackboardKeyChoice(value, _blackboardDefinitionsProvider(), AnimationGraphValueType.Bool);
-            popup.formatListItemCallback = value => FormatBlackboardKeyChoice(value, _blackboardDefinitionsProvider(), AnimationGraphValueType.Bool);
-            popup.SetValueWithoutNotify(choices[selectedIndex]);
-            popup.RegisterValueChangedCallback(evt => {
-                var nextFlagKey = evt.newValue ?? string.Empty;
-                if (nextFlagKey == currentFlagKey) {
-                    return;
-                }
-
-                FlagBranchKeyChanged?.Invoke(NodeModel, nextFlagKey);
-            });
-            ConfigureInputElement(popup);
-            row.Add(popup);
-            _detailsContainer.Add(row);
         }
 
         private void AddJoinTypePopup(JoinType currentJoinType) {
@@ -361,6 +342,152 @@ namespace UnityAnimationGraph.Editor {
             _detailsContainer.Add(row);
         }
 
+        private void AddDetailField(NodeDetailField field) {
+            if (field.PropertyType == SerializedPropertyType.String) {
+                if (field.IsBlackboardKey) {
+                    AddBlackboardKeyDetailField(field);
+                    return;
+                }
+
+                if (field.IsTargetKey) {
+                    AddTargetKeyDetailField(field);
+                    return;
+                }
+
+                AddStringDetailField(field);
+                return;
+            }
+
+            if (field.PropertyType == SerializedPropertyType.Boolean) {
+                AddBoolDetailField(field);
+                return;
+            }
+
+            if (field.PropertyType == SerializedPropertyType.Integer) {
+                AddIntDetailField(field);
+                return;
+            }
+
+            if (field.PropertyType == SerializedPropertyType.Float) {
+                AddFloatDetailField(field);
+            }
+        }
+
+        private void AddBlackboardKeyDetailField(NodeDetailField field) {
+            var currentValue = NodeModel.GetDetailFieldStringValue(field);
+            var choices = CreateBlackboardKeyChoices(_blackboardDefinitionsProvider(), field, currentValue);
+            var selectedIndex = FindChoiceIndex(choices, currentValue);
+            var popup = new PopupField<string>(choices, selectedIndex);
+            popup.formatSelectedValueCallback = value => FormatBlackboardKeyChoice(value, _blackboardDefinitionsProvider(), field);
+            popup.formatListItemCallback = value => FormatBlackboardKeyChoice(value, _blackboardDefinitionsProvider(), field);
+            popup.SetValueWithoutNotify(choices[selectedIndex]);
+            popup.RegisterValueChangedCallback(evt => {
+                var nextValue = evt.newValue ?? string.Empty;
+                if (nextValue == currentValue) {
+                    return;
+                }
+
+                DetailStringChanged?.Invoke(NodeModel, field, nextValue);
+            });
+            AddDetailInputElement(field.Label, popup);
+        }
+
+        private void AddTargetKeyDetailField(NodeDetailField field) {
+            var currentValue = NodeModel.GetDetailFieldStringValue(field);
+            var choices = CreateTargetKeyChoices(_targetDefinitionsProvider(), currentValue);
+            var selectedIndex = FindChoiceIndex(choices, currentValue);
+            var popup = new PopupField<string>(choices, selectedIndex);
+            popup.formatSelectedValueCallback = value => FormatTargetKeyChoice(value, _targetDefinitionsProvider());
+            popup.formatListItemCallback = value => FormatTargetKeyChoice(value, _targetDefinitionsProvider());
+            popup.SetValueWithoutNotify(choices[selectedIndex]);
+            popup.RegisterValueChangedCallback(evt => {
+                var nextValue = evt.newValue ?? string.Empty;
+                if (nextValue == currentValue) {
+                    return;
+                }
+
+                DetailStringChanged?.Invoke(NodeModel, field, nextValue);
+            });
+            AddDetailInputElement(field.Label, popup);
+        }
+
+        private void AddStringDetailField(NodeDetailField field) {
+            var currentValue = NodeModel.GetDetailFieldStringValue(field);
+            var textField = new TextField {
+                isDelayed = true,
+            };
+            textField.SetValueWithoutNotify(currentValue);
+            textField.RegisterValueChangedCallback(evt => {
+                var nextValue = evt.newValue ?? string.Empty;
+                if (nextValue == currentValue) {
+                    return;
+                }
+
+                DetailStringChanged?.Invoke(NodeModel, field, nextValue);
+            });
+            AddDetailInputElement(field.Label, textField);
+        }
+
+        private void AddBoolDetailField(NodeDetailField field) {
+            var currentValue = NodeModel.GetDetailFieldBoolValue(field);
+            var toggle = new Toggle();
+            toggle.SetValueWithoutNotify(currentValue);
+            toggle.RegisterValueChangedCallback(evt => {
+                if (evt.newValue == currentValue) {
+                    return;
+                }
+
+                DetailBoolChanged?.Invoke(NodeModel, field, evt.newValue);
+            });
+            AddDetailInputElement(field.Label, toggle);
+            toggle.style.flexGrow = 0.0f;
+        }
+
+        private void AddIntDetailField(NodeDetailField field) {
+            var currentValue = NodeModel.GetDetailFieldIntValue(field);
+            var intField = new IntegerField {
+                isDelayed = true,
+            };
+            intField.SetValueWithoutNotify(currentValue);
+            intField.RegisterValueChangedCallback(evt => {
+                if (evt.newValue == currentValue) {
+                    return;
+                }
+
+                DetailIntChanged?.Invoke(NodeModel, field, evt.newValue);
+            });
+            AddDetailInputElement(field.Label, intField);
+        }
+
+        private void AddFloatDetailField(NodeDetailField field) {
+            var currentValue = NodeModel.GetDetailFieldFloatValue(field);
+            var floatField = new FloatField {
+                isDelayed = true,
+            };
+            floatField.SetValueWithoutNotify(currentValue);
+            floatField.RegisterValueChangedCallback(evt => {
+                if (Mathf.Approximately(evt.newValue, currentValue)) {
+                    return;
+                }
+
+                DetailFloatChanged?.Invoke(NodeModel, field, evt.newValue);
+            });
+            AddDetailInputElement(field.Label, floatField);
+        }
+
+        private void AddDetailInputElement(string label, VisualElement inputElement) {
+            var row = new VisualElement {
+                style = {
+                    flexDirection = FlexDirection.Row,
+                    alignItems = Align.Center,
+                },
+            };
+            row.Add(CreateDetailLabel(label, 58.0f));
+            ConfigureInputElement(inputElement);
+            row.Add(inputElement);
+            _detailsContainer.Add(row);
+        }
+
         private static VisualElement CreateDetailsContainer() {
             return new VisualElement {
                 style = {
@@ -440,38 +567,7 @@ namespace UnityAnimationGraph.Editor {
             };
         }
 
-        private static Label CreateInvertedConditionLabel() {
-            return new Label("!") {
-                pickingMode = PickingMode.Ignore,
-                style = {
-                    width = 12.0f,
-                    minWidth = 12.0f,
-                    flexShrink = 0.0f,
-                    fontSize = 12,
-                    color = DetailLabelColor,
-                    unityFontStyleAndWeight = FontStyle.Bold,
-                    unityTextAlign = TextAnchor.MiddleLeft,
-                },
-            };
-        }
-
-        private static string GetNextPortName(Type nodeType) {
-            if (typeof(BranchNode).IsAssignableFrom(nodeType)) {
-                return "True";
-            }
-
-            return "Next";
-        }
-
-        private static string GetDisplayValue(string value) {
-            return string.IsNullOrEmpty(value) ? "-" : value;
-        }
-
-        private static bool IsSignalOutputPort(AnimationGraphOutputPortKind outputPortKind) {
-            return outputPortKind is AnimationGraphOutputPortKind.EnterSignal or AnimationGraphOutputPortKind.ExitSignal;
-        }
-
-        private static List<string> CreateTargetKeyChoices(IReadOnlyList<AnimationGraphTargetDefinition> targetDefinitions, string currentTargetKey) {
+        private static List<string> CreateTargetKeyChoices(IReadOnlyList<TargetDefinition> targetDefinitions, string currentTargetKey) {
             var choices = new List<string> {
                 string.Empty,
             };
@@ -486,7 +582,7 @@ namespace UnityAnimationGraph.Editor {
             return choices;
         }
 
-        private static List<string> CreateBlackboardKeyChoices(IReadOnlyList<AnimationGraphBlackboardDefinition> blackboardDefinitions, AnimationGraphValueType valueType, string currentBlackboardKey) {
+        private static List<string> CreateBlackboardKeyChoices(IReadOnlyList<BlackboardDefinition> blackboardDefinitions, NodeDetailField field, string currentBlackboardKey) {
             var choices = new List<string> {
                 string.Empty,
             };
@@ -494,7 +590,7 @@ namespace UnityAnimationGraph.Editor {
             if (blackboardDefinitions != null) {
                 for (var i = 0; i < blackboardDefinitions.Count; i++) {
                     var definition = blackboardDefinitions[i];
-                    if (definition.ValueType != valueType) {
+                    if (field.HasBlackboardValueTypeFilter && definition.ValueType != field.BlackboardValueType) {
                         continue;
                     }
 
@@ -535,7 +631,7 @@ namespace UnityAnimationGraph.Editor {
             return 0;
         }
 
-        private static string FormatTargetKeyChoice(string value, IReadOnlyList<AnimationGraphTargetDefinition> targetDefinitions) {
+        private static string FormatTargetKeyChoice(string value, IReadOnlyList<TargetDefinition> targetDefinitions) {
             if (string.IsNullOrEmpty(value)) {
                 return "-";
             }
@@ -543,7 +639,7 @@ namespace UnityAnimationGraph.Editor {
             return HasTargetDefinition(targetDefinitions, value) ? value : $"{value} (Missing)";
         }
 
-        private static string FormatBlackboardKeyChoice(string value, IReadOnlyList<AnimationGraphBlackboardDefinition> blackboardDefinitions, AnimationGraphValueType valueType) {
+        private static string FormatBlackboardKeyChoice(string value, IReadOnlyList<BlackboardDefinition> blackboardDefinitions, NodeDetailField field) {
             if (string.IsNullOrEmpty(value)) {
                 return "-";
             }
@@ -552,10 +648,12 @@ namespace UnityAnimationGraph.Editor {
                 return $"{value} (Missing)";
             }
 
-            return definition.ValueType == valueType ? value : $"{value} ({definition.ValueType})";
+            return !field.HasBlackboardValueTypeFilter || definition.ValueType == field.BlackboardValueType
+                ? value
+                : $"{value} ({definition.ValueType})";
         }
 
-        private static bool HasTargetDefinition(IReadOnlyList<AnimationGraphTargetDefinition> targetDefinitions, string value) {
+        private static bool HasTargetDefinition(IReadOnlyList<TargetDefinition> targetDefinitions, string value) {
             if (targetDefinitions == null) {
                 return false;
             }
@@ -569,7 +667,7 @@ namespace UnityAnimationGraph.Editor {
             return false;
         }
 
-        private static bool TryGetBlackboardDefinition(IReadOnlyList<AnimationGraphBlackboardDefinition> blackboardDefinitions, string value, out AnimationGraphBlackboardDefinition definition) {
+        private static bool TryGetBlackboardDefinition(IReadOnlyList<BlackboardDefinition> blackboardDefinitions, string value, out BlackboardDefinition definition) {
             if (blackboardDefinitions != null) {
                 for (var i = 0; i < blackboardDefinitions.Count; i++) {
                     var currentDefinition = blackboardDefinitions[i];

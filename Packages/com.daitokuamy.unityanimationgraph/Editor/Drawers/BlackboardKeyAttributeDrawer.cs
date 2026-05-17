@@ -115,7 +115,7 @@ namespace UnityAnimationGraph.Editor {
         /// <param name="blackboardKeyAttribute">Blackboard key のフィルタ設定</param>
         /// <param name="definition">判定対象 Blackboard 定義</param>
         /// <returns>一致する場合は true</returns>
-        private static bool MatchesValueTypeFilter(BlackboardKeyAttribute blackboardKeyAttribute, AnimationGraphBlackboardDefinition definition) {
+        private static bool MatchesValueTypeFilter(BlackboardKeyAttribute blackboardKeyAttribute, BlackboardDefinition definition) {
             return !blackboardKeyAttribute.HasValueTypeFilter || definition.ValueType == blackboardKeyAttribute.ValueType;
         }
 

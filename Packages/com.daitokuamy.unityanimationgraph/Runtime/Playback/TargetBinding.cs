@@ -6,7 +6,7 @@ namespace UnityAnimationGraph {
     /// target key と Component 参照の binding
     /// </summary>
     [Serializable]
-    public struct AnimationGraphTargetBinding {
+    public struct TargetBinding {
         [SerializeField, Tooltip("Component 参照を解決するための target key")]
         private string _key;
         [SerializeField, Tooltip("target key が要求する MonoScript GUID または組み込み Component の予約 GUID")]
@@ -22,23 +22,23 @@ namespace UnityAnimationGraph {
         public Component Target => _target;
 
         /// <summary>
-        /// AnimationGraphTargetBinding を生成
+        /// TargetBinding を生成
         /// </summary>
         /// <param name="key">target key</param>
         /// <param name="target">target Component</param>
-        public AnimationGraphTargetBinding(string key, Component target) {
+        public TargetBinding(string key, Component target) {
             _key = key ?? string.Empty;
             _monoScriptGuid = string.Empty;
             _target = target;
         }
 
         /// <summary>
-        /// AnimationGraphTargetBinding を生成
+        /// TargetBinding を生成
         /// </summary>
         /// <param name="key">target key</param>
         /// <param name="target">target Component</param>
         /// <param name="monoScriptGuid">target key が要求する MonoScript GUID または組み込み Component の予約 GUID</param>
-        public AnimationGraphTargetBinding(string key, Component target, string monoScriptGuid) {
+        public TargetBinding(string key, Component target, string monoScriptGuid) {
             _key = key ?? string.Empty;
             _monoScriptGuid = monoScriptGuid ?? string.Empty;
             _target = target;

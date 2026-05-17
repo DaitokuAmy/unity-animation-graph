@@ -15,7 +15,7 @@ namespace UnityAnimationGraph {
 
         /// <inheritdoc/>
         protected override IEnumerable<string> GetPreviewProperties(Camera target) {
-            yield return "field of view";
+            yield return PreviewPropertyPaths.Camera.FieldOfView;
         }
 
         /// <inheritdoc/>

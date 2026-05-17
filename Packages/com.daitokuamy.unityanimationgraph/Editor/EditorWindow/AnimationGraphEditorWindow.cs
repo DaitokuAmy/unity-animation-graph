@@ -15,8 +15,8 @@ namespace UnityAnimationGraph.Editor {
         private const float DefaultSchemaPanelHeight = 280.0f;
         private const float HeaderGraphAssetFieldWidth = 320.0f;
         private const float PreviewSourceFieldWidth = 260.0f;
-        private const float PreviewSliderWidth = 240.0f;
-        private const float PreviewTimeLabelWidth = 92.0f;
+        private const float PreviewFrameRateFieldWidth = 72.0f;
+        private const float PreviewTimeLabelWidth = 116.0f;
         private const float PreviewIconButtonWidth = 28.0f;
         private const float MinGraphViewWidth = 240.0f;
         private const float MinInspectorPanelHeight = 160.0f;
@@ -96,7 +96,17 @@ namespace UnityAnimationGraph.Editor {
             var schemaView = new AnimationGraphSchemaView();
             var graphView = new AnimationGraphView();
             var inspectorView = new AnimationGraphInspectorView();
-            var previewControls = CreatePreviewControls(out var previewSourceField, out var previewPlayButton, out var previewStopButton, out var previewTimeSlider, out var previewTimeLabel);
+            var previewControls = CreatePreviewControls(
+                out var previewSourceField,
+                out var previewFirstFrameButton,
+                out var previewPreviousFrameButton,
+                out var previewPlayButton,
+                out var previewStopButton,
+                out var previewNextFrameButton,
+                out var previewLastFrameButton,
+                out var previewFrameRateField,
+                out var previewTimelineView,
+                out var previewTimeLabel);
             var footerLabel = CreateFooter();
             var body = CreateBody(schemaView, graphView, previewControls, inspectorView);
 
@@ -110,9 +120,14 @@ namespace UnityAnimationGraph.Editor {
             _presenter.Initialize(
                 graphAssetField,
                 previewSourceField,
+                previewFirstFrameButton,
+                previewPreviousFrameButton,
                 previewPlayButton,
                 previewStopButton,
-                previewTimeSlider,
+                previewNextFrameButton,
+                previewLastFrameButton,
+                previewFrameRateField,
+                previewTimelineView,
                 previewTimeLabel,
                 schemaView,
                 graphView,
@@ -151,16 +166,26 @@ namespace UnityAnimationGraph.Editor {
         /// GraphView 下部に表示する Preview 操作領域を作成
         /// </summary>
         /// <param name="previewSourceField">Preview source 表示 field</param>
+        /// <param name="previewFirstFrameButton">Preview 先頭 frame button</param>
+        /// <param name="previewPreviousFrameButton">Preview 前 frame button</param>
         /// <param name="previewPlayButton">Preview 再生ボタン</param>
         /// <param name="previewStopButton">Preview 停止ボタン</param>
-        /// <param name="previewTimeSlider">Preview seek slider</param>
+        /// <param name="previewNextFrameButton">Preview 次 frame button</param>
+        /// <param name="previewLastFrameButton">Preview 終端 frame button</param>
+        /// <param name="previewFrameRateField">Preview frame rate field</param>
+        /// <param name="previewTimelineView">Preview timeline view</param>
         /// <param name="previewTimeLabel">Preview time label</param>
         /// <returns>Preview 操作領域</returns>
         private VisualElement CreatePreviewControls(
             out ObjectField previewSourceField,
+            out ToolbarButton previewFirstFrameButton,
+            out ToolbarButton previewPreviousFrameButton,
             out ToolbarButton previewPlayButton,
             out ToolbarButton previewStopButton,
-            out Slider previewTimeSlider,
+            out ToolbarButton previewNextFrameButton,
+            out ToolbarButton previewLastFrameButton,
+            out IntegerField previewFrameRateField,
+            out AnimationGraphPreviewTimelineView previewTimelineView,
             out Label previewTimeLabel) {
             var controls = new VisualElement {
                 style = {
@@ -183,22 +208,42 @@ namespace UnityAnimationGraph.Editor {
             previewSourceField.style.flexGrow = 1.0f;
             previewSourceField.style.marginRight = 4.0f;
             sourceRow.Add(previewSourceField);
+            previewFrameRateField = new IntegerField("FPS") {
+                value = 30,
+                tooltip = "Preview frame rate",
+            };
+            previewFrameRateField.style.width = PreviewFrameRateFieldWidth;
+            previewFrameRateField.style.minWidth = PreviewFrameRateFieldWidth;
+            previewFrameRateField.style.marginLeft = 4.0f;
+            previewFrameRateField.style.marginRight = 4.0f;
+            previewFrameRateField.labelElement.style.minWidth = 26.0f;
+            previewFirstFrameButton = new ToolbarButton {
+                tooltip = "Go to first frame",
+            };
+            previewPreviousFrameButton = new ToolbarButton {
+                tooltip = "Previous frame",
+            };
             previewPlayButton = new ToolbarButton {
                 tooltip = "Play preview",
             };
             previewStopButton = new ToolbarButton {
                 tooltip = "Stop preview and restore sampled values",
             };
+            previewNextFrameButton = new ToolbarButton {
+                tooltip = "Next frame",
+            };
+            previewLastFrameButton = new ToolbarButton {
+                tooltip = "Go to last frame",
+            };
+            ConfigurePreviewIconButton(previewFirstFrameButton);
+            ConfigurePreviewIconButton(previewPreviousFrameButton);
             ConfigurePreviewIconButton(previewPlayButton);
             ConfigurePreviewIconButton(previewStopButton);
-            previewTimeSlider = new Slider {
-                lowValue = 0.0f,
-                highValue = 0.0f,
-                value = 0.0f,
+            ConfigurePreviewIconButton(previewNextFrameButton);
+            ConfigurePreviewIconButton(previewLastFrameButton);
+            previewTimelineView = new AnimationGraphPreviewTimelineView {
                 tooltip = "Preview time",
             };
-            previewTimeSlider.style.minWidth = PreviewSliderWidth;
-            previewTimeSlider.style.flexGrow = 1.0f;
             previewTimeLabel = new Label("0.00 / 0.00s") {
                 tooltip = "Preview time",
             };
@@ -207,9 +252,17 @@ namespace UnityAnimationGraph.Editor {
             previewTimeLabel.style.unityTextAlign = TextAnchor.MiddleRight;
             previewTimeLabel.style.marginLeft = 4.0f;
             previewTimeLabel.style.marginRight = 4.0f;
-            playbackRow.Add(previewPlayButton);
-            playbackRow.Add(previewStopButton);
-            playbackRow.Add(previewTimeSlider);
+            playbackRow.style.height = 52.0f;
+            playbackRow.style.minHeight = 52.0f;
+            playbackRow.style.alignItems = Align.Center;
+            sourceRow.Add(previewFirstFrameButton);
+            sourceRow.Add(previewPreviousFrameButton);
+            sourceRow.Add(previewPlayButton);
+            sourceRow.Add(previewStopButton);
+            sourceRow.Add(previewNextFrameButton);
+            sourceRow.Add(previewLastFrameButton);
+            sourceRow.Add(previewFrameRateField);
+            playbackRow.Add(previewTimelineView);
             playbackRow.Add(previewTimeLabel);
             controls.Add(sourceRow);
             controls.Add(playbackRow);

@@ -64,15 +64,15 @@ namespace UnityAnimationGraph.Tests {
             var graphAsset = ScriptableObject.CreateInstance<AnimationGraphAsset>();
 
             try {
-                var isLoopDefinition = new AnimationGraphBlackboardDefinition("isLoop", true);
-                var speedDefinition = new AnimationGraphBlackboardDefinition("speed", 1.5f);
+                var isLoopDefinition = new BlackboardDefinition("isLoop", true);
+                var speedDefinition = new BlackboardDefinition("speed", 1.5f);
                 SetBlackboardDefinitions(graphAsset, isLoopDefinition, speedDefinition);
 
                 var result = graphAsset.TryGetBlackboardDefinition("speed", out var definition);
 
                 Assert.IsTrue(result);
                 Assert.That(definition.Key, Is.EqualTo("speed"));
-                Assert.That(definition.ValueType, Is.EqualTo(AnimationGraphValueType.Float));
+                Assert.That(definition.ValueType, Is.EqualTo(BlackboardValueType.Float));
                 Assert.That(definition.DefaultFloatValue, Is.EqualTo(1.5f).Within(0.0001f));
                 Assert.IsTrue(graphAsset.TryGetBlackboardDefaultValue("speed", out float defaultValue));
                 Assert.That(defaultValue, Is.EqualTo(1.5f).Within(0.0001f));
@@ -98,14 +98,14 @@ namespace UnityAnimationGraph.Tests {
             try {
                 SetBlackboardDefinitions(
                     graphAsset,
-                    new AnimationGraphBlackboardDefinition("flag", true),
-                    new AnimationGraphBlackboardDefinition("count", 12),
-                    new AnimationGraphBlackboardDefinition("speed", 1.5f),
-                    new AnimationGraphBlackboardDefinition("label", "idle"),
-                    new AnimationGraphBlackboardDefinition("offset", vector2DefaultValue),
-                    new AnimationGraphBlackboardDefinition("position", vector3DefaultValue),
-                    new AnimationGraphBlackboardDefinition("tint", colorDefaultValue),
-                    new AnimationGraphBlackboardDefinition("bounds", vector4DefaultValue));
+                    new BlackboardDefinition("flag", true),
+                    new BlackboardDefinition("count", 12),
+                    new BlackboardDefinition("speed", 1.5f),
+                    new BlackboardDefinition("label", "idle"),
+                    new BlackboardDefinition("offset", vector2DefaultValue),
+                    new BlackboardDefinition("position", vector3DefaultValue),
+                    new BlackboardDefinition("tint", colorDefaultValue),
+                    new BlackboardDefinition("bounds", vector4DefaultValue));
 
                 Assert.IsTrue(graphAsset.TryGetBlackboardDefaultValue("flag", out bool flagValue));
                 Assert.IsTrue(flagValue);
@@ -152,7 +152,7 @@ namespace UnityAnimationGraph.Tests {
         /// </summary>
         /// <param name="graphAsset">設定対象の AnimationGraphAsset</param>
         /// <param name="definitions">設定する Blackboard 定義一覧</param>
-        private void SetBlackboardDefinitions(AnimationGraphAsset graphAsset, params AnimationGraphBlackboardDefinition[] definitions) {
+        private void SetBlackboardDefinitions(AnimationGraphAsset graphAsset, params BlackboardDefinition[] definitions) {
             var serializedGraph = new SerializedObject(graphAsset);
             var definitionsProperty = serializedGraph.FindProperty(BlackboardDefinitionsPropertyName);
             definitionsProperty.arraySize = definitions.Length;

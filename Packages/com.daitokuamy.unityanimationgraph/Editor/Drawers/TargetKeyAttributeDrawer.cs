@@ -6,8 +6,8 @@ namespace UnityAnimationGraph.Editor {
     /// <summary>
     /// target key を AnimationGraphAsset の target 定義から選択する Drawer
     /// </summary>
-    [CustomPropertyDrawer(typeof(AnimationGraphTargetKeyAttribute))]
-    internal sealed class AnimationGraphTargetKeyAttributeDrawer : PropertyDrawer {
+    [CustomPropertyDrawer(typeof(TargetKeyAttribute))]
+    internal sealed class TargetKeyAttributeDrawer : PropertyDrawer {
         /// <summary>空の target key 表示名</summary>
         private const string EmptyLabel = "<None>";
         /// <summary>target 定義に存在しない key の接尾辞</summary>

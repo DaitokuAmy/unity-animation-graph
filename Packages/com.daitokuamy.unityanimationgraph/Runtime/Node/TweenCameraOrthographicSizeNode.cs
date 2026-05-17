@@ -15,7 +15,7 @@ namespace UnityAnimationGraph {
 
         /// <inheritdoc/>
         protected override IEnumerable<string> GetPreviewProperties(Camera target) {
-            yield return "orthographic size";
+            yield return PreviewPropertyPaths.Camera.OrthographicSize;
         }
 
         /// <inheritdoc/>

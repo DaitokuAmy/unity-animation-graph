@@ -21,4 +21,21 @@ namespace UnityAnimationGraph {
             MenuPath = menuPath ?? string.Empty;
         }
     }
+
+    /// <summary>
+    /// Node の GraphView 詳細に表示する serialized field を定義する属性
+    /// </summary>
+    [AttributeUsage(AttributeTargets.Field, Inherited = true, AllowMultiple = false)]
+    public sealed class NodeDetailFieldAttribute : Attribute {
+        /// <summary>GraphView 詳細に表示するラベル</summary>
+        public string Label { get; }
+
+        /// <summary>
+        /// NodeDetailFieldAttribute を作成
+        /// </summary>
+        /// <param name="label">GraphView 詳細に表示するラベル</param>
+        public NodeDetailFieldAttribute(string label = null) {
+            Label = label ?? string.Empty;
+        }
+    }
 }

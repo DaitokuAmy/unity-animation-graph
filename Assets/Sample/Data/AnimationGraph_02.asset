@@ -1,6 +1,6 @@
 %YAML 1.1
 %TAG !u! tag:unity3d.com,2011:
---- !u!114 &-4618863943754026372
+--- !u!114 &-7551309152063483369
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -9,36 +9,45 @@ MonoBehaviour:
   m_GameObject: {fileID: 0}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: f6f0704416964f048a3ab1dd93b49d7f, type: 3}
-  m_Name: SampleMoveLocalPositionNode
-  m_EditorClassIdentifier: Assembly-CSharp::UnityAnimationGraph.Sample.SampleMoveLocalPositionNode
-  _nodeId: 8e9ee4dd003b46e8b91b7c24faf2f0eb
-  _graphPosition: {x: 95, y: 231}
+  m_Script: {fileID: 11500000, guid: 10b9720aab144a13852326e0e5f9f49e, type: 3}
+  m_Name: TweenRectTransformAnchoredPositionNode
+  m_EditorClassIdentifier: UnityAnimationGraph::UnityAnimationGraph.TweenRectTransformAnchoredPositionNode
+  _displayName: "\u53F3\u306B\u79FB\u52D5"
+  _signalPorts:
+    _enterEnabled: 0
+    _exitEnabled: 0
+  _nodeId: c1041c10ca1b44188424de7cad0c2f6a
+  _graphPosition: {x: 79, y: 48}
   _nextNodeIds: []
-  _targetKey: Target
+  _enableEnterSignalPort: 0
+  _enableExitSignalPort: 0
+  _signalPortSettingsVersion: 1
+  _enterSignals: []
+  _exitSignals: []
+  _targetKey: MoveTarget
   _duration: 1
   _delay: 0
-  _from: {x: 0, y: 0, z: 0}
-  _to: {x: 0, y: 5, z: 0}
---- !u!114 &-2580466723771642229
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 0}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: b68686c4982f4097bc199f470217aab8, type: 3}
-  m_Name: RepeatNode
-  m_EditorClassIdentifier: UnityAnimationGraph::UnityAnimationGraph.RepeatNode
-  _nodeId: 872db1a967624136bd3828e7016c9db8
-  _graphPosition: {x: -118, y: 101}
-  _nextNodeIds:
-  - 0de2b523ffad40bfa7cdc484761617a7
-  _loopCount: 3
-  _loopNodeIds:
-  - 8e9ee4dd003b46e8b91b7c24faf2f0eb
+  _tween:
+    _ease:
+      _mode: 0
+      _easeType: 1
+      _animationCurve:
+        serializedVersion: 2
+        m_Curve: []
+        m_PreInfinity: 2
+        m_PostInfinity: 2
+        m_RotationOrder: 4
+    _before:
+      _source: 0
+      _blackboardKey: 
+      _value: {x: 0, y: 0}
+      _relative: 0
+    _after:
+      _source: 0
+      _blackboardKey: 
+      _value: {x: 100, y: 0}
+      _relative: 0
+    _ignoreMask: 2
 --- !u!114 &11400000
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -53,34 +62,27 @@ MonoBehaviour:
   m_EditorClassIdentifier: UnityAnimationGraph::UnityAnimationGraph.AnimationGraphAsset
   _assetGuid: 3c1b49f9e7e567a4f8e684d21f30d5ae
   _graphSeed: 988330306
+  _randomSeed: 0
   _startNodeId: 5ea37df4778a44a2ba9fb00c9ce4852b
   _nodes:
   - {fileID: 832963955223547466}
-  - {fileID: -4618863943754026372}
-  - {fileID: -2580466723771642229}
-  - {fileID: 7246135758792466407}
+  - {fileID: 8876683902995508631}
+  - {fileID: -7551309152063483369}
+  - {fileID: 7234282653862198557}
   _targetDefinitions:
   - _key: MoveTarget
-  - _key: RotateTarget
+    _monoScriptGuid: 00000000000000000000000000000002
   _blackboardDefinitions:
-  - _key: TargetPos1
-    _valueType: 5
-    _defaultBoolValue: 0
-    _defaultIntValue: 0
-    _defaultFloatValue: 0
-    _defaultStringValue: 
-    _defaultVector2Value: {x: 0, y: 0}
-    _defaultVector3Value: {x: 0, y: 10, z: 0}
-    _defaultColorValue: {r: 0, g: 0, b: 0, a: 0}
-  - _key: TargetColor1
-    _valueType: 6
-    _defaultBoolValue: 0
+  - _key: Flag1
+    _valueType: 0
+    _defaultBoolValue: 1
     _defaultIntValue: 0
     _defaultFloatValue: 0
     _defaultStringValue: 
     _defaultVector2Value: {x: 0, y: 0}
     _defaultVector3Value: {x: 0, y: 0, z: 0}
     _defaultColorValue: {r: 1, g: 0, b: 0, a: 1}
+    _defaultVector4Value: {x: 0, y: 0, z: 0, w: 0}
 --- !u!114 &832963955223547466
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -93,11 +95,20 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: ed21bb646d224f8c8c4ee218e1871c53, type: 3}
   m_Name: StartNode
   m_EditorClassIdentifier: UnityAnimationGraph::UnityAnimationGraph.StartNode
+  _displayName: 
+  _signalPorts:
+    _enterEnabled: 0
+    _exitEnabled: 0
   _nodeId: 5ea37df4778a44a2ba9fb00c9ce4852b
-  _graphPosition: {x: -351, y: 101}
+  _graphPosition: {x: -275, y: 135}
   _nextNodeIds:
-  - 872db1a967624136bd3828e7016c9db8
---- !u!114 &7246135758792466407
+  - 11b7693fd3f14883b321b8da4b6ef48e
+  _enableEnterSignalPort: 0
+  _enableExitSignalPort: 0
+  _signalPortSettingsVersion: 1
+  _enterSignals: []
+  _exitSignals: []
+--- !u!114 &7234282653862198557
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -106,14 +117,72 @@ MonoBehaviour:
   m_GameObject: {fileID: 0}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: f6f0704416964f048a3ab1dd93b49d7f, type: 3}
-  m_Name: SampleMoveLocalPositionNode
-  m_EditorClassIdentifier: Assembly-CSharp::UnityAnimationGraph.Sample.SampleMoveLocalPositionNode
-  _nodeId: 0de2b523ffad40bfa7cdc484761617a7
-  _graphPosition: {x: 95, y: 101}
+  m_Script: {fileID: 11500000, guid: 10b9720aab144a13852326e0e5f9f49e, type: 3}
+  m_Name: TweenRectTransformAnchoredPositionNode
+  m_EditorClassIdentifier: UnityAnimationGraph::UnityAnimationGraph.TweenRectTransformAnchoredPositionNode
+  _displayName: "\u5DE6\u306B\u79FB\u52D5"
+  _signalPorts:
+    _enterEnabled: 0
+    _exitEnabled: 0
+  _nodeId: 96ca8e36219748e889b8fae74a411f24
+  _graphPosition: {x: 79, y: 212}
   _nextNodeIds: []
-  _targetKey: 
+  _enableEnterSignalPort: 0
+  _enableExitSignalPort: 0
+  _signalPortSettingsVersion: 1
+  _enterSignals: []
+  _exitSignals: []
+  _targetKey: MoveTarget
   _duration: 1
   _delay: 0
-  _from: {x: 0, y: 5, z: 0}
-  _to: {x: 0, y: 10, z: 0}
+  _tween:
+    _ease:
+      _mode: 0
+      _easeType: 1
+      _animationCurve:
+        serializedVersion: 2
+        m_Curve: []
+        m_PreInfinity: 2
+        m_PostInfinity: 2
+        m_RotationOrder: 4
+    _before:
+      _source: 0
+      _blackboardKey: 
+      _value: {x: 0, y: 0}
+      _relative: 0
+    _after:
+      _source: 0
+      _blackboardKey: 
+      _value: {x: -100, y: 0}
+      _relative: 0
+    _ignoreMask: 2
+--- !u!114 &8876683902995508631
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 4c9e720357d047a5943fb03155cc7b8a, type: 3}
+  m_Name: FlagBranchNode
+  m_EditorClassIdentifier: UnityAnimationGraph::UnityAnimationGraph.FlagBranchNode
+  _displayName: 
+  _signalPorts:
+    _enterEnabled: 0
+    _exitEnabled: 0
+  _nodeId: 11b7693fd3f14883b321b8da4b6ef48e
+  _graphPosition: {x: -164, y: 103}
+  _nextNodeIds:
+  - c1041c10ca1b44188424de7cad0c2f6a
+  _enableEnterSignalPort: 0
+  _enableExitSignalPort: 0
+  _signalPortSettingsVersion: 1
+  _enterSignals: []
+  _exitSignals: []
+  _extensionNodeIds:
+  - _nodeIds:
+    - 96ca8e36219748e889b8fae74a411f24
+  _flagKey: Flag1
+  _expectedValue: 1

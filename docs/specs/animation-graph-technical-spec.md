@@ -127,7 +127,14 @@ Model は `AnimationGraphAsset` とノードデータで構成する。
 
 ```csharp
 public interface IAnimationGraphBlackboard {
-    bool TryGetBlackboardValue<T>(string key, out T value);
+    bool TryGetBlackboardValue(string key, out bool value);
+    bool TryGetBlackboardValue(string key, out int value);
+    bool TryGetBlackboardValue(string key, out float value);
+    bool TryGetBlackboardValue(string key, out string value);
+    bool TryGetBlackboardValue(string key, out Vector2 value);
+    bool TryGetBlackboardValue(string key, out Vector3 value);
+    bool TryGetBlackboardValue(string key, out Color value);
+    bool TryGetBlackboardValue(string key, out Vector4 value);
 }
 ```
 
@@ -158,8 +165,8 @@ public interface IAnimationGraphContext : IAnimationGraphBlackboard {
 - node list
 - edge list または node ごとの next node id list
 - start node id
-- blackboard variable definitions
-- target key definitions
+- blackboard variable definitions (`BlackboardDefinition`, `BlackboardValueType`)
+- target key definitions (`TargetDefinition`)
 - editor 用の最小限の永続表示設定
 
 ノード間参照の永続化は、Unity オブジェクト参照ではなく node id ベースを基本とする。
@@ -318,7 +325,7 @@ LoopNode の外側から `LoopNodeIds` に含まれるノードへ通常接続�
 
 BranchNode は build 時に true / false の片方だけをスケジュールへ展開する制御ノードとして扱う。
 初期実装では `FlagBranchNode` を具象ノードとして用意し、`FlagKey` と `ExpectedValue` によって bool フラグを判定する。
-`FlagBranchNode` は `IAnimationGraphContext.TryGetBlackboardValue<bool>` で値を取得し、値が `ExpectedValue` と一致した場合に true 側へ進む。
+`FlagBranchNode` は `IAnimationGraphContext.TryGetBlackboardValue(string key, out bool value)` で値を取得し、値が `ExpectedValue` と一致した場合に true 側へ進む。
 `FlagKey` が空、または値を取得できない場合は warning log を出し、false 側へ進む。
 
 ### ActionNode
@@ -541,6 +548,64 @@ public sealed class AnimationGraphPlayer {
 `AnimationGraphPlayHandle` は awaitable かつ `IEnumerator` とする。
 自然完了した場合は `await handle` が `true` を返し、`Stop` や graph / context の差し替えで中断された場合は `false` を返す。
 Coroutine では `StartCoroutine(player.Play())` のように再生完了まで待機できる。
+また、取得した handle に対応する再生だけを `Pause` / `Resume` / `Stop` / `Complete` で操作できる。
+handle が古い、完了済み、または無効な場合、操作メソッドは `false` を返す。
+
+```csharp
+public readonly struct AnimationGraphPlayHandle : IEnumerator {
+    public bool IsValid { get; }
+    public bool IsDone { get; }
+    public bool IsCompleted { get; }
+    public bool IsInterrupted { get; }
+    public bool Complete();
+    public bool Pause();
+    public bool Resume();
+    public bool Stop();
+    public Awaiter GetAwaiter();
+}
+```
+
+`AnimationGraphRunner` は scene 上の `MonoBehaviour` として target binding と Blackboard 現在値を保持し、`AnimationGraphPlayer` を Unity lifecycle へ接続する。
+`UpdateType` は `AnimationGraphRunner` の inner enum とし、外部 API では `UpdateMode` プロパティから切り替える。
+
+```csharp
+public sealed class AnimationGraphRunner : MonoBehaviour, IAnimationGraphContext {
+    public enum UpdateType {
+        Update,
+        LateUpdate,
+        ManualUpdate,
+    }
+
+    public AnimationGraphAsset GraphAsset { get; set; }
+    public UpdateType UpdateMode { get; set; }
+    public IReadOnlyList<TargetBinding> TargetBindings { get; }
+    public IReadOnlyList<BlackboardValue> BlackboardValues { get; }
+    public AnimationGraphPlayHandle Play();
+    public AnimationGraphPlayHandle Play(AnimationGraphAsset graphAsset);
+    public void Pause();
+    public void Stop();
+    public void ManualUpdate(float deltaTime);
+    public void SetGraph(AnimationGraphAsset graphAsset);
+    public bool SetTarget(string key, Component target);
+    public bool SetTarget(AnimationGraphAsset graphAsset, string key, Component target);
+    public T GetTarget<T>(string key) where T : Component;
+    public T GetTarget<T>(AnimationGraphAsset graphAsset, string key) where T : Component;
+    public bool TryGetTarget<T>(string key, out T target) where T : Component;
+    public bool TryGetTarget<T>(AnimationGraphAsset graphAsset, string key, out T target) where T : Component;
+    public bool SetBlackboardValue(string key, bool value);
+    public bool SetBlackboardValue(string key, int value);
+    public bool SetBlackboardValue(string key, float value);
+    public bool SetBlackboardValue(string key, string value);
+    public bool SetBlackboardValue(string key, Vector2 value);
+    public bool SetBlackboardValue(string key, Vector3 value);
+    public bool SetBlackboardValue(string key, Color value);
+    public bool SetBlackboardValue(string key, Vector4 value);
+}
+```
+
+`SetTarget(string key, Component target)` は現在の `GraphAsset` に対応する `TargetBindingGroup` を更新する。
+`SetTarget(AnimationGraphAsset graphAsset, string key, Component target)` は現在の `GraphAsset` を切り替えず、指定した graph の `TargetBindingGroup` を作成または更新する。
+`GetTarget<T>(AnimationGraphAsset graphAsset, string key)` と `TryGetTarget<T>(AnimationGraphAsset graphAsset, string key, out T target)` は、現在の `GraphAsset` を切り替えずに指定した graph の `TargetBindingGroup` から Component を取得する。
 
 再生中は現在時刻にアクティブな scheduled node を評価する。
 

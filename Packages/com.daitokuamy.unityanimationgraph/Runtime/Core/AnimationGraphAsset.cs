@@ -19,9 +19,9 @@ namespace UnityAnimationGraph {
         [SerializeField, Tooltip("グラフに含まれるノード一覧"), HideInInspector]
         private Node[] _nodes = Array.Empty<Node>();
         [SerializeField, Tooltip("Runner がバインドする target key 定義一覧"), HideInInspector]
-        private AnimationGraphTargetDefinition[] _targetDefinitions = Array.Empty<AnimationGraphTargetDefinition>();
+        private TargetDefinition[] _targetDefinitions = Array.Empty<TargetDefinition>();
         [SerializeField, Tooltip("Blackboard key と初期値の定義一覧"), HideInInspector]
-        private AnimationGraphBlackboardDefinition[] _blackboardDefinitions = Array.Empty<AnimationGraphBlackboardDefinition>();
+        private BlackboardDefinition[] _blackboardDefinitions = Array.Empty<BlackboardDefinition>();
 
         /// <summary>GraphAsset の asset GUID</summary>
         public string AssetGuid => _assetGuid ?? string.Empty;
@@ -34,9 +34,9 @@ namespace UnityAnimationGraph {
         /// <summary>グラフに含まれるノード一覧</summary>
         public IReadOnlyList<Node> Nodes => _nodes ?? Array.Empty<Node>();
         /// <summary>グラフが要求する target key 定義一覧</summary>
-        public IReadOnlyList<AnimationGraphTargetDefinition> TargetDefinitions => _targetDefinitions ?? Array.Empty<AnimationGraphTargetDefinition>();
+        public IReadOnlyList<TargetDefinition> TargetDefinitions => _targetDefinitions ?? Array.Empty<TargetDefinition>();
         /// <summary>グラフが要求する Blackboard key 定義一覧</summary>
-        public IReadOnlyList<AnimationGraphBlackboardDefinition> BlackboardDefinitions => _blackboardDefinitions ?? Array.Empty<AnimationGraphBlackboardDefinition>();
+        public IReadOnlyList<BlackboardDefinition> BlackboardDefinitions => _blackboardDefinitions ?? Array.Empty<BlackboardDefinition>();
 
         /// <summary>
         /// 指定した ID に対応するノードの取得を試行
@@ -75,13 +75,13 @@ namespace UnityAnimationGraph {
         /// <param name="key">取得する target key</param>
         /// <param name="definition">取得した target 定義</param>
         /// <returns>取得できた場合は true</returns>
-        public bool TryGetTargetDefinition(string key, out AnimationGraphTargetDefinition definition) {
+        public bool TryGetTargetDefinition(string key, out TargetDefinition definition) {
             if (string.IsNullOrEmpty(key)) {
                 definition = default;
                 return false;
             }
 
-            var definitions = _targetDefinitions ?? Array.Empty<AnimationGraphTargetDefinition>();
+            var definitions = _targetDefinitions ?? Array.Empty<TargetDefinition>();
             for (var i = 0; i < definitions.Length; i++) {
                 var current = definitions[i];
                 if (current.Key != key) {
@@ -102,13 +102,13 @@ namespace UnityAnimationGraph {
         /// <param name="key">取得する Blackboard key</param>
         /// <param name="definition">取得した Blackboard 定義</param>
         /// <returns>取得できた場合は true</returns>
-        public bool TryGetBlackboardDefinition(string key, out AnimationGraphBlackboardDefinition definition) {
+        public bool TryGetBlackboardDefinition(string key, out BlackboardDefinition definition) {
             if (string.IsNullOrEmpty(key)) {
                 definition = default;
                 return false;
             }
 
-            var definitions = _blackboardDefinitions ?? Array.Empty<AnimationGraphBlackboardDefinition>();
+            var definitions = _blackboardDefinitions ?? Array.Empty<BlackboardDefinition>();
             for (var i = 0; i < definitions.Length; i++) {
                 var current = definitions[i];
                 if (current.Key != key) {

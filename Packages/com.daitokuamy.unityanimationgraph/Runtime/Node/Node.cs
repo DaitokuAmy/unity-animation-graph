@@ -74,7 +74,7 @@ namespace UnityAnimationGraph {
         }
 
         /// <inheritdoc/>
-        IEnumerable<(Component Component, string PropertyPath)> INodeExecutor.GetPreviewProperties(IAnimationGraphContext context) {
+        IEnumerable<(UnityEngine.Object Target, string PropertyPath)> INodeExecutor.GetPreviewProperties(IAnimationGraphContext context) {
             return GetPreviewProperties(context);
         }
 
@@ -118,9 +118,9 @@ namespace UnityAnimationGraph {
         /// Preview 再生時に AnimationMode へ登録するプロパティを取得
         /// </summary>
         /// <param name="context">評価コンテキスト</param>
-        /// <returns>登録対象の Component と SerializedProperty path の一覧</returns>
-        protected virtual IEnumerable<(Component Component, string PropertyPath)> GetPreviewProperties(IAnimationGraphContext context) {
-            return Array.Empty<(Component Component, string PropertyPath)>();
+        /// <returns>登録対象の Object と SerializedProperty path の一覧</returns>
+        protected virtual IEnumerable<(UnityEngine.Object Target, string PropertyPath)> GetPreviewProperties(IAnimationGraphContext context) {
+            return Array.Empty<(UnityEngine.Object Target, string PropertyPath)>();
         }
 
         /// <summary>
@@ -154,6 +154,24 @@ namespace UnityAnimationGraph {
         /// <param name="seed">評価に使用するシード</param>
         /// <param name="context">評価コンテキスト</param>
         protected virtual void Cancel(int seed, IAnimationGraphContext context) {
+        }
+
+        /// <summary>
+        /// Node の設定検証エラーメッセージを取得
+        /// </summary>
+        /// <param name="context">検証コンテキスト</param>
+        /// <returns>検証エラーメッセージ。エラーがない場合は空文字列</returns>
+        protected virtual string Validate(NodeValidationContext context) {
+            return string.Empty;
+        }
+
+        /// <summary>
+        /// Node の設定検証エラーメッセージを取得
+        /// </summary>
+        /// <param name="context">検証コンテキスト</param>
+        /// <returns>検証エラーメッセージ。エラーがない場合は空文字列</returns>
+        internal string GetValidationMessage(NodeValidationContext context) {
+            return Validate(context);
         }
     }
 }

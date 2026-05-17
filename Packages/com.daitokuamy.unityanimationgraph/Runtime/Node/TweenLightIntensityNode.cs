@@ -15,7 +15,7 @@ namespace UnityAnimationGraph {
 
         /// <inheritdoc/>
         protected override IEnumerable<string> GetPreviewProperties(Light target) {
-            yield return "m_Intensity";
+            yield return PreviewPropertyPaths.Light.Intensity;
         }
 
         /// <inheritdoc/>

@@ -1,5 +1,7 @@
 using System;
 using System.Collections.Generic;
+using System.Reflection;
+using UnityEditor;
 using UnityEngine;
 
 namespace UnityAnimationGraph.Editor {
@@ -53,10 +55,58 @@ namespace UnityAnimationGraph.Editor {
     }
 
     /// <summary>
+    /// GraphView 詳細に表示する Node field の情報
+    /// </summary>
+    internal readonly struct NodeDetailField {
+        /// <summary>SerializedProperty path</summary>
+        public string PropertyPath { get; }
+        /// <summary>GraphView 詳細に表示するラベル</summary>
+        public string Label { get; }
+        /// <summary>SerializedProperty の型</summary>
+        public SerializedPropertyType PropertyType { get; }
+        /// <summary>Target key field の場合は true</summary>
+        public bool IsTargetKey { get; }
+        /// <summary>Blackboard key field の場合は true</summary>
+        public bool IsBlackboardKey { get; }
+        /// <summary>Blackboard value type filter を持つ場合は true</summary>
+        public bool HasBlackboardValueTypeFilter { get; }
+        /// <summary>Blackboard value type filter</summary>
+        public BlackboardValueType BlackboardValueType { get; }
+
+        /// <summary>
+        /// NodeDetailField を作成
+        /// </summary>
+        /// <param name="propertyPath">SerializedProperty path</param>
+        /// <param name="label">GraphView 詳細に表示するラベル</param>
+        /// <param name="propertyType">SerializedProperty の型</param>
+        /// <param name="isTargetKey">Target key field の場合は true</param>
+        /// <param name="isBlackboardKey">Blackboard key field の場合は true</param>
+        /// <param name="hasBlackboardValueTypeFilter">Blackboard value type filter を持つ場合は true</param>
+        /// <param name="blackboardValueType">Blackboard value type filter</param>
+        public NodeDetailField(
+            string propertyPath,
+            string label,
+            SerializedPropertyType propertyType,
+            bool isTargetKey,
+            bool isBlackboardKey,
+            bool hasBlackboardValueTypeFilter,
+            BlackboardValueType blackboardValueType) {
+            PropertyPath = propertyPath ?? string.Empty;
+            Label = label ?? string.Empty;
+            PropertyType = propertyType;
+            IsTargetKey = isTargetKey;
+            IsBlackboardKey = isBlackboardKey;
+            HasBlackboardValueTypeFilter = hasBlackboardValueTypeFilter;
+            BlackboardValueType = blackboardValueType;
+        }
+    }
+
+    /// <summary>
     /// Editor MVP の Model として Node の参照情報を提供するクラス
     /// </summary>
     public class NodeEditorModel {
         private readonly Node _node;
+        private IReadOnlyList<NodeDetailField> _detailFields;
         private NodePreviewExecutionInfo _previewExecutionInfo;
         private bool _hasPreviewExecutionInfo;
 
@@ -80,6 +130,8 @@ namespace UnityAnimationGraph.Editor {
         public IReadOnlyList<Signal> EnterSignals => _node.EnterSignals;
         /// <summary>Exit 時に通知する Signal 一覧</summary>
         public IReadOnlyList<Signal> ExitSignals => _node.ExitSignals;
+        /// <summary>GraphView 詳細に表示する field 一覧</summary>
+        internal IReadOnlyList<NodeDetailField> DetailFields => _detailFields ??= CreateDetailFields(_node);
         /// <summary>参照元の Node</summary>
         internal Node Node => _node;
 
@@ -160,15 +212,85 @@ namespace UnityAnimationGraph.Editor {
         }
 
         /// <summary>
-        /// Sets the flag key when this model wraps a FlagBranchNode.
+        /// GraphView 詳細 field の string 値を取得
         /// </summary>
-        /// <param name="flagKey">Flag key to set</param>
-        internal void SetFlagBranchKey(string flagKey) {
-            if (_node is not FlagBranchNode flagBranchNode) {
-                return;
-            }
+        /// <param name="field">取得対象 field</param>
+        /// <returns>取得した string 値</returns>
+        internal string GetDetailFieldStringValue(NodeDetailField field) {
+            var property = FindDetailFieldProperty(field);
+            return property != null && property.propertyType == SerializedPropertyType.String
+                ? property.stringValue
+                : string.Empty;
+        }
 
-            AnimationGraphAssetUtility.SetFlagBranchNodeFlagKey(flagBranchNode, flagKey);
+        /// <summary>
+        /// GraphView 詳細 field の bool 値を取得
+        /// </summary>
+        /// <param name="field">取得対象 field</param>
+        /// <returns>取得した bool 値</returns>
+        internal bool GetDetailFieldBoolValue(NodeDetailField field) {
+            var property = FindDetailFieldProperty(field);
+            return property != null && property.propertyType == SerializedPropertyType.Boolean && property.boolValue;
+        }
+
+        /// <summary>
+        /// GraphView 詳細 field の int 値を取得
+        /// </summary>
+        /// <param name="field">取得対象 field</param>
+        /// <returns>取得した int 値</returns>
+        internal int GetDetailFieldIntValue(NodeDetailField field) {
+            var property = FindDetailFieldProperty(field);
+            return property != null && property.propertyType == SerializedPropertyType.Integer
+                ? property.intValue
+                : 0;
+        }
+
+        /// <summary>
+        /// GraphView 詳細 field の float 値を取得
+        /// </summary>
+        /// <param name="field">取得対象 field</param>
+        /// <returns>取得した float 値</returns>
+        internal float GetDetailFieldFloatValue(NodeDetailField field) {
+            var property = FindDetailFieldProperty(field);
+            return property != null && property.propertyType == SerializedPropertyType.Float
+                ? property.floatValue
+                : 0.0f;
+        }
+
+        /// <summary>
+        /// GraphView 詳細 field の string 値を設定
+        /// </summary>
+        /// <param name="field">設定対象 field</param>
+        /// <param name="value">設定する値</param>
+        internal void SetDetailFieldValue(NodeDetailField field, string value) {
+            AnimationGraphAssetUtility.SetNodeDetailFieldValue(_node, field, value);
+        }
+
+        /// <summary>
+        /// GraphView 詳細 field の bool 値を設定
+        /// </summary>
+        /// <param name="field">設定対象 field</param>
+        /// <param name="value">設定する値</param>
+        internal void SetDetailFieldValue(NodeDetailField field, bool value) {
+            AnimationGraphAssetUtility.SetNodeDetailFieldValue(_node, field, value);
+        }
+
+        /// <summary>
+        /// GraphView 詳細 field の int 値を設定
+        /// </summary>
+        /// <param name="field">設定対象 field</param>
+        /// <param name="value">設定する値</param>
+        internal void SetDetailFieldValue(NodeDetailField field, int value) {
+            AnimationGraphAssetUtility.SetNodeDetailFieldValue(_node, field, value);
+        }
+
+        /// <summary>
+        /// GraphView 詳細 field の float 値を設定
+        /// </summary>
+        /// <param name="field">設定対象 field</param>
+        /// <param name="value">設定する値</param>
+        internal void SetDetailFieldValue(NodeDetailField field, float value) {
+            AnimationGraphAssetUtility.SetNodeDetailFieldValue(_node, field, value);
         }
 
         /// <summary>
@@ -210,6 +332,88 @@ namespace UnityAnimationGraph.Editor {
             _previewExecutionInfo = default;
             _hasPreviewExecutionInfo = false;
             return true;
+        }
+
+        private SerializedProperty FindDetailFieldProperty(NodeDetailField field) {
+            if (string.IsNullOrEmpty(field.PropertyPath)) {
+                return null;
+            }
+
+            var serializedNode = new SerializedObject(_node);
+            return serializedNode.FindProperty(field.PropertyPath);
+        }
+
+        private static IReadOnlyList<NodeDetailField> CreateDetailFields(Node node) {
+            if (node == null) {
+                return Array.Empty<NodeDetailField>();
+            }
+
+            var fields = new List<NodeDetailField>();
+            var serializedNode = new SerializedObject(node);
+            foreach (var fieldInfo in EnumerateNodeFields(node.GetType())) {
+                var detailFieldAttribute = fieldInfo.GetCustomAttribute<NodeDetailFieldAttribute>();
+                if (detailFieldAttribute == null || !IsSerializedField(fieldInfo)) {
+                    continue;
+                }
+
+                var property = serializedNode.FindProperty(fieldInfo.Name);
+                if (property == null || !CanEditDetailProperty(property.propertyType)) {
+                    continue;
+                }
+
+                var blackboardKeyAttribute = fieldInfo.GetCustomAttribute<BlackboardKeyAttribute>();
+                fields.Add(new NodeDetailField(
+                    fieldInfo.Name,
+                    GetDetailFieldLabel(fieldInfo, detailFieldAttribute),
+                    property.propertyType,
+                    fieldInfo.GetCustomAttribute<TargetKeyAttribute>() != null,
+                    blackboardKeyAttribute != null,
+                    blackboardKeyAttribute?.HasValueTypeFilter ?? false,
+                    blackboardKeyAttribute?.ValueType ?? default));
+            }
+
+            return fields;
+        }
+
+        private static IEnumerable<FieldInfo> EnumerateNodeFields(Type nodeType) {
+            var types = new Stack<Type>();
+            for (var currentType = nodeType; currentType != null && typeof(Node).IsAssignableFrom(currentType); currentType = currentType.BaseType) {
+                types.Push(currentType);
+            }
+
+            while (types.Count > 0) {
+                var currentType = types.Pop();
+                var fields = currentType.GetFields(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.DeclaredOnly);
+                for (var i = 0; i < fields.Length; i++) {
+                    yield return fields[i];
+                }
+            }
+        }
+
+        private static bool IsSerializedField(FieldInfo fieldInfo) {
+            if (fieldInfo.IsStatic || fieldInfo.IsNotSerialized) {
+                return false;
+            }
+
+            return fieldInfo.IsPublic || fieldInfo.GetCustomAttribute<SerializeField>() != null;
+        }
+
+        private static bool CanEditDetailProperty(SerializedPropertyType propertyType) {
+            return propertyType is SerializedPropertyType.String
+                or SerializedPropertyType.Boolean
+                or SerializedPropertyType.Integer
+                or SerializedPropertyType.Float;
+        }
+
+        private static string GetDetailFieldLabel(FieldInfo fieldInfo, NodeDetailFieldAttribute attribute) {
+            if (!string.IsNullOrEmpty(attribute.Label)) {
+                return attribute.Label;
+            }
+
+            var fieldName = fieldInfo.Name.StartsWith("_", StringComparison.Ordinal)
+                ? fieldInfo.Name.Substring(1)
+                : fieldInfo.Name;
+            return ObjectNames.NicifyVariableName(fieldName);
         }
     }
 }

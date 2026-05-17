@@ -6,7 +6,7 @@ namespace UnityAnimationGraph {
     /// Animation Graph でターゲットを操作するノードの基底クラス
     /// </summary>
     public abstract class ActionNode : Node {
-        [SerializeField, AnimationGraphTargetKey, Tooltip("操作対象を解決するためのターゲットキー")]
+        [SerializeField, TargetKey, Tooltip("操作対象を解決するためのターゲットキー")]
         private string _targetKey = string.Empty;
 
         /// <summary>操作対象を解決するためのターゲットキー</summary>
@@ -34,13 +34,17 @@ namespace UnityAnimationGraph {
         }
 
         /// <inheritdoc/>
-        protected sealed override IEnumerable<(Component Component, string PropertyPath)> GetPreviewProperties(IAnimationGraphContext context) {
+        protected sealed override IEnumerable<(Object Target, string PropertyPath)> GetPreviewProperties(IAnimationGraphContext context) {
             if (!TryResolveTarget(context, out var target)) {
                 yield break;
             }
 
             foreach (var propertyPath in GetPreviewProperties(target)) {
                 yield return (target, propertyPath);
+            }
+
+            foreach (var previewProperty in GetPreviewObjectProperties(target)) {
+                yield return previewProperty;
             }
         }
 
@@ -112,6 +116,15 @@ namespace UnityAnimationGraph {
         }
 
         /// <summary>
+        /// Preview 再生時に AnimationMode へ登録する target object とプロパティを取得
+        /// </summary>
+        /// <param name="target">解決済みの操作対象 Component</param>
+        /// <returns>登録対象の Object と SerializedProperty path の一覧</returns>
+        protected virtual IEnumerable<(Object Target, string PropertyPath)> GetPreviewObjectProperties(TTarget target) {
+            yield break;
+        }
+
+        /// <summary>
         /// ノード開始時の処理を行う
         /// </summary>
         /// <param name="seed">評価に使用するシード</param>
@@ -165,6 +178,17 @@ namespace UnityAnimationGraph {
             }
 
             return context.TryGetTarget(TargetKey, out target) && target != null;
+        }
+
+        /// <inheritdoc/>
+        protected override string Validate(NodeValidationContext context) {
+            if (string.IsNullOrEmpty(TargetKey)) {
+                return $"{DisplayName} has empty target key";
+            }
+
+            return context.HasTargetDefinition(TargetKey)
+                ? string.Empty
+                : $"{DisplayName} references missing target '{TargetKey}'";
         }
     }
 }

@@ -2,7 +2,7 @@ namespace UnityAnimationGraph {
     /// <summary>
     /// AnimationGraph の Blackboard 値として扱う型
     /// </summary>
-    public enum AnimationGraphValueType {
+    public enum BlackboardValueType {
         /// <summary>bool 値</summary>
         Bool,
         /// <summary>int 値</summary>
@@ -15,9 +15,9 @@ namespace UnityAnimationGraph {
         Vector2,
         /// <summary>Vector3 値</summary>
         Vector3,
-        /// <summary>Color 値</summary>
-        Color,
         /// <summary>Vector4 値</summary>
         Vector4,
+        /// <summary>Color 値</summary>
+        Color,
     }
 }

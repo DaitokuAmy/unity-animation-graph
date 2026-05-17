@@ -15,8 +15,8 @@ namespace UnityAnimationGraph {
 
         /// <inheritdoc/>
         protected override IEnumerable<string> GetPreviewProperties(RectTransform target) {
-            yield return "m_AnchoredPosition.x";
-            yield return "m_AnchoredPosition.y";
+            yield return PreviewPropertyPaths.RectTransform.AnchoredPositionX;
+            yield return PreviewPropertyPaths.RectTransform.AnchoredPositionY;
         }
 
         /// <inheritdoc/>

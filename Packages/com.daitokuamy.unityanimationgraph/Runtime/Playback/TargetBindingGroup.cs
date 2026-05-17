@@ -7,23 +7,23 @@ namespace UnityAnimationGraph {
     /// GraphAsset GUID ごとの target binding group
     /// </summary>
     [Serializable]
-    public sealed class AnimationGraphTargetBindingGroup {
+    public sealed class TargetBindingGroup {
         [SerializeField, Tooltip("対応する GraphAsset の Unity アセット GUID")]
         private string _graphAssetGuid;
         [SerializeField, Tooltip("この GraphAsset 用の target binding 一覧")]
-        private AnimationGraphTargetBinding[] _bindings = Array.Empty<AnimationGraphTargetBinding>();
+        private TargetBinding[] _bindings = Array.Empty<TargetBinding>();
 
         /// <summary>GraphAsset の asset GUID</summary>
         public string GraphAssetGuid => _graphAssetGuid ?? string.Empty;
         /// <summary>target binding 一覧</summary>
-        public IReadOnlyList<AnimationGraphTargetBinding> Bindings => _bindings ?? Array.Empty<AnimationGraphTargetBinding>();
+        public IReadOnlyList<TargetBinding> Bindings => _bindings ?? Array.Empty<TargetBinding>();
 
         /// <summary>
-        /// AnimationGraphTargetBindingGroup を生成
+        /// TargetBindingGroup を生成
         /// </summary>
         /// <param name="graphAssetGuid">GraphAsset の asset GUID</param>
         /// <param name="targetDefinitions">target 定義一覧</param>
-        public AnimationGraphTargetBindingGroup(string graphAssetGuid, IReadOnlyList<AnimationGraphTargetDefinition> targetDefinitions) {
+        public TargetBindingGroup(string graphAssetGuid, IReadOnlyList<TargetDefinition> targetDefinitions) {
             _graphAssetGuid = graphAssetGuid ?? string.Empty;
             SetTargetDefinitions(targetDefinitions);
         }
@@ -32,18 +32,18 @@ namespace UnityAnimationGraph {
         /// target 定義に合わせて binding 一覧を更新
         /// </summary>
         /// <param name="targetDefinitions">target 定義一覧</param>
-        public void SetTargetDefinitions(IReadOnlyList<AnimationGraphTargetDefinition> targetDefinitions) {
+        public void SetTargetDefinitions(IReadOnlyList<TargetDefinition> targetDefinitions) {
             if (targetDefinitions == null || targetDefinitions.Count == 0) {
-                _bindings = Array.Empty<AnimationGraphTargetBinding>();
+                _bindings = Array.Empty<TargetBinding>();
                 return;
             }
 
-            var nextBindings = new AnimationGraphTargetBinding[targetDefinitions.Count];
+            var nextBindings = new TargetBinding[targetDefinitions.Count];
             for (var i = 0; i < targetDefinitions.Count; i++) {
                 var definition = targetDefinitions[i];
                 var key = definition.Key;
                 TryGetBinding(key, out var currentBinding);
-                nextBindings[i] = new AnimationGraphTargetBinding(key, currentBinding.Target, definition.MonoScriptGuid);
+                nextBindings[i] = new TargetBinding(key, currentBinding.Target, definition.MonoScriptGuid);
             }
 
             _bindings = nextBindings;
@@ -61,7 +61,7 @@ namespace UnityAnimationGraph {
                 return false;
             }
 
-            _bindings[bindingIndex] = new AnimationGraphTargetBinding(key, target, _bindings[bindingIndex].MonoScriptGuid);
+            _bindings[bindingIndex] = new TargetBinding(key, target, _bindings[bindingIndex].MonoScriptGuid);
             return true;
         }
 
@@ -87,7 +87,7 @@ namespace UnityAnimationGraph {
         /// <param name="key">target key</param>
         /// <param name="binding">取得した binding</param>
         /// <returns>取得できた場合は true</returns>
-        private bool TryGetBinding(string key, out AnimationGraphTargetBinding binding) {
+        private bool TryGetBinding(string key, out TargetBinding binding) {
             var bindingIndex = FindBindingIndex(key);
             if (bindingIndex >= 0) {
                 binding = _bindings[bindingIndex];
@@ -108,7 +108,7 @@ namespace UnityAnimationGraph {
                 return -1;
             }
 
-            var bindings = _bindings ?? Array.Empty<AnimationGraphTargetBinding>();
+            var bindings = _bindings ?? Array.Empty<TargetBinding>();
             for (var i = 0; i < bindings.Length; i++) {
                 if (bindings[i].Key == key) {
                     return i;
