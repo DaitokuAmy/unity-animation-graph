@@ -218,6 +218,15 @@ namespace UnityAnimationGraph.Editor {
         /// </summary>
         /// <param name="nodeModels">選択する NodeEditorModel 一覧</param>
         public void SelectNodeModels(IReadOnlyList<NodeEditorModel> nodeModels) {
+            SelectGraphElementModels(nodeModels, Array.Empty<SignalEditorModel>());
+        }
+
+        /// <summary>
+        /// 指定した NodeEditorModel と SignalEditorModel を選択
+        /// </summary>
+        /// <param name="nodeModels">選択する NodeEditorModel 一覧</param>
+        /// <param name="signalModels">選択する SignalEditorModel 一覧</param>
+        public void SelectGraphElementModels(IReadOnlyList<NodeEditorModel> nodeModels, IReadOnlyList<SignalEditorModel> signalModels) {
             ClearSelection();
             for (var i = 0; i < nodeModels.Count; i++) {
                 if (!_nodeViewsById.TryGetValue(nodeModels[i].NodeId, out var nodeView)) {
@@ -225,6 +234,14 @@ namespace UnityAnimationGraph.Editor {
                 }
 
                 AddToSelection(nodeView);
+            }
+
+            for (var i = 0; i < signalModels.Count; i++) {
+                if (!_signalViewsById.TryGetValue(signalModels[i].SignalId, out var signalView)) {
+                    continue;
+                }
+
+                AddToSelection(signalView);
             }
 
             SelectionChanged?.Invoke();
@@ -239,6 +256,15 @@ namespace UnityAnimationGraph.Editor {
             }
 
             RefreshValidationState();
+        }
+
+        /// <summary>
+        /// Preview 中の Node 実行状態表示を更新
+        /// </summary>
+        public void RefreshPreviewExecutionState() {
+            foreach (var nodeView in _nodeViewsById.Values) {
+                nodeView.RefreshPreviewExecutionState();
+            }
         }
 
         /// <summary>

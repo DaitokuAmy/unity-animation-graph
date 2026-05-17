@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 
 namespace UnityAnimationGraph {
@@ -11,12 +12,20 @@ namespace UnityAnimationGraph {
         [SerializeField, Tooltip("Tween を適用する Transform 空間")]
         private Space _space = Space.Self;
 
-        /// <summary>Position Tween 設定</summary>
-        public Vector3Tween Tween => _tween;
-        /// <summary>Tween を適用する Transform 空間</summary>
-        public Space TransformSpace => _space;
         /// <inheritdoc/>
         protected override Vector3Tween TweenSettings => _tween;
+
+        /// <inheritdoc/>
+        protected override IEnumerable<string> GetPreviewProperties(Transform target) {
+            yield return "m_LocalPosition.x";
+            yield return "m_LocalPosition.y";
+            yield return "m_LocalPosition.z";
+        }
+
+        /// <inheritdoc/>
+        protected override Vector3 GetBaseValue(Transform target) {
+            return _space == Space.World ? target.position : target.localPosition;
+        }
 
         /// <inheritdoc/>
         protected override void ApplyValue(Transform target, Vector3 value) {

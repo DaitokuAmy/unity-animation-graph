@@ -292,7 +292,7 @@ namespace UnityAnimationGraph.Editor {
         }
 
         private static Label CreateFooter() {
-            var footerLabel = new Label("Ctrl+C Copy  Ctrl+V Paste  Ctrl+D Duplicate  Delete Remove  Drag Move");
+            var footerLabel = new Label();
             footerLabel.style.flexShrink = 0.0f;
             footerLabel.style.height = 22.0f;
             footerLabel.style.paddingLeft = 8.0f;

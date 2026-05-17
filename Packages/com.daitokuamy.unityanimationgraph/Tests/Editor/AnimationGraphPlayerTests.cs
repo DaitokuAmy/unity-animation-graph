@@ -270,6 +270,74 @@ namespace UnityAnimationGraph.Tests {
         }
 
         /// <summary>
+        /// Signal 発火時に購読 callback を呼び出す
+        /// </summary>
+        [Test]
+        public void Tick_NotifiesSignalSubscribers() {
+            using var builder = new AnimationGraphTestBuilder();
+            var startNode = builder.CreateStartNode("start", "action");
+            var actionNode = builder.CreateActionNode("action", 1.0f);
+            var enterSignal = builder.CreateSignal("enter");
+            builder.SetEnterSignals(actionNode, enterSignal);
+            var graphAsset = builder.CreateGraph("start", startNode, actionNode);
+            var player = CreatePlayer(graphAsset);
+            var receivedSignals = new List<TestSignal>();
+            player.SubscribeSignal<TestSignal>(receivedSignals.Add);
+
+            player.Play();
+            player.Tick(0.5f);
+
+            Assert.That(receivedSignals.Count, Is.EqualTo(1));
+            Assert.That(receivedSignals[0], Is.SameAs(enterSignal));
+        }
+
+        /// <summary>
+        /// ClearSignalSubscriptions は Signal 発火通知の購読を解除する
+        /// </summary>
+        [Test]
+        public void ClearSignalSubscriptions_RemovesSignalSubscribers() {
+            using var builder = new AnimationGraphTestBuilder();
+            var startNode = builder.CreateStartNode("start", "action");
+            var actionNode = builder.CreateActionNode("action", 1.0f);
+            var enterSignal = builder.CreateSignal("enter");
+            builder.SetEnterSignals(actionNode, enterSignal);
+            var graphAsset = builder.CreateGraph("start", startNode, actionNode);
+            var player = CreatePlayer(graphAsset);
+            var receivedSignals = new List<TestSignal>();
+            player.SubscribeSignal<TestSignal>(receivedSignals.Add);
+            player.ClearSignalSubscriptions();
+
+            player.Play();
+            player.Tick(0.5f);
+
+            Assert.That(receivedSignals, Is.Empty);
+        }
+
+        /// <summary>
+        /// Seek は Signal を通知しない
+        /// </summary>
+        [Test]
+        public void Seek_DoesNotDispatchSignalsOrNotifySubscribers() {
+            using var builder = new AnimationGraphTestBuilder();
+            var startNode = builder.CreateStartNode("start", "action");
+            var actionNode = builder.CreateActionNode("action", 1.0f);
+            var enterSignal = builder.CreateSignal("enter");
+            var exitSignal = builder.CreateSignal("exit");
+            builder.SetEnterSignals(actionNode, enterSignal);
+            builder.SetExitSignals(actionNode, exitSignal);
+            var graphAsset = builder.CreateGraph("start", startNode, actionNode);
+            var player = CreatePlayer(graphAsset);
+            var receivedSignals = new List<TestSignal>();
+            player.SubscribeSignal<TestSignal>(receivedSignals.Add);
+
+            player.Seek(1.0f);
+
+            Assert.That(enterSignal.DispatchCount, Is.EqualTo(0));
+            Assert.That(exitSignal.DispatchCount, Is.EqualTo(0));
+            Assert.That(receivedSignals, Is.Empty);
+        }
+
+        /// <summary>
         /// Stop は直前に active だった non-zero duration node だけをキャンセルする
         /// </summary>
         [Test]

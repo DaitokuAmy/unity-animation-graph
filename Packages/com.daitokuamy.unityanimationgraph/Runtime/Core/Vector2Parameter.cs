@@ -13,6 +13,8 @@ namespace UnityAnimationGraph {
         private string _blackboardKey;
         [SerializeField, Tooltip("Vector2 型の直値")]
         private Vector2 _value;
+        [SerializeField, Tooltip("基準値からの相対値として扱う場合は有効")]
+        private bool _relative;
 
         /// <summary>値の解決元</summary>
         public ParameterSource Source => _source;
@@ -20,26 +22,32 @@ namespace UnityAnimationGraph {
         public string BlackboardKey => _blackboardKey ?? string.Empty;
         /// <summary>Vector2 型の直値</summary>
         public Vector2 Value => _value;
+        /// <summary>基準値からの相対値として扱う場合は true</summary>
+        public bool Relative => _relative;
 
         /// <summary>
         /// Vector2 直値を持つ Vector2Parameter を生成
         /// </summary>
         /// <param name="value">直値</param>
-        public Vector2Parameter(Vector2 value) {
+        /// <param name="relative">基準値からの相対値として扱う場合は true</param>
+        public Vector2Parameter(Vector2 value, bool relative = false) {
             _source = ParameterSource.Value;
             _blackboardKey = string.Empty;
             _value = value;
+            _relative = relative;
         }
 
         /// <summary>
         /// Vector2 Blackboard 値を参照する Vector2Parameter を生成
         /// </summary>
         /// <param name="blackboardKey">Blackboard key</param>
+        /// <param name="relative">基準値からの相対値として扱う場合は true</param>
         /// <returns>生成した Vector2Parameter</returns>
-        public static Vector2Parameter Blackboard(string blackboardKey) {
+        public static Vector2Parameter Blackboard(string blackboardKey, bool relative = false) {
             return new Vector2Parameter(default) {
                 _source = ParameterSource.Blackboard,
                 _blackboardKey = blackboardKey ?? string.Empty,
+                _relative = relative,
             };
         }
 
@@ -60,6 +68,25 @@ namespace UnityAnimationGraph {
             }
 
             value = _value;
+            return true;
+        }
+
+        /// <summary>
+        /// Vector2 値の取得を試行し、相対値の場合は基準値を加算
+        /// </summary>
+        /// <param name="blackboard">Blackboard 値の取得元</param>
+        /// <param name="baseValue">相対値の基準値</param>
+        /// <param name="value">取得した値</param>
+        /// <returns>取得できた場合は true</returns>
+        public bool TryGetValue(IAnimationGraphBlackboard blackboard, Vector2 baseValue, out Vector2 value) {
+            if (!TryGetValue(blackboard, out value)) {
+                return false;
+            }
+
+            if (_relative) {
+                value += baseValue;
+            }
+
             return true;
         }
     }

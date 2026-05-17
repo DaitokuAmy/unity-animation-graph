@@ -11,9 +11,9 @@ namespace UnityAnimationGraph {
         private string[] _falseNodeIds = Array.Empty<string>();
 
         /// <summary>true の場合に進むノード ID 一覧</summary>
-        public IReadOnlyList<string> TrueNodeIds => NextNodeIds;
+        internal IReadOnlyList<string> TrueNodeIds => NextNodeIds;
         /// <summary>false の場合に進むノード ID 一覧</summary>
-        public IReadOnlyList<string> FalseNodeIds => _falseNodeIds ?? Array.Empty<string>();
+        internal IReadOnlyList<string> FalseNodeIds => _falseNodeIds ?? Array.Empty<string>();
 
         /// <summary>
         /// true 側へ進む場合は true を返す
@@ -21,7 +21,7 @@ namespace UnityAnimationGraph {
         /// <param name="seed">評価に使用するシード</param>
         /// <param name="context">評価コンテキスト</param>
         /// <returns>true 側へ進む場合は true</returns>
-        public bool EvaluateCondition(int seed, IAnimationGraphContext context) {
+        internal bool EvaluateCondition(int seed, IAnimationGraphContext context) {
             return EvaluateConditionInternal(seed, context);
         }
 

@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 
 namespace UnityAnimationGraph {
@@ -9,10 +10,18 @@ namespace UnityAnimationGraph {
         [SerializeField, Tooltip("Alpha Tween 設定")]
         private FloatTween _tween = new(1.0f, 0.0f);
 
-        /// <summary>Alpha Tween 設定</summary>
-        public FloatTween Tween => _tween;
         /// <inheritdoc/>
         protected override FloatTween TweenSettings => _tween;
+
+        /// <inheritdoc/>
+        protected override IEnumerable<string> GetPreviewProperties(CanvasGroup target) {
+            yield return "m_Alpha";
+        }
+
+        /// <inheritdoc/>
+        protected override float GetBaseValue(CanvasGroup target) {
+            return target.alpha;
+        }
 
         /// <inheritdoc/>
         protected override void ApplyValue(CanvasGroup target, float value) {

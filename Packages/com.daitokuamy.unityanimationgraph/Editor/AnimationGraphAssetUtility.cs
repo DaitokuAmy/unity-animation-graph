@@ -14,10 +14,18 @@ namespace UnityAnimationGraph.Editor {
         private const string GraphPositionPropertyName = "_graphPosition";
         /// <summary>Node の後続ノード ID フィールド名</summary>
         private const string NextNodeIdsPropertyName = "_nextNodeIds";
-        /// <summary>Node の Enter シグナル Port 表示フラグフィールド名</summary>
-        private const string EnableEnterSignalPortPropertyName = "_enableEnterSignalPort";
-        /// <summary>Node の Exit シグナル Port 表示フラグフィールド名</summary>
-        private const string EnableExitSignalPortPropertyName = "_enableExitSignalPort";
+        /// <summary>Node の Signal Port 設定フィールド名</summary>
+        private const string SignalPortsPropertyName = "_signalPorts";
+        /// <summary>NodeSignalPortSettings の Enter シグナル Port 表示フラグフィールド名</summary>
+        private const string SignalPortsEnterEnabledPropertyName = "_enterEnabled";
+        /// <summary>NodeSignalPortSettings の Exit シグナル Port 表示フラグフィールド名</summary>
+        private const string SignalPortsExitEnabledPropertyName = "_exitEnabled";
+        /// <summary>Node の Signal Port 設定バージョンフィールド名</summary>
+        private const string SignalPortSettingsVersionPropertyName = "_signalPortSettingsVersion";
+        /// <summary>旧 Node の Enter シグナル Port 表示フラグフィールド名</summary>
+        private const string LegacyEnableEnterSignalPortPropertyName = "_enableEnterSignalPort";
+        /// <summary>旧 Node の Exit シグナル Port 表示フラグフィールド名</summary>
+        private const string LegacyEnableExitSignalPortPropertyName = "_enableExitSignalPort";
         /// <summary>Node の Enter シグナルフィールド名</summary>
         private const string EnterSignalsPropertyName = "_enterSignals";
         /// <summary>Node の Exit シグナルフィールド名</summary>
@@ -168,10 +176,7 @@ namespace UnityAnimationGraph.Editor {
             EditorUtility.SetDirty(node);
             EditorUtility.SetDirty(graphAsset);
 
-            var assetPath = AssetDatabase.GetAssetPath(graphAsset);
-            if (!string.IsNullOrEmpty(assetPath)) {
-                AssetDatabase.ImportAsset(assetPath);
-            }
+            SaveGraphAssetIfDirty(graphAsset);
 
             return node;
         }
@@ -215,10 +220,7 @@ namespace UnityAnimationGraph.Editor {
             EditorUtility.SetDirty(node);
             EditorUtility.SetDirty(graphAsset);
 
-            var assetPath = AssetDatabase.GetAssetPath(graphAsset);
-            if (!string.IsNullOrEmpty(assetPath)) {
-                AssetDatabase.ImportAsset(assetPath);
-            }
+            SaveGraphAssetIfDirty(graphAsset);
 
             return node;
         }
@@ -295,7 +297,7 @@ namespace UnityAnimationGraph.Editor {
         /// <param name="node">設定対象の Node</param>
         /// <param name="enabled">表示する場合は true</param>
         public static void SetNodeEnterSignalPortEnabled(Node node, bool enabled) {
-            SetNodeSignalPortEnabled(node, EnableEnterSignalPortPropertyName, enabled, "Set Animation Graph Enter Signal Port");
+            SetNodeSignalPortEnabled(node, SignalPortsEnterEnabledPropertyName, EnterSignalsPropertyName, enabled, "Set Animation Graph Enter Signal Port");
         }
 
         /// <summary>
@@ -304,7 +306,7 @@ namespace UnityAnimationGraph.Editor {
         /// <param name="node">設定対象の Node</param>
         /// <param name="enabled">表示する場合は true</param>
         public static void SetNodeExitSignalPortEnabled(Node node, bool enabled) {
-            SetNodeSignalPortEnabled(node, EnableExitSignalPortPropertyName, enabled, "Set Animation Graph Exit Signal Port");
+            SetNodeSignalPortEnabled(node, SignalPortsExitEnabledPropertyName, ExitSignalsPropertyName, enabled, "Set Animation Graph Exit Signal Port");
         }
 
         /// <summary>
@@ -380,10 +382,45 @@ namespace UnityAnimationGraph.Editor {
             EditorUtility.SetDirty(signal);
             EditorUtility.SetDirty(graphAsset);
 
-            var assetPath = AssetDatabase.GetAssetPath(graphAsset);
-            if (!string.IsNullOrEmpty(assetPath)) {
-                AssetDatabase.ImportAsset(assetPath);
+            SaveGraphAssetIfDirty(graphAsset);
+
+            return signal;
+        }
+
+        /// <summary>
+        /// AnimationGraphAsset に Signal を複製して追加
+        /// </summary>
+        /// <param name="graphAsset">追加先の AnimationGraphAsset</param>
+        /// <param name="sourceSignal">複製元の Signal</param>
+        /// <param name="graphPosition">エディタ上の Signal 位置</param>
+        /// <returns>複製した Signal</returns>
+        public static Signal DuplicateSignal(AnimationGraphAsset graphAsset, Signal sourceSignal, Vector2 graphPosition) {
+            if (graphAsset == null) {
+                throw new ArgumentNullException(nameof(graphAsset));
             }
+
+            if (sourceSignal == null) {
+                throw new ArgumentNullException(nameof(sourceSignal));
+            }
+
+            var signalType = sourceSignal.GetType();
+            var signal = (Signal)ScriptableObject.CreateInstance(signalType);
+            signal.name = sourceSignal.name;
+
+            var undoName = $"Duplicate {signalType.Name}";
+            Undo.RegisterCreatedObjectUndo(signal, undoName);
+            Undo.RecordObject(graphAsset, undoName);
+
+            EditorJsonUtility.FromJsonOverwrite(EditorJsonUtility.ToJson(sourceSignal), signal);
+            signal.name = sourceSignal.name;
+
+            SetupSignal(signal, GenerateSignalId(graphAsset), graphPosition);
+            AssetDatabase.AddObjectToAsset(signal, graphAsset);
+
+            EditorUtility.SetDirty(signal);
+            EditorUtility.SetDirty(graphAsset);
+
+            SaveGraphAssetIfDirty(graphAsset);
 
             return signal;
         }
@@ -472,10 +509,7 @@ namespace UnityAnimationGraph.Editor {
             Undo.DestroyObjectImmediate(signal);
             EditorUtility.SetDirty(graphAsset);
 
-            var assetPath = AssetDatabase.GetAssetPath(graphAsset);
-            if (!string.IsNullOrEmpty(assetPath)) {
-                AssetDatabase.ImportAsset(assetPath);
-            }
+            SaveGraphAssetIfDirty(graphAsset);
         }
 
         /// <summary>
@@ -759,10 +793,7 @@ namespace UnityAnimationGraph.Editor {
             Undo.DestroyObjectImmediate(node);
             EditorUtility.SetDirty(graphAsset);
 
-            var assetPath = AssetDatabase.GetAssetPath(graphAsset);
-            if (!string.IsNullOrEmpty(assetPath)) {
-                AssetDatabase.ImportAsset(assetPath);
-            }
+            SaveGraphAssetIfDirty(graphAsset);
         }
 
         /// <summary>
@@ -951,6 +982,19 @@ namespace UnityAnimationGraph.Editor {
         }
 
         /// <summary>
+        /// AnimationGraphAsset の dirty 状態を保存
+        /// </summary>
+        /// <param name="graphAsset">保存対象の AnimationGraphAsset</param>
+        private static void SaveGraphAssetIfDirty(AnimationGraphAsset graphAsset) {
+            var assetPath = AssetDatabase.GetAssetPath(graphAsset);
+            if (string.IsNullOrEmpty(assetPath)) {
+                return;
+            }
+
+            AssetDatabase.SaveAssetIfDirty(graphAsset);
+        }
+
+        /// <summary>
         /// AnimationGraphAsset にノード参照を追加
         /// </summary>
         /// <param name="graphAsset">追加先の AnimationGraphAsset</param>
@@ -969,9 +1013,10 @@ namespace UnityAnimationGraph.Editor {
         /// </summary>
         /// <param name="node">設定対象の Node</param>
         /// <param name="propertyName">設定対象フィールド名</param>
+        /// <param name="signalsPropertyName">無効化時に解除する Signal 配列フィールド名</param>
         /// <param name="enabled">表示する場合は true</param>
         /// <param name="undoName">Undo 名</param>
-        private static void SetNodeSignalPortEnabled(Node node, string propertyName, bool enabled, string undoName) {
+        private static void SetNodeSignalPortEnabled(Node node, string propertyName, string signalsPropertyName, bool enabled, string undoName) {
             if (node == null) {
                 throw new ArgumentNullException(nameof(node));
             }
@@ -979,9 +1024,58 @@ namespace UnityAnimationGraph.Editor {
             Undo.RecordObject(node, undoName);
 
             var serializedNode = new SerializedObject(node);
-            serializedNode.FindProperty(propertyName).boolValue = enabled;
+            MigrateNodeSignalPortSettings(serializedNode);
+            var signalPortsProperty = serializedNode.FindProperty(SignalPortsPropertyName);
+            signalPortsProperty.FindPropertyRelative(propertyName).boolValue = enabled;
+            if (!enabled) {
+                ClearNodeSignalReferences(serializedNode, signalsPropertyName);
+            }
+
+            ClearLegacyNodeSignalPortSettings(serializedNode);
+            serializedNode.FindProperty(SignalPortSettingsVersionPropertyName).intValue = 1;
             serializedNode.ApplyModifiedProperties();
             EditorUtility.SetDirty(node);
+        }
+
+        private static void MigrateNodeSignalPortSettings(SerializedObject serializedNode) {
+            var versionProperty = serializedNode.FindProperty(SignalPortSettingsVersionPropertyName);
+            if (versionProperty == null) {
+                return;
+            }
+
+            var legacyEnterProperty = serializedNode.FindProperty(LegacyEnableEnterSignalPortPropertyName);
+            var legacyExitProperty = serializedNode.FindProperty(LegacyEnableExitSignalPortPropertyName);
+            if (versionProperty.intValue != 0 && legacyEnterProperty?.boolValue != true && legacyExitProperty?.boolValue != true) {
+                return;
+            }
+
+            var signalPortsProperty = serializedNode.FindProperty(SignalPortsPropertyName);
+            var enterProperty = signalPortsProperty.FindPropertyRelative(SignalPortsEnterEnabledPropertyName);
+            var exitProperty = signalPortsProperty.FindPropertyRelative(SignalPortsExitEnabledPropertyName);
+            enterProperty.boolValue |= legacyEnterProperty?.boolValue == true;
+            exitProperty.boolValue |= legacyExitProperty?.boolValue == true;
+            versionProperty.intValue = 1;
+        }
+
+        private static void ClearLegacyNodeSignalPortSettings(SerializedObject serializedNode) {
+            var legacyEnterProperty = serializedNode.FindProperty(LegacyEnableEnterSignalPortPropertyName);
+            var legacyExitProperty = serializedNode.FindProperty(LegacyEnableExitSignalPortPropertyName);
+            if (legacyEnterProperty != null) {
+                legacyEnterProperty.boolValue = false;
+            }
+
+            if (legacyExitProperty != null) {
+                legacyExitProperty.boolValue = false;
+            }
+        }
+
+        private static void ClearNodeSignalReferences(SerializedObject serializedNode, string signalsPropertyName) {
+            var signalsProperty = serializedNode.FindProperty(signalsPropertyName);
+            if (signalsProperty == null) {
+                return;
+            }
+
+            signalsProperty.arraySize = 0;
         }
 
         /// <summary>
@@ -1023,10 +1117,7 @@ namespace UnityAnimationGraph.Editor {
             EditorUtility.SetDirty(node);
             EditorUtility.SetDirty(graphAsset);
 
-            var assetPath = AssetDatabase.GetAssetPath(graphAsset);
-            if (!string.IsNullOrEmpty(assetPath)) {
-                AssetDatabase.ImportAsset(assetPath);
-            }
+            SaveGraphAssetIfDirty(graphAsset);
 
             return signal;
         }

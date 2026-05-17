@@ -11,15 +11,46 @@ namespace UnityAnimationGraph.Editor {
     /// Target と Blackboard の定義を表示する View
     /// </summary>
     internal sealed class AnimationGraphSchemaView : VisualElement, IDisposable {
+        private const string GraphSeedPropertyName = "_graphSeed";
+        private const string RandomSeedPropertyName = "_randomSeed";
+        private const string TargetDefinitionsPropertyName = "_targetDefinitions";
+        private const string BlackboardDefinitionsPropertyName = "_blackboardDefinitions";
+        private const string KeyPropertyName = "_key";
+        private const string MonoScriptGuidPropertyName = "_monoScriptGuid";
+        private const string ValueTypePropertyName = "_valueType";
+        private const string DefaultBoolValuePropertyName = "_defaultBoolValue";
+        private const string DefaultIntValuePropertyName = "_defaultIntValue";
+        private const string DefaultFloatValuePropertyName = "_defaultFloatValue";
+        private const string DefaultStringValuePropertyName = "_defaultStringValue";
+        private const string DefaultVector2ValuePropertyName = "_defaultVector2Value";
+        private const string DefaultVector3ValuePropertyName = "_defaultVector3Value";
+        private const string DefaultColorValuePropertyName = "_defaultColorValue";
+        private const string DefaultVector4ValuePropertyName = "_defaultVector4Value";
+        private const float ElementTopPadding = 2.0f;
+        private const float ElementVerticalSpacing = 2.0f;
+        private const float ElementBottomPadding = 6.0f;
+        private const float TargetElementSpacing = 4.0f;
+        private const float TargetComponentWidth = 170.0f;
+        private const float BlackboardValueLabelWidth = 48.0f;
+        private const float RandomSeedButtonWidth = 96.0f;
+
+        /// <summary>
+        /// Target component 選択用 SearchWindow provider
+        /// </summary>
         private sealed class TargetComponentSearchProvider : ScriptableObject, ISearchWindowProvider {
             private Action<string> _selected;
             private IReadOnlyList<AnimationGraphTargetComponentOption> _options;
 
+            /// <summary>
+            /// 選択コールバックと表示候補を初期化
+            /// </summary>
+            /// <param name="selected">選択時に呼び出すコールバック</param>
             public void Initialize(Action<string> selected) {
                 _selected = selected;
                 _options = AnimationGraphTargetScriptUtility.GetComponentOptions();
             }
 
+            /// <inheritdoc/>
             public List<SearchTreeEntry> CreateSearchTree(SearchWindowContext context) {
                 var entries = new List<SearchTreeEntry> {
                     new SearchTreeGroupEntry(new GUIContent("Target Component"), 0),
@@ -34,6 +65,7 @@ namespace UnityAnimationGraph.Editor {
                 return entries;
             }
 
+            /// <inheritdoc/>
             public bool OnSelectEntry(SearchTreeEntry searchTreeEntry, SearchWindowContext context) {
                 _selected?.Invoke(searchTreeEntry.userData as string ?? string.Empty);
                 return true;
@@ -65,28 +97,6 @@ namespace UnityAnimationGraph.Editor {
                 entries.Add(entry);
             }
         }
-
-        private const string GraphSeedPropertyName = "_graphSeed";
-        private const string RandomSeedPropertyName = "_randomSeed";
-        private const string TargetDefinitionsPropertyName = "_targetDefinitions";
-        private const string BlackboardDefinitionsPropertyName = "_blackboardDefinitions";
-        private const string KeyPropertyName = "_key";
-        private const string MonoScriptGuidPropertyName = "_monoScriptGuid";
-        private const string ValueTypePropertyName = "_valueType";
-        private const string DefaultBoolValuePropertyName = "_defaultBoolValue";
-        private const string DefaultIntValuePropertyName = "_defaultIntValue";
-        private const string DefaultFloatValuePropertyName = "_defaultFloatValue";
-        private const string DefaultStringValuePropertyName = "_defaultStringValue";
-        private const string DefaultVector2ValuePropertyName = "_defaultVector2Value";
-        private const string DefaultVector3ValuePropertyName = "_defaultVector3Value";
-        private const string DefaultColorValuePropertyName = "_defaultColorValue";
-        private const float ElementTopPadding = 2.0f;
-        private const float ElementVerticalSpacing = 2.0f;
-        private const float ElementBottomPadding = 6.0f;
-        private const float TargetElementSpacing = 4.0f;
-        private const float TargetComponentWidth = 170.0f;
-        private const float BlackboardValueLabelWidth = 48.0f;
-        private const float RandomSeedButtonWidth = 96.0f;
 
         private readonly IMGUIContainer _container;
 
@@ -196,7 +206,7 @@ namespace UnityAnimationGraph.Editor {
             }
 
             var propertyHeight = EditorGUI.GetPropertyHeight(elementProperty.FindPropertyRelative(valuePropertyName), new GUIContent("Default"), true);
-            var fallbackHeight = valueType is AnimationGraphValueType.Vector2 or AnimationGraphValueType.Vector3
+            var fallbackHeight = valueType is AnimationGraphValueType.Vector2 or AnimationGraphValueType.Vector3 or AnimationGraphValueType.Vector4
                 ? EditorGUIUtility.singleLineHeight * 2.0f + ElementVerticalSpacing
                 : EditorGUIUtility.singleLineHeight;
             return Mathf.Max(propertyHeight, fallbackHeight);
@@ -211,6 +221,7 @@ namespace UnityAnimationGraph.Editor {
                 AnimationGraphValueType.Vector2 => DefaultVector2ValuePropertyName,
                 AnimationGraphValueType.Vector3 => DefaultVector3ValuePropertyName,
                 AnimationGraphValueType.Color => DefaultColorValuePropertyName,
+                AnimationGraphValueType.Vector4 => DefaultVector4ValuePropertyName,
                 _ => string.Empty,
             };
         }
@@ -282,6 +293,7 @@ namespace UnityAnimationGraph.Editor {
             elementProperty.FindPropertyRelative(DefaultVector2ValuePropertyName).vector2Value = Vector2.zero;
             elementProperty.FindPropertyRelative(DefaultVector3ValuePropertyName).vector3Value = Vector3.zero;
             elementProperty.FindPropertyRelative(DefaultColorValuePropertyName).colorValue = default;
+            elementProperty.FindPropertyRelative(DefaultVector4ValuePropertyName).vector4Value = Vector4.zero;
         }
 
         private static void DrawSeedField(SerializedProperty randomSeedProperty, SerializedProperty seedProperty) {

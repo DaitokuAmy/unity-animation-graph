@@ -1,3 +1,6 @@
+using System.Collections.Generic;
+using UnityEngine;
+
 namespace UnityAnimationGraph {
     /// <summary>
     /// Animation Graph ノードの時間計算と評価を行うインターフェース
@@ -18,6 +21,13 @@ namespace UnityAnimationGraph {
         /// <param name="context">評価コンテキスト</param>
         /// <returns>ノードの開始遅延</returns>
         float CalculateDelay(int seed, IAnimationGraphContext context);
+
+        /// <summary>
+        /// Preview 再生時に AnimationMode へ登録するプロパティを取得
+        /// </summary>
+        /// <param name="context">評価コンテキスト</param>
+        /// <returns>登録対象の Component と SerializedProperty path の一覧</returns>
+        IEnumerable<(Component Component, string PropertyPath)> GetPreviewProperties(IAnimationGraphContext context);
 
         /// <summary>
         /// ノード開始時の処理を行う

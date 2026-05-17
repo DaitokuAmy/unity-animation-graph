@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 
 namespace UnityAnimationGraph {
@@ -9,10 +10,18 @@ namespace UnityAnimationGraph {
         [SerializeField, Tooltip("Volume Tween 設定")]
         private FloatTween _tween = new(0.0f, 1.0f);
 
-        /// <summary>Volume Tween 設定</summary>
-        public FloatTween Tween => _tween;
         /// <inheritdoc/>
         protected override FloatTween TweenSettings => _tween;
+
+        /// <inheritdoc/>
+        protected override IEnumerable<string> GetPreviewProperties(AudioSource target) {
+            yield return "m_Volume";
+        }
+
+        /// <inheritdoc/>
+        protected override float GetBaseValue(AudioSource target) {
+            return target.volume;
+        }
 
         /// <inheritdoc/>
         protected override void ApplyValue(AudioSource target, float value) {

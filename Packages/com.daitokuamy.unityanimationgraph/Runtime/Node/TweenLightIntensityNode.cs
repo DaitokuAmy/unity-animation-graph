@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 
 namespace UnityAnimationGraph {
@@ -9,10 +10,18 @@ namespace UnityAnimationGraph {
         [SerializeField, Tooltip("Intensity Tween 設定")]
         private FloatTween _tween = new(0.0f, 1.0f);
 
-        /// <summary>Intensity Tween 設定</summary>
-        public FloatTween Tween => _tween;
         /// <inheritdoc/>
         protected override FloatTween TweenSettings => _tween;
+
+        /// <inheritdoc/>
+        protected override IEnumerable<string> GetPreviewProperties(Light target) {
+            yield return "m_Intensity";
+        }
+
+        /// <inheritdoc/>
+        protected override float GetBaseValue(Light target) {
+            return target.intensity;
+        }
 
         /// <inheritdoc/>
         protected override void ApplyValue(Light target, float value) {

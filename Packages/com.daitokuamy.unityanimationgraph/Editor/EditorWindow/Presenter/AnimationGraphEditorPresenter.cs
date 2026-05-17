@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using UnityEditor;
 using UnityEditor.UIElements;
 using UnityEngine;
@@ -10,18 +11,56 @@ namespace UnityAnimationGraph.Editor {
     /// Animation Graph EditorWindow の View と Model を仲介するクラス
     /// </summary>
     internal sealed class AnimationGraphEditorPresenter : IDisposable {
+        /// <summary>
+        /// 複製した要素をずらす距離
+        /// </summary>
         private static readonly Vector2 DuplicateOffset = new(30.0f, 30.0f);
+
+        /// <summary>
+        /// StartNode の初期表示位置
+        /// </summary>
         private static readonly Vector2 DefaultStartNodePosition = new(80.0f, 80.0f);
+
+        /// <summary>
+        /// Footer に表示するエラーメッセージ色
+        /// </summary>
+        private static readonly Color FooterErrorColor = new(1.0f, 0.32f, 0.28f);
+
+        /// <summary>
+        /// Editor Preview の AnimationMode 所有状態を保存する SessionState key
+        /// </summary>
         private const string PreviewAnimationModeSessionStateKey = "UnityAnimationGraph.Editor.AnimationGraphEditorPresenter.OwnsAnimationMode";
+
+        /// <summary>
+        /// Preview 再生ボタンに表示する icon 名
+        /// </summary>
         private const string PreviewPlayIconName = "PlayButton";
+
+        /// <summary>
+        /// Preview 一時停止ボタンに表示する icon 名
+        /// </summary>
         private const string PreviewPauseIconName = "PauseButton";
+
+        /// <summary>
+        /// Preview 停止ボタンに表示する icon 名
+        /// </summary>
         private const string PreviewStopIconName = "PreMatQuad";
+
+        /// <summary>
+        /// Preview 操作ボタンの icon size
+        /// </summary>
         private const float PreviewButtonIconSize = 16.0f;
+
+        /// <summary>
+        /// Preview 時刻比較に使用する許容誤差
+        /// </summary>
         private const float PreviewTimeEpsilon = 0.0001f;
 
         private readonly AnimationGraphAssetEditorModel _assetModel = new();
         private readonly List<NodeEditorModel> _copiedNodeModels = new();
+        private readonly List<SignalEditorModel> _copiedSignalModels = new();
         private readonly List<string> _inspectedNodeIds = new();
+        private readonly List<string> _inspectedSignalIds = new();
 
         private ObjectField _graphAssetField;
         private ObjectField _previewSourceField;
@@ -35,6 +74,7 @@ namespace UnityAnimationGraph.Editor {
         private AnimationGraphView _graphView;
         private AnimationGraphInspectorView _inspectorView;
         private Label _footerLabel;
+        private StyleColor _footerDefaultColor;
         private AnimationGraphRunner _previewRunner;
         private AnimationGraphSchedule _previewSchedule;
         private AnimationGraphPlayerState _previewState;
@@ -90,6 +130,7 @@ namespace UnityAnimationGraph.Editor {
             _graphView = graphView ?? throw new ArgumentNullException(nameof(graphView));
             _inspectorView = inspectorView ?? throw new ArgumentNullException(nameof(inspectorView));
             _footerLabel = footerLabel ?? throw new ArgumentNullException(nameof(footerLabel));
+            _footerDefaultColor = _footerLabel.style.color;
 
             _graphAssetField.RegisterValueChangedCallback(OnGraphAssetChanged);
             _previewPlayButton.clicked += ToggleEditorPreviewPlayback;
@@ -105,7 +146,7 @@ namespace UnityAnimationGraph.Editor {
             _graphView.SignalCreateRequested += AddSignal;
             _graphView.SelectionChanged += UpdateInspectorSelection;
             _graphView.CopyRequested += CopySelection;
-            _graphView.PasteRequested += PasteCopiedNodes;
+            _graphView.PasteRequested += PasteCopiedElements;
             _graphView.DuplicateRequested += DuplicateSelection;
             _graphView.DeleteRequested += DeleteSelection;
             _graphView.ActionTargetKeyChanged += SetActionTargetKey;
@@ -161,7 +202,7 @@ namespace UnityAnimationGraph.Editor {
                 _graphView.SignalCreateRequested -= AddSignal;
                 _graphView.SelectionChanged -= UpdateInspectorSelection;
                 _graphView.CopyRequested -= CopySelection;
-                _graphView.PasteRequested -= PasteCopiedNodes;
+                _graphView.PasteRequested -= PasteCopiedElements;
                 _graphView.DuplicateRequested -= DuplicateSelection;
                 _graphView.DeleteRequested -= DeleteSelection;
                 _graphView.ActionTargetKeyChanged -= SetActionTargetKey;
@@ -189,10 +230,18 @@ namespace UnityAnimationGraph.Editor {
             DestroyPreviewAnimationModeDriver();
         }
 
+        /// <summary>
+        /// GraphAsset field の変更を Model と View に反映
+        /// </summary>
+        /// <param name="evt">GraphAsset field の変更イベント</param>
         private void OnGraphAssetChanged(ChangeEvent<UnityEngine.Object> evt) {
             SetGraphAsset((AnimationGraphAsset)evt.newValue);
         }
 
+        /// <summary>
+        /// 編集対象 GraphAsset を設定し、表示状態を更新
+        /// </summary>
+        /// <param name="graphAsset">編集対象 GraphAsset</param>
         private void SetGraphAsset(AnimationGraphAsset graphAsset) {
             StopEditorPreview(null);
             _assetModel.SetGraphAsset(graphAsset);
@@ -201,7 +250,7 @@ namespace UnityAnimationGraph.Editor {
                     _assetModel.InitializeGraph(DefaultStartNodePosition);
                 }
                 catch (Exception exception) {
-                    SetFooterMessage(exception.Message);
+                    SetFooterMessage(exception.Message, true);
                 }
             }
 
@@ -220,9 +269,14 @@ namespace UnityAnimationGraph.Editor {
             SetFooterMessage(_assetModel.HasStartNode ? graphAsset.name : "Graph is not initialized");
         }
 
+        /// <summary>
+        /// 指定 type の Node を Graph に追加
+        /// </summary>
+        /// <param name="nodeType">追加する Node type</param>
+        /// <param name="graphPosition">Graph 上の追加位置</param>
         private void AddNode(Type nodeType, Vector2 graphPosition) {
             if (!_assetModel.HasGraphAsset) {
-                SetFooterMessage("GraphAsset is not selected");
+                SetFooterMessage("GraphAsset is not selected", true);
                 return;
             }
 
@@ -235,14 +289,29 @@ namespace UnityAnimationGraph.Editor {
             }
         }
 
+        /// <summary>
+        /// Node の Graph 上の表示位置を更新
+        /// </summary>
+        /// <param name="nodeModel">移動対象 Node model</param>
+        /// <param name="nodePosition">移動後の表示範囲</param>
         private void MoveNode(NodeEditorModel nodeModel, Rect nodePosition) {
             nodeModel.SetGraphPosition(nodePosition.position);
         }
 
+        /// <summary>
+        /// Signal の Graph 上の表示位置を更新
+        /// </summary>
+        /// <param name="signalModel">移動対象 Signal model</param>
+        /// <param name="signalPosition">移動後の表示範囲</param>
         private void MoveSignal(SignalEditorModel signalModel, Rect signalPosition) {
             signalModel.SetGraphPosition(signalPosition.position);
         }
 
+        /// <summary>
+        /// ActionNode の Target key を更新
+        /// </summary>
+        /// <param name="nodeModel">更新対象 Node model</param>
+        /// <param name="targetKey">Target key</param>
         private void SetActionTargetKey(NodeEditorModel nodeModel, string targetKey) {
             if (nodeModel == null) {
                 return;
@@ -257,6 +326,11 @@ namespace UnityAnimationGraph.Editor {
             }
         }
 
+        /// <summary>
+        /// DelayNode の待機時間を更新
+        /// </summary>
+        /// <param name="nodeModel">更新対象 DelayNode model</param>
+        /// <param name="delay">待機時間</param>
         private void SetDelay(DelayNodeEditorModel nodeModel, float delay) {
             if (nodeModel == null) {
                 return;
@@ -271,6 +345,11 @@ namespace UnityAnimationGraph.Editor {
             }
         }
 
+        /// <summary>
+        /// FlagBranchNode の参照 key を更新
+        /// </summary>
+        /// <param name="nodeModel">更新対象 Node model</param>
+        /// <param name="flagKey">参照する flag key</param>
         private void SetFlagBranchKey(NodeEditorModel nodeModel, string flagKey) {
             if (nodeModel == null) {
                 return;
@@ -285,6 +364,11 @@ namespace UnityAnimationGraph.Editor {
             }
         }
 
+        /// <summary>
+        /// JoinNode の join type を更新
+        /// </summary>
+        /// <param name="nodeModel">更新対象 Node model</param>
+        /// <param name="joinType">Join type</param>
         private void SetJoinType(NodeEditorModel nodeModel, JoinType joinType) {
             if (nodeModel == null) {
                 return;
@@ -299,6 +383,11 @@ namespace UnityAnimationGraph.Editor {
             }
         }
 
+        /// <summary>
+        /// LoopNode の繰り返し回数を更新
+        /// </summary>
+        /// <param name="nodeModel">更新対象 LoopNode model</param>
+        /// <param name="loopCount">繰り返し回数</param>
         private void SetLoopCount(LoopNodeEditorModel nodeModel, int loopCount) {
             if (nodeModel == null) {
                 return;
@@ -313,9 +402,16 @@ namespace UnityAnimationGraph.Editor {
             }
         }
 
+        /// <summary>
+        /// Node 同士を接続
+        /// </summary>
+        /// <param name="outputPortKind">接続元 output port</param>
+        /// <param name="sourceNodeModel">接続元 Node model</param>
+        /// <param name="targetNodeModel">接続先 Node model</param>
+        /// <returns>接続できた場合は true</returns>
         private bool ConnectNodes(AnimationGraphOutputPortKind outputPortKind, NodeEditorModel sourceNodeModel, NodeEditorModel targetNodeModel) {
             if (!_assetModel.Connect(outputPortKind, sourceNodeModel, targetNodeModel, out var errorMessage)) {
-                SetFooterMessage(errorMessage);
+                SetFooterMessage(errorMessage, true);
                 return false;
             }
 
@@ -326,6 +422,12 @@ namespace UnityAnimationGraph.Editor {
             return true;
         }
 
+        /// <summary>
+        /// Node 同士の接続を解除
+        /// </summary>
+        /// <param name="outputPortKind">接続元 output port</param>
+        /// <param name="sourceNodeModel">接続元 Node model</param>
+        /// <param name="targetNodeModel">接続先 Node model</param>
         private void DisconnectNodes(AnimationGraphOutputPortKind outputPortKind, NodeEditorModel sourceNodeModel, NodeEditorModel targetNodeModel) {
             if (_assetModel.Disconnect(outputPortKind, sourceNodeModel, targetNodeModel)) {
                 if (RefreshPreviewAfterGraphChanged()) {
@@ -334,9 +436,16 @@ namespace UnityAnimationGraph.Editor {
             }
         }
 
+        /// <summary>
+        /// Node の Signal output を Signal に接続
+        /// </summary>
+        /// <param name="outputPortKind">接続元 output port</param>
+        /// <param name="sourceNodeModel">接続元 Node model</param>
+        /// <param name="targetSignalModel">接続先 Signal model</param>
+        /// <returns>接続できた場合は true</returns>
         private bool ConnectSignal(AnimationGraphOutputPortKind outputPortKind, NodeEditorModel sourceNodeModel, SignalEditorModel targetSignalModel) {
             if (!_assetModel.ConnectSignal(outputPortKind, sourceNodeModel, targetSignalModel, out var errorMessage)) {
-                SetFooterMessage(errorMessage);
+                SetFooterMessage(errorMessage, true);
                 return false;
             }
 
@@ -347,6 +456,12 @@ namespace UnityAnimationGraph.Editor {
             return true;
         }
 
+        /// <summary>
+        /// Node の Signal output と Signal の接続を解除
+        /// </summary>
+        /// <param name="outputPortKind">接続元 output port</param>
+        /// <param name="sourceNodeModel">接続元 Node model</param>
+        /// <param name="targetSignalModel">接続先 Signal model</param>
         private void DisconnectSignal(AnimationGraphOutputPortKind outputPortKind, NodeEditorModel sourceNodeModel, SignalEditorModel targetSignalModel) {
             if (!_assetModel.DisconnectSignal(outputPortKind, sourceNodeModel, targetSignalModel)) {
                 return;
@@ -359,9 +474,14 @@ namespace UnityAnimationGraph.Editor {
             EditorApplication.delayCall += RefreshGraph;
         }
 
+        /// <summary>
+        /// 指定 type の Signal を Graph に追加
+        /// </summary>
+        /// <param name="signalType">追加する Signal type</param>
+        /// <param name="graphPosition">Graph 上の追加位置</param>
         private void AddSignal(Type signalType, Vector2 graphPosition) {
             if (!_assetModel.HasGraphAsset) {
-                SetFooterMessage("GraphAsset is not selected");
+                SetFooterMessage("GraphAsset is not selected", true);
                 return;
             }
 
@@ -372,10 +492,13 @@ namespace UnityAnimationGraph.Editor {
                 }
             }
             catch (Exception exception) {
-                SetFooterMessage(exception.Message);
+                SetFooterMessage(exception.Message, true);
             }
         }
 
+        /// <summary>
+        /// GraphView の選択状態を Inspector に反映
+        /// </summary>
         private void UpdateInspectorSelection() {
             var selectedNodeModels = _graphView.GetSelectedNodeModels();
             if (selectedNodeModels.Count > 0) {
@@ -385,15 +508,19 @@ namespace UnityAnimationGraph.Editor {
 
             var selectedSignalModels = _graphView.GetSelectedSignalModels();
             if (selectedSignalModels.Count > 0) {
-                _inspectorView.SetSignalSelection(selectedSignalModels);
+                SetSignalInspectorSelection(selectedSignalModels);
                 return;
             }
 
             RefreshInspectorSelection();
         }
 
+        /// <summary>
+        /// 選択中の Node と Signal を複製用に保持
+        /// </summary>
         private void CopySelection() {
             _copiedNodeModels.Clear();
+            _copiedSignalModels.Clear();
             var selectedNodeModels = _graphView.GetSelectedNodeModels();
             for (var i = 0; i < selectedNodeModels.Count; i++) {
                 var nodeModel = selectedNodeModels[i];
@@ -404,35 +531,57 @@ namespace UnityAnimationGraph.Editor {
                 _copiedNodeModels.Add(nodeModel);
             }
 
-            SetFooterMessage($"{_copiedNodeModels.Count} node copied");
+            var selectedSignalModels = _graphView.GetSelectedSignalModels();
+            for (var i = 0; i < selectedSignalModels.Count; i++) {
+                var signalModel = selectedSignalModels[i];
+                if (!_assetModel.CanDuplicateSignal(signalModel)) {
+                    continue;
+                }
+
+                _copiedSignalModels.Add(signalModel);
+            }
+
+            SetFooterMessage($"{_copiedNodeModels.Count + _copiedSignalModels.Count} item copied");
         }
 
-        private void PasteCopiedNodes() {
-            if (_copiedNodeModels.Count == 0) {
-                SetFooterMessage("No copied node");
+        /// <summary>
+        /// 保持している Node と Signal を Graph に貼り付け
+        /// </summary>
+        private void PasteCopiedElements() {
+            if (_copiedNodeModels.Count == 0 && _copiedSignalModels.Count == 0) {
+                SetFooterMessage("No copied item", true);
                 return;
             }
 
             var duplicatedNodeModels = _assetModel.DuplicateNodes(_copiedNodeModels, DuplicateOffset);
+            var duplicatedSignalModels = _assetModel.DuplicateSignals(_copiedSignalModels, DuplicateOffset);
             _graphView.Rebuild(_assetModel);
-            _graphView.SelectNodeModels(duplicatedNodeModels);
+            _graphView.SelectGraphElementModels(duplicatedNodeModels, duplicatedSignalModels);
             UpdateInspectorSelection();
             if (RefreshPreviewAfterGraphChanged()) {
-                SetFooterMessage($"{duplicatedNodeModels.Count} node pasted");
+                SetFooterMessage($"{duplicatedNodeModels.Count + duplicatedSignalModels.Count} item pasted");
             }
         }
 
+        /// <summary>
+        /// 選択中の Node と Signal を複製
+        /// </summary>
         private void DuplicateSelection() {
             var selectedNodeModels = _graphView.GetSelectedNodeModels();
+            var selectedSignalModels = _graphView.GetSelectedSignalModels();
             var duplicatedNodeModels = _assetModel.DuplicateNodes(selectedNodeModels, DuplicateOffset);
+            var duplicatedSignalModels = _assetModel.DuplicateSignals(selectedSignalModels, DuplicateOffset);
             _graphView.Rebuild(_assetModel);
-            _graphView.SelectNodeModels(duplicatedNodeModels);
+            _graphView.SelectGraphElementModels(duplicatedNodeModels, duplicatedSignalModels);
             UpdateInspectorSelection();
             if (RefreshPreviewAfterGraphChanged()) {
-                SetFooterMessage($"{duplicatedNodeModels.Count} node duplicated");
+                SetFooterMessage($"{duplicatedNodeModels.Count + duplicatedSignalModels.Count} item duplicated");
             }
         }
 
+        /// <summary>
+        /// 選択中の edge、Node、Signal を削除
+        /// </summary>
         private void DeleteSelection() {
             var selectedEdges = _graphView.GetSelectedEdgeConnections();
             for (var i = 0; i < selectedEdges.Count; i++) {
@@ -481,6 +630,9 @@ namespace UnityAnimationGraph.Editor {
             RefreshNodeDetails();
         }
 
+        /// <summary>
+        /// Node の詳細表示を更新
+        /// </summary>
         private void RefreshNodeDetails() {
             _graphView.RefreshNodeDetails();
         }
@@ -633,12 +785,12 @@ namespace UnityAnimationGraph.Editor {
         private void PlayEditorPreview() {
             var graphAsset = GetSelectedGraphAsset();
             if (graphAsset == null) {
-                SetFooterMessage("GraphAsset is not selected");
+                SetFooterMessage("GraphAsset is not selected", true);
                 return;
             }
 
             if (EditorApplication.isPlayingOrWillChangePlaymode) {
-                SetFooterMessage("Editor preview is available outside Play Mode");
+                SetFooterMessage("Editor preview is available outside Play Mode", true);
                 return;
             }
 
@@ -647,7 +799,7 @@ namespace UnityAnimationGraph.Editor {
             }
 
             if (_editorPreviewPlayer == null && !TryStartEditorPreview(graphAsset, out var message)) {
-                SetFooterMessage(message);
+                SetFooterMessage(message, true);
                 UpdatePreviewControls();
                 return;
             }
@@ -686,12 +838,13 @@ namespace UnityAnimationGraph.Editor {
         /// Editor Preview を停止し、必要なら Footer 表示を更新
         /// </summary>
         /// <param name="footerMessage">停止後に表示する Footer メッセージ</param>
-        private void StopEditorPreview(string footerMessage) {
+        /// <param name="isError">Footer メッセージをエラー表示にする場合は true</param>
+        private void StopEditorPreview(string footerMessage, bool isError = false) {
             if (_editorPreviewPlayer == null && !_ownsAnimationMode && !IsPreviewAnimationModeActive()) {
                 RefreshPreviewSourceFromSelection(false);
                 UpdatePreviewControls();
                 if (!string.IsNullOrEmpty(footerMessage)) {
-                    SetFooterMessage(footerMessage);
+                    SetFooterMessage(footerMessage, isError);
                 }
 
                 return;
@@ -709,6 +862,7 @@ namespace UnityAnimationGraph.Editor {
                     AnimationMode.BeginSampling();
                     try {
                         player.Stop();
+                        RegisterEditorPreviewPropertyModifications(player);
                     }
                     finally {
                         AnimationMode.EndSampling();
@@ -728,7 +882,7 @@ namespace UnityAnimationGraph.Editor {
                 RefreshPreviewSourceFromSelection(false);
                 UpdatePreviewControls();
                 if (!string.IsNullOrEmpty(footerMessage)) {
-                    SetFooterMessage(footerMessage);
+                    SetFooterMessage(footerMessage, isError);
                 }
             }
         }
@@ -829,7 +983,7 @@ namespace UnityAnimationGraph.Editor {
             }
 
             if (_editorPreviewRoot == null) {
-                StopEditorPreview("Preview stopped: target was removed");
+                StopEditorPreview("Preview stopped: target was removed", true);
                 return;
             }
 
@@ -878,12 +1032,12 @@ namespace UnityAnimationGraph.Editor {
 
             var graphAsset = GetSelectedGraphAsset();
             if (graphAsset == null) {
-                StopEditorPreview("Preview stopped: GraphAsset is not selected");
+                StopEditorPreview("Preview stopped: GraphAsset is not selected", true);
                 return false;
             }
 
             if (_editorPreviewRoot == null) {
-                StopEditorPreview("Preview stopped: target was removed");
+                StopEditorPreview("Preview stopped: target was removed", true);
                 return false;
             }
 
@@ -911,7 +1065,7 @@ namespace UnityAnimationGraph.Editor {
                 _isEditorPreviewPlaying = false;
                 SetPreviewSchedule(null, player.Schedule, GetEditorPreviewState(), player.CurrentTime);
                 UpdatePreviewControls();
-                SetFooterMessage($"Preview update failed: {exception.Message}");
+                SetFooterMessage($"Preview update failed: {exception.Message}", true);
                 return false;
             }
         }
@@ -945,6 +1099,7 @@ namespace UnityAnimationGraph.Editor {
             AnimationMode.BeginSampling();
             try {
                 _editorPreviewPlayer.Seek(time);
+                RegisterEditorPreviewPropertyModifications();
             }
             finally {
                 AnimationMode.EndSampling();
@@ -973,12 +1128,96 @@ namespace UnityAnimationGraph.Editor {
             AnimationMode.BeginSampling();
             try {
                 _editorPreviewPlayer.Tick(deltaTime);
+                RegisterEditorPreviewPropertyModifications();
             }
             finally {
                 AnimationMode.EndSampling();
             }
 
             SceneView.RepaintAll();
+        }
+
+        /// <summary>
+        /// Editor Preview で変更される Property を AnimationMode の復元対象として登録
+        /// </summary>
+        private void RegisterEditorPreviewPropertyModifications() {
+            RegisterEditorPreviewPropertyModifications(_editorPreviewPlayer);
+        }
+
+        /// <summary>
+        /// 指定 player で変更される Property を AnimationMode の復元対象として登録
+        /// </summary>
+        /// <param name="player">登録対象 Property を取得する player</param>
+        private void RegisterEditorPreviewPropertyModifications(AnimationGraphPlayer player) {
+            if (player == null || !IsPreviewAnimationModeActive()) {
+                return;
+            }
+
+            foreach (var previewProperty in player.GetPreviewProperties()) {
+                var component = previewProperty.Component;
+                var propertyPath = previewProperty.PropertyPath;
+                if (component == null || string.IsNullOrEmpty(propertyPath)) {
+                    continue;
+                }
+
+                var rootGameObject = _editorPreviewRoot != null ? _editorPreviewRoot : component.gameObject;
+                var modification = new PropertyModification {
+                    target = component,
+                    propertyPath = propertyPath,
+                };
+                if (!TryFillPropertyModificationValue(modification)) {
+                    continue;
+                }
+
+                if (AnimationUtility.PropertyModificationToEditorCurveBinding(modification, rootGameObject, out var binding) == null) {
+                    if (rootGameObject == component.gameObject
+                        || AnimationUtility.PropertyModificationToEditorCurveBinding(modification, component.gameObject, out binding) == null) {
+                        continue;
+                    }
+                }
+
+                AnimationMode.AddPropertyModification(binding, modification, true);
+            }
+        }
+
+        /// <summary>
+        /// PropertyModification に現在の SerializedProperty 値を設定
+        /// </summary>
+        /// <param name="modification">値を設定する PropertyModification</param>
+        /// <returns>値を設定できた場合は true</returns>
+        private bool TryFillPropertyModificationValue(PropertyModification modification) {
+            if (modification == null || modification.target == null || string.IsNullOrEmpty(modification.propertyPath)) {
+                return false;
+            }
+
+            var serializedObject = new SerializedObject(modification.target);
+            var property = serializedObject.FindProperty(modification.propertyPath);
+            if (property == null) {
+                return false;
+            }
+
+            switch (property.propertyType) {
+                case SerializedPropertyType.Integer:
+                    modification.value = property.intValue.ToString(CultureInfo.InvariantCulture);
+                    return true;
+                case SerializedPropertyType.Boolean:
+                    modification.value = property.boolValue ? "1" : "0";
+                    return true;
+                case SerializedPropertyType.Enum:
+                    modification.value = property.enumValueIndex.ToString(CultureInfo.InvariantCulture);
+                    return true;
+                case SerializedPropertyType.Float:
+                    modification.value = property.floatValue.ToString("R", CultureInfo.InvariantCulture);
+                    return true;
+                case SerializedPropertyType.String:
+                    modification.value = property.stringValue;
+                    return true;
+                case SerializedPropertyType.ObjectReference:
+                    modification.objectReference = property.objectReferenceValue;
+                    return true;
+                default:
+                    return false;
+            }
         }
 
         /// <summary>
@@ -1287,12 +1526,17 @@ namespace UnityAnimationGraph.Editor {
             _previewState = previewState;
             _previewTime = previewTime;
             if (_assetModel.SetPreviewSchedule(previewSchedule, previewTime)) {
-                _graphView.RefreshNodeDetails();
+                _graphView.RefreshPreviewExecutionState();
             }
         }
 
+        /// <summary>
+        /// Node の選択状態を Inspector と永続化用 ID に反映
+        /// </summary>
+        /// <param name="nodeModels">選択中の Node model 一覧</param>
         private void SetInspectorSelection(IReadOnlyList<NodeEditorModel> nodeModels) {
             _inspectedNodeIds.Clear();
+            _inspectedSignalIds.Clear();
             for (var i = 0; i < nodeModels.Count; i++) {
                 _inspectedNodeIds.Add(nodeModels[i].NodeId);
             }
@@ -1301,8 +1545,28 @@ namespace UnityAnimationGraph.Editor {
             NotifyInspectedNodeIdsChanged();
         }
 
+        /// <summary>
+        /// Signal の選択状態を Inspector と保持 ID に反映
+        /// </summary>
+        /// <param name="signalModels">選択中の Signal model 一覧</param>
+        private void SetSignalInspectorSelection(IReadOnlyList<SignalEditorModel> signalModels) {
+            _inspectedNodeIds.Clear();
+            _inspectedSignalIds.Clear();
+            for (var i = 0; i < signalModels.Count; i++) {
+                _inspectedSignalIds.Add(signalModels[i].SignalId);
+            }
+
+            _inspectorView.SetSignalSelection(signalModels);
+            NotifyInspectedNodeIdsChanged();
+        }
+
+        /// <summary>
+        /// Node ID 一覧から Inspector 選択状態を復元
+        /// </summary>
+        /// <param name="nodeIds">復元する Node ID 一覧</param>
         private void SetInspectorSelectionByIds(IReadOnlyList<string> nodeIds) {
             _inspectedNodeIds.Clear();
+            _inspectedSignalIds.Clear();
             if (nodeIds != null) {
                 for (var i = 0; i < nodeIds.Count; i++) {
                     if (string.IsNullOrEmpty(nodeIds[i])) {
@@ -1316,7 +1580,15 @@ namespace UnityAnimationGraph.Editor {
             RefreshInspectorSelection();
         }
 
+        /// <summary>
+        /// 保持している ID から Inspector 選択状態を更新
+        /// </summary>
         private void RefreshInspectorSelection() {
+            if (_inspectedSignalIds.Count > 0) {
+                RefreshSignalInspectorSelection();
+                return;
+            }
+
             var nodeModels = new List<NodeEditorModel>();
             for (var i = _inspectedNodeIds.Count - 1; i >= 0; i--) {
                 if (!_assetModel.TryGetNode(_inspectedNodeIds[i], out var nodeModel)) {
@@ -1331,29 +1603,92 @@ namespace UnityAnimationGraph.Editor {
             NotifyInspectedNodeIdsChanged();
         }
 
+        /// <summary>
+        /// 保持している Signal ID から Inspector 選択状態を更新
+        /// </summary>
+        private void RefreshSignalInspectorSelection() {
+            var signalModels = new List<SignalEditorModel>();
+            for (var i = _inspectedSignalIds.Count - 1; i >= 0; i--) {
+                if (!TryGetSignalModel(_inspectedSignalIds[i], out var signalModel)) {
+                    _inspectedSignalIds.RemoveAt(i);
+                    continue;
+                }
+
+                signalModels.Insert(0, signalModel);
+            }
+
+            _inspectorView.SetSignalSelection(signalModels);
+            NotifyInspectedNodeIdsChanged();
+        }
+
+        /// <summary>
+        /// Signal ID に対応する Signal model の取得を試行
+        /// </summary>
+        /// <param name="signalId">取得する Signal ID</param>
+        /// <param name="signalModel">取得した Signal model</param>
+        /// <returns>取得できた場合は true</returns>
+        private bool TryGetSignalModel(string signalId, out SignalEditorModel signalModel) {
+            var signalModels = _assetModel.Signals;
+            for (var i = 0; i < signalModels.Count; i++) {
+                if (signalModels[i].SignalId != signalId) {
+                    continue;
+                }
+
+                signalModel = signalModels[i];
+                return true;
+            }
+
+            signalModel = null;
+            return false;
+        }
+
+        /// <summary>
+        /// Inspector 選択状態を解除
+        /// </summary>
         private void ClearInspectorSelection() {
             _inspectedNodeIds.Clear();
+            _inspectedSignalIds.Clear();
             _inspectorView.SetSelection(Array.Empty<NodeEditorModel>());
             NotifyInspectedNodeIdsChanged();
         }
 
+        /// <summary>
+        /// Inspector 表示対象 Node ID 一覧の変更を通知
+        /// </summary>
         private void NotifyInspectedNodeIdsChanged() {
             InspectedNodeIdsChanged?.Invoke(_inspectedNodeIds);
         }
 
-        private void SetFooterMessage(string message) {
+        /// <summary>
+        /// Footer message を表示
+        /// </summary>
+        /// <param name="message">表示する message</param>
+        /// <param name="isError">エラー表示にする場合は true</param>
+        private void SetFooterMessage(string message, bool isError = false) {
             if (_footerLabel == null) {
                 return;
             }
 
             _footerLabel.text = string.IsNullOrEmpty(message) ? string.Empty : message;
+            _footerLabel.style.color = isError ? FooterErrorColor : _footerDefaultColor;
         }
 
-        private static string GetDisplayValue(string value) {
+        /// <summary>
+        /// 空文字を表示用の代替文字列に変換
+        /// </summary>
+        /// <param name="value">表示する値</param>
+        /// <returns>表示用文字列</returns>
+        private string GetDisplayValue(string value) {
             return string.IsNullOrEmpty(value) ? "-" : value;
         }
 
-        private static string GetOutputPortName(AnimationGraphOutputPortKind outputPortKind, NodeEditorModel sourceNodeModel) {
+        /// <summary>
+        /// Output port の表示名を取得
+        /// </summary>
+        /// <param name="outputPortKind">Output port kind</param>
+        /// <param name="sourceNodeModel">接続元 Node model</param>
+        /// <returns>Output port の表示名</returns>
+        private string GetOutputPortName(AnimationGraphOutputPortKind outputPortKind, NodeEditorModel sourceNodeModel) {
             return outputPortKind switch {
                 AnimationGraphOutputPortKind.Next when typeof(BranchNode).IsAssignableFrom(sourceNodeModel.NodeType) => "True",
                 AnimationGraphOutputPortKind.Next => "Next",
@@ -1365,7 +1700,12 @@ namespace UnityAnimationGraph.Editor {
             };
         }
 
-        private static AnimationGraphRunner FindPreviewRunner(AnimationGraphAsset graphAsset) {
+        /// <summary>
+        /// GraphAsset を再生中または一時停止中の Runner を Scene から検索
+        /// </summary>
+        /// <param name="graphAsset">検索対象 GraphAsset</param>
+        /// <returns>見つかった Runner</returns>
+        private AnimationGraphRunner FindPreviewRunner(AnimationGraphAsset graphAsset) {
             if (graphAsset == null) {
                 return null;
             }

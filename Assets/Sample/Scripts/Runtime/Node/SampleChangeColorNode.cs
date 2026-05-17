@@ -1,12 +1,14 @@
+using System.Collections.Generic;
+using UnityAnimationGraph;
 using UnityEngine;
 using UnityEngine.UI;
 
-namespace UnityAnimationGraph.Sample {
+namespace Sample {
     /// <summary>
     /// Sample 用に target の Graphic.color を変える ActionNode
     /// </summary>
     [NodeInfo("サンプル色変更", "Sample/サンプル色変更")]
-    public sealed class SampleChangeColorNode : ActionNode {
+    public sealed class SampleChangeColorNode : ActionNode<Graphic> {
         [SerializeField, Min(0.0f), Tooltip("色変更にかける時間")]
         private float _duration = 1.0f;
         [SerializeField, Min(0.0f), Tooltip("色変更開始前の待機時間")]
@@ -16,38 +18,26 @@ namespace UnityAnimationGraph.Sample {
         [SerializeField, Tooltip("色変更終了時の color")]
         private Color _to = Color.red;
 
-        /// <summary>色変更にかける時間</summary>
-        public float Duration => Mathf.Max(0.0f, _duration);
-        /// <summary>色変更開始前の待機時間</summary>
-        public float Delay => Mathf.Max(0.0f, _delay);
-        /// <summary>色変更開始時の color</summary>
-        public Color From => _from;
-        /// <summary>色変更終了時の color</summary>
-        public Color To => _to;
-
         /// <inheritdoc/>
-        protected override float CalculateDuration(int seed, IAnimationGraphContext context) {
-            return Duration;
+        protected override IEnumerable<string> GetPreviewProperties(Graphic target) {
+            yield return "m_Color.r";
+            yield return "m_Color.g";
+            yield return "m_Color.b";
+            yield return "m_Color.a";
         }
 
         /// <inheritdoc/>
-        protected override float CalculateDelay(int seed, IAnimationGraphContext context) {
-            return Delay;
+        protected override float CalculateDuration(int seed, Graphic target, IAnimationGraphBlackboard blackboard) {
+            return Mathf.Max(0.0f, _duration);
         }
 
         /// <inheritdoc/>
-        protected override void Evaluate(int seed, float localTime, float calculatedDuration, IAnimationGraphContext context) {
-            if (!context.TryGetTarget<Graphic>(TargetKey, out var target)) {
-                if (!context.TryGetTarget<Transform>(TargetKey, out var transform)) {
-                    return;
-                }
+        protected override float CalculateDelay(int seed, Graphic target, IAnimationGraphBlackboard blackboard) {
+            return Mathf.Max(0.0f, _delay);
+        }
 
-                target = transform.GetComponent<Graphic>();
-                if (target == null) {
-                    return;
-                }
-            }
-
+        /// <inheritdoc/>
+        protected override void Evaluate(int seed, Graphic target, float localTime, float calculatedDuration, IAnimationGraphBlackboard blackboard) {
             var progress = calculatedDuration <= 0.0f ? 1.0f : Mathf.Clamp01(localTime / calculatedDuration);
             target.color = Color.LerpUnclamped(_from, _to, progress);
         }

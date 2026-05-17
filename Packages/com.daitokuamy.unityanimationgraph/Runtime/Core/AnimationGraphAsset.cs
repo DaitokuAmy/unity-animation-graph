@@ -228,6 +228,21 @@ namespace UnityAnimationGraph {
             return false;
         }
 
+        /// <summary>
+        /// 指定した key に対応する Vector4 Blackboard default value の取得を試行
+        /// </summary>
+        /// <param name="key">取得する Blackboard key</param>
+        /// <param name="value">取得した Vector4 default value</param>
+        /// <returns>取得できた場合は true</returns>
+        public bool TryGetBlackboardDefaultValue(string key, out Vector4 value) {
+            if (TryGetBlackboardDefinition(key, out var definition) && definition.TryGetDefaultValue(out value)) {
+                return true;
+            }
+
+            value = default;
+            return false;
+        }
+
         private static int CreateRandomSeed() {
             return BitConverter.ToInt32(Guid.NewGuid().ToByteArray(), 0);
         }

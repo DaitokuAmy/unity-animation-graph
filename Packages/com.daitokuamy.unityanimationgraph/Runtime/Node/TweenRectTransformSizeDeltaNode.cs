@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 
 namespace UnityAnimationGraph {
@@ -9,10 +10,19 @@ namespace UnityAnimationGraph {
         [SerializeField, Tooltip("SizeDelta Tween 設定")]
         private Vector2Tween _tween = new(Vector2.one * 100.0f, Vector2.one * 200.0f);
 
-        /// <summary>SizeDelta Tween 設定</summary>
-        public Vector2Tween Tween => _tween;
         /// <inheritdoc/>
         protected override Vector2Tween TweenSettings => _tween;
+
+        /// <inheritdoc/>
+        protected override IEnumerable<string> GetPreviewProperties(RectTransform target) {
+            yield return "m_SizeDelta.x";
+            yield return "m_SizeDelta.y";
+        }
+
+        /// <inheritdoc/>
+        protected override Vector2 GetBaseValue(RectTransform target) {
+            return target.sizeDelta;
+        }
 
         /// <inheritdoc/>
         protected override void ApplyValue(RectTransform target, Vector2 value) {

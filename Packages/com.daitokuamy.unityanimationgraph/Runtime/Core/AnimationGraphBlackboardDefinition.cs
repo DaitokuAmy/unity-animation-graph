@@ -25,6 +25,8 @@ namespace UnityAnimationGraph {
         private Vector3 _defaultVector3Value;
         [SerializeField, Tooltip("Color 型の初期値")]
         private Color _defaultColorValue;
+        [SerializeField, Tooltip("Vector4 型の初期値")]
+        private Vector4 _defaultVector4Value;
 
         /// <summary>Blackboard key</summary>
         public string Key => _key ?? string.Empty;
@@ -44,6 +46,8 @@ namespace UnityAnimationGraph {
         public Vector3 DefaultVector3Value => _defaultVector3Value;
         /// <summary>Color default value</summary>
         public Color DefaultColorValue => _defaultColorValue;
+        /// <summary>Vector4 default value</summary>
+        public Vector4 DefaultVector4Value => _defaultVector4Value;
 
         /// <summary>
         /// AnimationGraphBlackboardDefinition を生成
@@ -60,6 +64,7 @@ namespace UnityAnimationGraph {
             _defaultVector2Value = Vector2.zero;
             _defaultVector3Value = Vector3.zero;
             _defaultColorValue = default;
+            _defaultVector4Value = Vector4.zero;
         }
 
         /// <summary>
@@ -123,6 +128,15 @@ namespace UnityAnimationGraph {
         /// <param name="defaultValue">Color default value</param>
         public AnimationGraphBlackboardDefinition(string key, Color defaultValue) : this(key, AnimationGraphValueType.Color) {
             _defaultColorValue = defaultValue;
+        }
+
+        /// <summary>
+        /// Vector4 default value を持つ AnimationGraphBlackboardDefinition を生成
+        /// </summary>
+        /// <param name="key">Blackboard key</param>
+        /// <param name="defaultValue">Vector4 default value</param>
+        public AnimationGraphBlackboardDefinition(string key, Vector4 defaultValue) : this(key, AnimationGraphValueType.Vector4) {
+            _defaultVector4Value = defaultValue;
         }
 
         /// <summary>
@@ -223,6 +237,21 @@ namespace UnityAnimationGraph {
         public bool TryGetDefaultValue(out Color value) {
             if (_valueType == AnimationGraphValueType.Color) {
                 value = _defaultColorValue;
+                return true;
+            }
+
+            value = default;
+            return false;
+        }
+
+        /// <summary>
+        /// Vector4 default value の取得を試行
+        /// </summary>
+        /// <param name="value">取得した Vector4 default value</param>
+        /// <returns>取得できた場合は true</returns>
+        public bool TryGetDefaultValue(out Vector4 value) {
+            if (_valueType == AnimationGraphValueType.Vector4) {
+                value = _defaultVector4Value;
                 return true;
             }
 

@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 
 namespace UnityAnimationGraph {
@@ -9,10 +10,18 @@ namespace UnityAnimationGraph {
         [SerializeField, Tooltip("Pitch Tween 設定")]
         private FloatTween _tween = new(1.0f, 1.2f);
 
-        /// <summary>Pitch Tween 設定</summary>
-        public FloatTween Tween => _tween;
         /// <inheritdoc/>
         protected override FloatTween TweenSettings => _tween;
+
+        /// <inheritdoc/>
+        protected override IEnumerable<string> GetPreviewProperties(AudioSource target) {
+            yield return "m_Pitch";
+        }
+
+        /// <inheritdoc/>
+        protected override float GetBaseValue(AudioSource target) {
+            return target.pitch;
+        }
 
         /// <inheritdoc/>
         protected override void ApplyValue(AudioSource target, float value) {

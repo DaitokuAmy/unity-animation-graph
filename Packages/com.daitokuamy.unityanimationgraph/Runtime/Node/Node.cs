@@ -6,36 +6,62 @@ namespace UnityAnimationGraph {
     /// <summary>
     /// Animation Graph を構成するノードの基底クラス
     /// </summary>
-    public abstract class Node : ScriptableObject, INodeExecutor {
+    public abstract class Node : ScriptableObject, INodeExecutor, ISerializationCallbackReceiver {
+        [SerializeField, Tooltip("GraphView のタイトルとして表示する名前。空の場合はノード型の表示名を使用する")]
+        private string _displayName = string.Empty;
+        [SerializeField, Tooltip("GraphView に表示する Signal Port")]
+        private NodeSignalPortSettings _signalPorts;
         [SerializeField, Tooltip("グラフ内で一意なノード ID"), HideInInspector]
         private string _nodeId = string.Empty;
         [SerializeField, Tooltip("エディタ上のノード位置"), HideInInspector]
         private Vector2 _graphPosition;
         [SerializeField, Tooltip("後続ノード ID の一覧"), HideInInspector]
         private string[] _nextNodeIds = Array.Empty<string>();
-        [SerializeField, Tooltip("Enter シグナル用の出力 Port を GraphView に表示する")]
+        [SerializeField, HideInInspector]
         private bool _enableEnterSignalPort;
-        [SerializeField, Tooltip("Exit シグナル用の出力 Port を GraphView に表示する")]
+        [SerializeField, HideInInspector]
         private bool _enableExitSignalPort;
+        [SerializeField, HideInInspector]
+        private int _signalPortSettingsVersion;
         [SerializeField, Tooltip("ノード開始時に通知するシグナル一覧"), HideInInspector]
         private Signal[] _enterSignals = Array.Empty<Signal>();
         [SerializeField, Tooltip("ノード終了時に通知するシグナル一覧"), HideInInspector]
         private Signal[] _exitSignals = Array.Empty<Signal>();
 
+        /// <summary>GraphView 上の表示名</summary>
+        public string DisplayName => string.IsNullOrEmpty(_displayName) ? NodeMetadata.GetDisplayName(GetType()) : _displayName;
         /// <summary>グラフ内で一意なノード ID</summary>
-        public string NodeId => _nodeId;
+        internal string NodeId => _nodeId;
         /// <summary>エディタ上のノード位置</summary>
-        public Vector2 GraphPosition => _graphPosition;
+        internal Vector2 GraphPosition => _graphPosition;
         /// <summary>後続ノード ID の一覧</summary>
-        public IReadOnlyList<string> NextNodeIds => _nextNodeIds ?? Array.Empty<string>();
+        internal IReadOnlyList<string> NextNodeIds => _nextNodeIds ?? Array.Empty<string>();
         /// <summary>Enter シグナル用の出力 Port を GraphView に表示する場合は true</summary>
-        public bool EnableEnterSignalPort => _enableEnterSignalPort;
+        internal bool EnableEnterSignalPort => _signalPorts.EnterEnabled || (_signalPortSettingsVersion == 0 && _enableEnterSignalPort);
         /// <summary>Exit シグナル用の出力 Port を GraphView に表示する場合は true</summary>
-        public bool EnableExitSignalPort => _enableExitSignalPort;
+        internal bool EnableExitSignalPort => _signalPorts.ExitEnabled || (_signalPortSettingsVersion == 0 && _enableExitSignalPort);
         /// <summary>ノード開始時に通知するシグナル一覧</summary>
-        public IReadOnlyList<Signal> EnterSignals => _enterSignals ?? Array.Empty<Signal>();
+        internal IReadOnlyList<Signal> EnterSignals => _enterSignals ?? Array.Empty<Signal>();
         /// <summary>ノード終了時に通知するシグナル一覧</summary>
-        public IReadOnlyList<Signal> ExitSignals => _exitSignals ?? Array.Empty<Signal>();
+        internal IReadOnlyList<Signal> ExitSignals => _exitSignals ?? Array.Empty<Signal>();
+
+        /// <inheritdoc/>
+        void ISerializationCallbackReceiver.OnBeforeSerialize() {
+        }
+
+        /// <inheritdoc/>
+        void ISerializationCallbackReceiver.OnAfterDeserialize() {
+            if (_signalPortSettingsVersion != 0) {
+                return;
+            }
+
+            _signalPorts = new NodeSignalPortSettings(
+                _signalPorts.EnterEnabled || _enableEnterSignalPort,
+                _signalPorts.ExitEnabled || _enableExitSignalPort);
+            _enableEnterSignalPort = false;
+            _enableExitSignalPort = false;
+            _signalPortSettingsVersion = 1;
+        }
 
         /// <inheritdoc/>
         float INodeExecutor.CalculateDuration(int seed, IAnimationGraphContext context) {
@@ -45,6 +71,11 @@ namespace UnityAnimationGraph {
         /// <inheritdoc/>
         float INodeExecutor.CalculateDelay(int seed, IAnimationGraphContext context) {
             return CalculateDelay(seed, context);
+        }
+
+        /// <inheritdoc/>
+        IEnumerable<(Component Component, string PropertyPath)> INodeExecutor.GetPreviewProperties(IAnimationGraphContext context) {
+            return GetPreviewProperties(context);
         }
 
         /// <inheritdoc/>
@@ -82,6 +113,15 @@ namespace UnityAnimationGraph {
         /// <param name="context">評価コンテキスト</param>
         /// <returns>ノードの開始遅延</returns>
         protected abstract float CalculateDelay(int seed, IAnimationGraphContext context);
+
+        /// <summary>
+        /// Preview 再生時に AnimationMode へ登録するプロパティを取得
+        /// </summary>
+        /// <param name="context">評価コンテキスト</param>
+        /// <returns>登録対象の Component と SerializedProperty path の一覧</returns>
+        protected virtual IEnumerable<(Component Component, string PropertyPath)> GetPreviewProperties(IAnimationGraphContext context) {
+            return Array.Empty<(Component Component, string PropertyPath)>();
+        }
 
         /// <summary>
         /// ノードを評価

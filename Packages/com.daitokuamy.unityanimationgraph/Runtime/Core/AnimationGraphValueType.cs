@@ -17,5 +17,7 @@ namespace UnityAnimationGraph {
         Vector3,
         /// <summary>Color 値</summary>
         Color,
+        /// <summary>Vector4 値</summary>
+        Vector4,
     }
 }

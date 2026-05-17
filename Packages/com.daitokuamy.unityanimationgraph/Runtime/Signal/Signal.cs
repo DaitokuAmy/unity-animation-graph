@@ -5,11 +5,15 @@ namespace UnityAnimationGraph {
     /// Animation Graph を通過した瞬間を外部へ通知するシグナルの基底クラス
     /// </summary>
     public abstract class Signal : ScriptableObject, ISignalExecutor {
+        [SerializeField, Tooltip("GraphView のタイトルとして表示する名前。空の場合はシグナル型の表示名を使用する")]
+        private string _displayName = string.Empty;
         [SerializeField, Tooltip("グラフ内で一意なシグナル ID"), HideInInspector]
         private string _signalId = string.Empty;
         [SerializeField, Tooltip("エディタ上のシグナル位置"), HideInInspector]
         private Vector2 _graphPosition;
 
+        /// <summary>GraphView 上の表示名</summary>
+        public string DisplayName => string.IsNullOrEmpty(_displayName) ? SignalMetadata.GetDisplayName(GetType()) : _displayName;
         /// <summary>グラフ内で一意なシグナル ID</summary>
         public string SignalId => _signalId;
         /// <summary>エディタ上のシグナル位置</summary>

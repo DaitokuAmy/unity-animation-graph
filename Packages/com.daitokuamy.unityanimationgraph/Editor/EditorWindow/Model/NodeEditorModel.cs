@@ -21,18 +21,22 @@ namespace UnityAnimationGraph.Editor {
     internal readonly struct NodePreviewExecutionInfo : IEquatable<NodePreviewExecutionInfo> {
         /// <summary>Preview 中の実行状態</summary>
         public NodePreviewExecutionState State { get; }
+        /// <summary>Preview 中の進捗率</summary>
+        public float Progress { get; }
 
         /// <summary>
         /// NodePreviewExecutionInfo を作成
         /// </summary>
         /// <param name="state">Preview 中の実行状態</param>
-        public NodePreviewExecutionInfo(NodePreviewExecutionState state) {
+        /// <param name="progress">Preview 中の進捗率</param>
+        public NodePreviewExecutionInfo(NodePreviewExecutionState state, float progress) {
             State = state;
+            Progress = Mathf.Clamp01(progress);
         }
 
         /// <inheritdoc/>
         public bool Equals(NodePreviewExecutionInfo other) {
-            return State == other.State;
+            return State == other.State && Progress.Equals(other.Progress);
         }
 
         /// <inheritdoc/>
@@ -42,7 +46,9 @@ namespace UnityAnimationGraph.Editor {
 
         /// <inheritdoc/>
         public override int GetHashCode() {
-            return (int)State;
+            unchecked {
+                return ((int)State * 397) ^ Progress.GetHashCode();
+            }
         }
     }
 
@@ -59,7 +65,7 @@ namespace UnityAnimationGraph.Editor {
         /// <summary>ノード型</summary>
         public Type NodeType => _node.GetType();
         /// <summary>ノード表示名</summary>
-        public string DisplayName => NodeMetadata.GetDisplayName(NodeType);
+        public string DisplayName => _node.DisplayName;
         /// <summary>ノード名</summary>
         public string Name => _node.name ?? string.Empty;
         /// <summary>エディタ上のノード位置</summary>

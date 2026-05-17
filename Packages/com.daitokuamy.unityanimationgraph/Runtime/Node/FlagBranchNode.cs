@@ -12,9 +12,9 @@ namespace UnityAnimationGraph {
         private bool _expectedValue = true;
 
         /// <summary>判定に使うフラグキー</summary>
-        public string FlagKey => _flagKey;
+        internal string FlagKey => _flagKey;
         /// <summary>true 側へ進む期待値</summary>
-        public bool ExpectedValue => _expectedValue;
+        internal bool ExpectedValue => _expectedValue;
 
         /// <inheritdoc/>
         protected override bool EvaluateConditionInternal(int seed, IAnimationGraphContext context) {

@@ -60,5 +60,13 @@ namespace UnityAnimationGraph {
         /// <param name="value">取得した Color 値</param>
         /// <returns>取得できた場合は true</returns>
         bool TryGetBlackboardValue(string key, out Color value);
+
+        /// <summary>
+        /// 指定したキーに対応する Vector4 Blackboard 値の取得を試行
+        /// </summary>
+        /// <param name="key">Blackboard キー</param>
+        /// <param name="value">取得した Vector4 値</param>
+        /// <returns>取得できた場合は true</returns>
+        bool TryGetBlackboardValue(string key, out Vector4 value);
     }
 }

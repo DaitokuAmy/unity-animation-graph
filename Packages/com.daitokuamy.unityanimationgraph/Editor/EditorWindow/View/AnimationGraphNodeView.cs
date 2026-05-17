@@ -10,6 +10,9 @@ namespace UnityAnimationGraph.Editor {
     /// NodeEditorModel を表示する GraphView Node
     /// </summary>
     internal sealed class AnimationGraphNodeView : UnityEditor.Experimental.GraphView.Node {
+        private const float TitleBackgroundBrightness = 0.50f;
+        private const float TitleProgressRemainingBrightness = 0.32f;
+
         private static readonly Vector2 DefaultSize = new(236.0f, 112.0f);
         private static readonly Color DetailLabelColor = new(0.56f, 0.56f, 0.56f);
         private static readonly Color DetailValueColor = new(0.86f, 0.86f, 0.86f);
@@ -21,6 +24,7 @@ namespace UnityAnimationGraph.Editor {
         private readonly Dictionary<AnimationGraphOutputPortKind, Port> _outputPortsByKind = new();
         private readonly Func<IReadOnlyList<AnimationGraphTargetDefinition>> _targetDefinitionsProvider;
         private readonly Func<IReadOnlyList<AnimationGraphBlackboardDefinition>> _blackboardDefinitionsProvider;
+        private readonly VisualElement _titleProgressFill;
         private readonly VisualElement _detailsContainer;
         private readonly Color _keyColor;
         private string _validationMessage;
@@ -59,6 +63,10 @@ namespace UnityAnimationGraph.Editor {
             capabilities |= Capabilities.Selectable | Capabilities.Movable | Capabilities.Deletable | Capabilities.Copiable;
 
             _keyColor = GetKeyColor(nodeModel.NodeType);
+            _titleProgressFill = CreateTitleProgressFill();
+            titleContainer.style.position = Position.Relative;
+            titleContainer.style.overflow = Overflow.Hidden;
+            titleContainer.Insert(0, _titleProgressFill);
             ApplyKeyColor(_keyColor);
             ApplyTitleStyle();
 
@@ -157,6 +165,13 @@ namespace UnityAnimationGraph.Editor {
         /// <param name="message">検証エラーメッセージ</param>
         public void SetValidationMessage(string message) {
             _validationMessage = message;
+            ApplyNodeFrameColor();
+        }
+
+        /// <summary>
+        /// Preview 中の実行状態表示を更新
+        /// </summary>
+        public void RefreshPreviewExecutionState() {
             ApplyNodeFrameColor();
         }
 
@@ -357,6 +372,20 @@ namespace UnityAnimationGraph.Editor {
                     paddingRight = 2.0f,
                     paddingTop = 2.0f,
                     paddingBottom = 2.0f,
+                },
+            };
+        }
+
+        private static VisualElement CreateTitleProgressFill() {
+            return new VisualElement {
+                pickingMode = PickingMode.Ignore,
+                style = {
+                    position = Position.Absolute,
+                    left = 0.0f,
+                    top = 0.0f,
+                    bottom = 0.0f,
+                    width = Length.Percent(0.0f),
+                    display = DisplayStyle.None,
                 },
             };
         }
@@ -563,6 +592,7 @@ namespace UnityAnimationGraph.Editor {
         private void ApplyNodeFrameColor() {
             tooltip = string.IsNullOrEmpty(_validationMessage) ? string.Empty : _validationMessage;
             ApplyKeyColor(_keyColor);
+            ApplyPreviewTitleProgress();
             if (!string.IsNullOrEmpty(_validationMessage)) {
                 ApplyBorderColor(ValidationErrorColor);
                 return;
@@ -592,6 +622,9 @@ namespace UnityAnimationGraph.Editor {
             style.borderBottomColor = GetSubtleColor(keyColor);
             style.borderLeftColor = GetSubtleColor(keyColor);
             titleContainer.style.backgroundColor = GetTitleBackgroundColor(keyColor);
+            if (_titleProgressFill != null) {
+                _titleProgressFill.style.backgroundColor = GetTitleBackgroundColor(keyColor);
+            }
         }
 
         /// <summary>
@@ -603,6 +636,21 @@ namespace UnityAnimationGraph.Editor {
             style.borderRightColor = borderColor;
             style.borderBottomColor = borderColor;
             style.borderLeftColor = borderColor;
+        }
+
+        private void ApplyPreviewTitleProgress() {
+            if (!NodeModel.TryGetPreviewExecutionInfo(out var previewExecutionInfo)) {
+                titleContainer.style.backgroundColor = GetTitleBackgroundColor(_keyColor);
+                _titleProgressFill.style.display = DisplayStyle.None;
+                _titleProgressFill.style.width = Length.Percent(0.0f);
+                return;
+            }
+
+            var progress = Mathf.Clamp01(previewExecutionInfo.Progress);
+            titleContainer.style.backgroundColor = GetTitleProgressRemainingColor(_keyColor);
+            _titleProgressFill.style.display = DisplayStyle.Flex;
+            _titleProgressFill.style.width = Length.Percent(progress * 100.0f);
+            _titleProgressFill.style.backgroundColor = GetTitleBackgroundColor(_keyColor);
         }
 
         private void ApplyTitleStyle() {
@@ -630,7 +678,11 @@ namespace UnityAnimationGraph.Editor {
         }
 
         private static Color GetTitleBackgroundColor(Color keyColor) {
-            return new Color(keyColor.r * 0.32f, keyColor.g * 0.32f, keyColor.b * 0.32f, 1.0f);
+            return new Color(keyColor.r * TitleBackgroundBrightness, keyColor.g * TitleBackgroundBrightness, keyColor.b * TitleBackgroundBrightness, 1.0f);
+        }
+
+        private static Color GetTitleProgressRemainingColor(Color keyColor) {
+            return new Color(keyColor.r * TitleProgressRemainingBrightness, keyColor.g * TitleProgressRemainingBrightness, keyColor.b * TitleProgressRemainingBrightness, 1.0f);
         }
 
         private static Color GetSubtleColor(Color keyColor) {

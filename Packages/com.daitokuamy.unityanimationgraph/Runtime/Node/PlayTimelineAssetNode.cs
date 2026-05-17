@@ -1,3 +1,7 @@
+using System.Collections.Generic;
+#if UNITY_EDITOR
+using UnityEditor;
+#endif
 using UnityEngine;
 using UnityEngine.Playables;
 using UnityEngine.Timeline;
@@ -7,15 +11,18 @@ namespace UnityAnimationGraph {
     /// PlayableDirector で TimelineAsset を再生するノード
     /// </summary>
     [NodeInfo("Play Timeline Asset", "Built-in/Play Timeline Asset")]
-    public sealed class PlayTimelineAssetNode : ActionNode {
+    public sealed class PlayTimelineAssetNode : ActionNode<PlayableDirector> {
         [SerializeField, Tooltip("PlayableDirector に設定する TimelineAsset")]
         private TimelineAsset _timelineAsset;
 
-        /// <summary>PlayableDirector に設定する TimelineAsset</summary>
-        public TimelineAsset TimelineAsset => _timelineAsset;
+        /// <inheritdoc/>
+        protected override IEnumerable<string> GetPreviewProperties(PlayableDirector playableDirector) {
+            yield return "m_PlayableAsset";
+            yield return "m_DirectorUpdateMode";
+        }
 
         /// <inheritdoc/>
-        protected override float CalculateDuration(int seed, IAnimationGraphContext context) {
+        protected override float CalculateDuration(int seed, PlayableDirector playableDirector, IAnimationGraphBlackboard blackboard) {
             if (_timelineAsset == null) {
                 return 0.0f;
             }
@@ -29,13 +36,8 @@ namespace UnityAnimationGraph {
         }
 
         /// <inheritdoc/>
-        protected override float CalculateDelay(int seed, IAnimationGraphContext context) {
-            return 0.0f;
-        }
-
-        /// <inheritdoc/>
-        protected override void Enter(int seed, IAnimationGraphContext context) {
-            if (!TryResolvePlayableDirector(context, out var playableDirector)) {
+        protected override void Enter(int seed, PlayableDirector playableDirector, IAnimationGraphBlackboard blackboard) {
+            if (_timelineAsset == null) {
                 return;
             }
 
@@ -51,40 +53,20 @@ namespace UnityAnimationGraph {
         }
 
         /// <inheritdoc/>
-        protected override void Evaluate(int seed, float localTime, float calculatedDuration, IAnimationGraphContext context) {
-            if (!TryResolvePlayableDirector(context, out var playableDirector)) {
+        protected override void Evaluate(int seed, PlayableDirector playableDirector, float localTime, float calculatedDuration, IAnimationGraphBlackboard blackboard) {
+            if (_timelineAsset == null) {
                 return;
             }
 
             playableDirector.time = localTime;
+#if UNITY_EDITOR
+            if (AnimationMode.InAnimationMode()) {
+                AnimationMode.SamplePlayableGraph(playableDirector.playableGraph, 0, localTime);
+                return;
+            }
+#endif
+
             playableDirector.Evaluate();
-        }
-
-        /// <summary>
-        /// TargetKey から PlayableDirector の解決を試行
-        /// </summary>
-        /// <param name="context">評価コンテキスト</param>
-        /// <param name="playableDirector">解決した PlayableDirector</param>
-        /// <returns>解決できた場合は true</returns>
-        private bool TryResolvePlayableDirector(IAnimationGraphContext context, out PlayableDirector playableDirector) {
-            playableDirector = null;
-            if (context == null) {
-                return false;
-            }
-
-            if (string.IsNullOrEmpty(TargetKey)) {
-                return false;
-            }
-
-            if (_timelineAsset == null) {
-                return false;
-            }
-
-            if (!context.TryGetTarget<PlayableDirector>(TargetKey, out playableDirector) || playableDirector == null) {
-                return false;
-            }
-
-            return true;
         }
     }
 }

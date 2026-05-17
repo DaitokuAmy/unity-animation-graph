@@ -25,7 +25,7 @@ namespace UnityAnimationGraph.Editor {
             SignalModel = signalModel ?? throw new System.ArgumentNullException(nameof(signalModel));
             title = signalModel.DisplayName;
             viewDataKey = signalModel.SignalId;
-            capabilities |= Capabilities.Selectable | Capabilities.Movable | Capabilities.Deletable;
+            capabilities |= Capabilities.Selectable | Capabilities.Movable | Capabilities.Deletable | Capabilities.Copiable;
 
             style.borderTopColor = SignalColor;
             style.borderRightColor = SignalColor;

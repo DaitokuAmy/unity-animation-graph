@@ -345,7 +345,7 @@ namespace UnityAnimationGraph.Tests {
         /// <param name="easeProperty">設定対象 SerializedProperty</param>
         /// <param name="easeType">補間カーブ種別</param>
         private static void SetEaseType(SerializedProperty easeProperty, EaseType easeType) {
-            easeProperty.FindPropertyRelative(EaseModePropertyName).enumValueIndex = (int)TweenEaseMode.EaseType;
+            easeProperty.FindPropertyRelative(EaseModePropertyName).enumValueIndex = (int)TweenEaseMode.Preset;
             easeProperty.FindPropertyRelative(EaseTypePropertyName).enumValueIndex = (int)easeType;
         }
 

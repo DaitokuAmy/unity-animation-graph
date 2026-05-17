@@ -13,9 +13,9 @@ namespace UnityAnimationGraph {
         private string[] _loopNodeIds = Array.Empty<string>();
 
         /// <summary>ループ実行回数</summary>
-        public int LoopCount => Mathf.Max(1, _loopCount);
+        internal int LoopCount => Mathf.Max(1, _loopCount);
         /// <summary>ループ内容のノード ID 一覧</summary>
-        public IReadOnlyList<string> LoopNodeIds => _loopNodeIds ?? Array.Empty<string>();
+        internal IReadOnlyList<string> LoopNodeIds => _loopNodeIds ?? Array.Empty<string>();
 
         /// <inheritdoc/>
         protected override float CalculateDuration(int seed, IAnimationGraphContext context) {

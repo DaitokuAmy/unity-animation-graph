@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Reflection;
 using NUnit.Framework;
 using UnityAnimationGraph.Editor;
 using UnityEditor;
@@ -10,6 +11,13 @@ namespace UnityAnimationGraph.Tests {
     /// AnimationGraphAssetEditorModel の EditMode テスト
     /// </summary>
     public sealed class AnimationGraphAssetEditorModelTests {
+        private const string SignalPortsPropertyName = "_signalPorts";
+        private const string SignalPortsEnterEnabledPropertyName = "_enterEnabled";
+        private const string SignalPortsExitEnabledPropertyName = "_exitEnabled";
+        private const string SignalPortSettingsVersionPropertyName = "_signalPortSettingsVersion";
+        private const string LegacyEnableEnterSignalPortPropertyName = "_enableEnterSignalPort";
+        private const string LegacyEnableExitSignalPortPropertyName = "_enableExitSignalPort";
+
         private readonly List<string> _assetPaths = new();
 
         /// <summary>
@@ -134,6 +142,30 @@ namespace UnityAnimationGraph.Tests {
         }
 
         /// <summary>
+        /// Preview 進捗は Delay を含めず Duration の進行率だけを反映する
+        /// </summary>
+        [Test]
+        public void SetPreviewSchedule_ExcludesDelayFromProgress() {
+            var graphAsset = CreateSavedGraphAsset();
+            var model = new AnimationGraphAssetEditorModel();
+            model.SetGraphAsset(graphAsset);
+            model.InitializeGraph(Vector2.zero);
+            var nodeModel = model.AddNode<DelayNode>(Vector2.right);
+            Assert.IsTrue(graphAsset.TryGetNode(nodeModel.NodeId, out var node));
+            var schedule = new AnimationGraphSchedule(
+                new[] { new ScheduledNode(node, 2.0f, 2.0f, 4.0f, 0, 0) },
+                6.0f);
+
+            model.SetPreviewSchedule(schedule, 1.0f);
+
+            AssertPreviewExecutionInfo(nodeModel, "Active", 0.0f);
+
+            model.SetPreviewSchedule(schedule, 3.0f);
+
+            AssertPreviewExecutionInfo(nodeModel, "Active", 0.25f);
+        }
+
+        /// <summary>
         /// GraphAsset からノードを削除できる
         /// </summary>
         [Test]
@@ -242,6 +274,61 @@ namespace UnityAnimationGraph.Tests {
 
             Assert.IsFalse(node.EnableEnterSignalPort);
             Assert.IsFalse(node.EnableExitSignalPort);
+        }
+
+        /// <summary>
+        /// Node の Signal Port を無効にすると対応する Signal 参照を解除する
+        /// </summary>
+        [Test]
+        public void SetNodeSignalPortEnabled_RemovesSignalReferencesWhenDisabled() {
+            var graphAsset = CreateSavedGraphAsset();
+            var model = new AnimationGraphAssetEditorModel();
+            model.SetGraphAsset(graphAsset);
+            model.InitializeGraph(Vector2.zero);
+            var nodeModel = model.AddNode<DelayNode>(Vector2.right);
+            Assert.IsTrue(graphAsset.TryGetNode(nodeModel.NodeId, out var node));
+            AnimationGraphAssetUtility.SetNodeEnterSignalPortEnabled(node, true);
+            AnimationGraphAssetUtility.SetNodeExitSignalPortEnabled(node, true);
+            var enterSignal = AnimationGraphAssetUtility.AddEnterSignal(graphAsset, node, typeof(TestSignal));
+            var exitSignal = AnimationGraphAssetUtility.AddExitSignal(graphAsset, node, typeof(TestSignal));
+
+            AnimationGraphAssetUtility.SetNodeEnterSignalPortEnabled(node, false);
+
+            Assert.That(node.EnterSignals, Is.Empty);
+            Assert.That(node.ExitSignals.Count, Is.EqualTo(1));
+            Assert.That(node.ExitSignals[0], Is.SameAs(exitSignal));
+
+            AnimationGraphAssetUtility.SetNodeExitSignalPortEnabled(node, false);
+
+            Assert.That(node.ExitSignals, Is.Empty);
+            CollectionAssert.Contains(AssetDatabase.LoadAllAssetsAtPath(AssetDatabase.GetAssetPath(graphAsset)), enterSignal);
+            CollectionAssert.Contains(AssetDatabase.LoadAllAssetsAtPath(AssetDatabase.GetAssetPath(graphAsset)), exitSignal);
+        }
+
+        /// <summary>
+        /// 旧 Signal Port フィールドから構造体設定へ移行して更新できる
+        /// </summary>
+        [Test]
+        public void SetNodeSignalPortEnabled_MigratesLegacyFlagsToSettings() {
+            var graphAsset = CreateSavedGraphAsset();
+            var model = new AnimationGraphAssetEditorModel();
+            model.SetGraphAsset(graphAsset);
+            model.InitializeGraph(Vector2.zero);
+            var nodeModel = model.AddNode<DelayNode>(Vector2.right);
+            Assert.IsTrue(graphAsset.TryGetNode(nodeModel.NodeId, out var node));
+            SetLegacySignalPortFlags(node, true, true);
+
+            AnimationGraphAssetUtility.SetNodeEnterSignalPortEnabled(node, false);
+            var serializedNode = new SerializedObject(node);
+            var signalPortsProperty = serializedNode.FindProperty(SignalPortsPropertyName);
+
+            Assert.IsFalse(node.EnableEnterSignalPort);
+            Assert.IsTrue(node.EnableExitSignalPort);
+            Assert.IsFalse(signalPortsProperty.FindPropertyRelative(SignalPortsEnterEnabledPropertyName).boolValue);
+            Assert.IsTrue(signalPortsProperty.FindPropertyRelative(SignalPortsExitEnabledPropertyName).boolValue);
+            Assert.That(serializedNode.FindProperty(SignalPortSettingsVersionPropertyName).intValue, Is.EqualTo(1));
+            Assert.IsFalse(serializedNode.FindProperty(LegacyEnableEnterSignalPortPropertyName).boolValue);
+            Assert.IsFalse(serializedNode.FindProperty(LegacyEnableExitSignalPortPropertyName).boolValue);
         }
 
         /// <summary>
@@ -445,6 +532,30 @@ namespace UnityAnimationGraph.Tests {
         }
 
         /// <summary>
+        /// Signal を複製すると新しい Signal ID と位置で sub asset が追加される
+        /// </summary>
+        [Test]
+        public void DuplicateSignals_DuplicatesSignalSubAssets() {
+            var graphAsset = CreateSavedGraphAsset();
+            var model = new AnimationGraphAssetEditorModel();
+            var signalPosition = new Vector2(10.0f, 20.0f);
+            var offset = new Vector2(20.0f, 30.0f);
+            model.SetGraphAsset(graphAsset);
+            AnimationGraphAssetUtility.AddSignal(graphAsset, typeof(TestSignal), signalPosition);
+            model.RefreshNodes();
+            var signalModel = model.Signals[0];
+
+            var duplicatedSignals = model.DuplicateSignals(new[] { signalModel }, offset);
+
+            Assert.That(duplicatedSignals.Count, Is.EqualTo(1));
+            Assert.That(duplicatedSignals[0].SignalId, Is.Not.EqualTo(signalModel.SignalId));
+            Assert.That(duplicatedSignals[0].SignalType, Is.EqualTo(signalModel.SignalType));
+            Assert.That(duplicatedSignals[0].GraphPosition, Is.EqualTo(signalPosition + offset));
+            Assert.That(model.Signals.Count, Is.EqualTo(2));
+            Assert.That(AnimationGraphAssetUtility.GetSignals(graphAsset).Count, Is.EqualTo(2));
+        }
+
+        /// <summary>
         /// GraphAsset の target 定義を serialized property 経由で更新できる
         /// </summary>
         [Test]
@@ -518,6 +629,29 @@ namespace UnityAnimationGraph.Tests {
             AssetDatabase.SaveAssets();
             _assetPaths.Add(assetPath);
             return graphAsset;
+        }
+
+        private static void SetLegacySignalPortFlags(Node node, bool enableEnterSignalPort, bool enableExitSignalPort) {
+            var serializedNode = new SerializedObject(node);
+            serializedNode.FindProperty(LegacyEnableEnterSignalPortPropertyName).boolValue = enableEnterSignalPort;
+            serializedNode.FindProperty(LegacyEnableExitSignalPortPropertyName).boolValue = enableExitSignalPort;
+            serializedNode.ApplyModifiedPropertiesWithoutUndo();
+        }
+
+        private static void AssertPreviewExecutionInfo(NodeEditorModel nodeModel, string expectedState, float expectedProgress) {
+            var method = typeof(NodeEditorModel).GetMethod("TryGetPreviewExecutionInfo", BindingFlags.Instance | BindingFlags.NonPublic);
+            Assert.That(method, Is.Not.Null);
+
+            var parameters = new object[] { null };
+            Assert.IsTrue((bool)method.Invoke(nodeModel, parameters));
+
+            var previewExecutionInfo = parameters[0];
+            var previewExecutionInfoType = previewExecutionInfo.GetType();
+            var state = previewExecutionInfoType.GetProperty("State")?.GetValue(previewExecutionInfo)?.ToString();
+            var progress = (float)previewExecutionInfoType.GetProperty("Progress").GetValue(previewExecutionInfo);
+
+            Assert.That(state, Is.EqualTo(expectedState));
+            Assert.That(progress, Is.EqualTo(expectedProgress).Within(0.0001f));
         }
     }
 }

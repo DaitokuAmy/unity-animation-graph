@@ -10,7 +10,6 @@ namespace UnityAnimationGraph.Tests {
     public sealed class PlayParticleSystemNodeTests {
         private const string TargetKey = "particle";
         private const string ActionTargetKeyPropertyName = "_targetKey";
-        private const string DurationPropertyName = "_duration";
 
         private PlayParticleSystemNode _node;
         private GameObject _gameObject;
@@ -27,7 +26,7 @@ namespace UnityAnimationGraph.Tests {
             _particleSystem = _gameObject.AddComponent<ParticleSystem>();
             _context = new TestAnimationGraphContext();
             _context.SetTarget(TargetKey, _particleSystem);
-            SetNodeProperties(_node, TargetKey, 0.0f);
+            SetNodeProperties(_node, TargetKey);
         }
 
         /// <summary>
@@ -40,24 +39,11 @@ namespace UnityAnimationGraph.Tests {
         }
 
         /// <summary>
-        /// duration が設定されている場合はノードの実行時間として使用する
+        /// ParticleSystem の duration を実行時間として使用する
         /// </summary>
         [Test]
-        public void CalculateDuration_ReturnsConfiguredDuration() {
-            SetNodeProperties(_node, TargetKey, 2.5f);
-
-            var duration = ((INodeExecutor)_node).CalculateDuration(0, _context);
-
-            Assert.That(duration, Is.EqualTo(2.5f).Within(0.0001f));
-        }
-
-        /// <summary>
-        /// duration 未設定の場合は ParticleSystem の duration を実行時間として使用する
-        /// </summary>
-        [Test]
-        public void CalculateDuration_UsesParticleSystemDurationWhenDurationIsZero() {
+        public void CalculateDuration_UsesParticleSystemDuration() {
             SetParticleSystemDuration(_particleSystem, 3.75f);
-            SetNodeProperties(_node, TargetKey, 0.0f);
 
             var duration = ((INodeExecutor)_node).CalculateDuration(0, _context);
 
@@ -84,19 +70,6 @@ namespace UnityAnimationGraph.Tests {
             ((INodeExecutor)_node).Evaluate(456, 0.5f, 2.5f, _context);
 
             Assert.That(_particleSystem.time, Is.EqualTo(0.5f).Within(0.05f));
-        }
-
-        /// <summary>
-        /// Enter で設定済み duration を ParticleSystem に反映する
-        /// </summary>
-        [Test]
-        public void Enter_SyncsConfiguredDuration() {
-            SetNodeProperties(_node, TargetKey, 2.5f);
-
-            ((INodeExecutor)_node).Enter(456, _context);
-
-            var main = _particleSystem.main;
-            Assert.That(main.duration, Is.EqualTo(2.5f).Within(0.0001f));
         }
 
         /// <summary>
@@ -155,11 +128,9 @@ namespace UnityAnimationGraph.Tests {
         /// </summary>
         /// <param name="node">設定対象ノード</param>
         /// <param name="targetKey">設定する target key</param>
-        /// <param name="duration">設定する実行時間</param>
-        private static void SetNodeProperties(PlayParticleSystemNode node, string targetKey, float duration) {
+        private static void SetNodeProperties(PlayParticleSystemNode node, string targetKey) {
             var serializedNode = new SerializedObject(node);
             serializedNode.FindProperty(ActionTargetKeyPropertyName).stringValue = targetKey;
-            serializedNode.FindProperty(DurationPropertyName).floatValue = duration;
             serializedNode.ApplyModifiedPropertiesWithoutUndo();
         }
 

@@ -11,7 +11,7 @@ namespace UnityAnimationGraph {
         private float _delay;
 
         /// <summary>Delay before continuing to next nodes.</summary>
-        public float Delay => Mathf.Max(0.0f, _delay);
+        internal float Delay => Mathf.Max(0.0f, _delay);
 
         /// <inheritdoc/>
         protected override float CalculateDuration(int seed, IAnimationGraphContext context) {

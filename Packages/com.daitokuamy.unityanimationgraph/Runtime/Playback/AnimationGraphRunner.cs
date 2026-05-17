@@ -76,6 +76,22 @@ namespace UnityAnimationGraph {
             set => _player.TimeScale = value;
         }
 
+        /// <summary>
+        /// 指定した Signal 型の発火通知を購読
+        /// </summary>
+        /// <param name="callback">Signal 発火時に呼び出す callback</param>
+        /// <typeparam name="TSignal">購読対象の Signal 型</typeparam>
+        public void SubscribeSignal<TSignal>(Action<TSignal> callback) where TSignal : Signal {
+            _player.SubscribeSignal(callback);
+        }
+
+        /// <summary>
+        /// Signal 発火通知の購読をすべて解除
+        /// </summary>
+        public void ClearSignalSubscriptions() {
+            _player.ClearSignalSubscriptions();
+        }
+
         /// <inheritdoc/>
         T IAnimationGraphContext.GetTarget<T>(string key) {
             var group = GetCurrentTargetBindingGroup();
@@ -160,6 +176,16 @@ namespace UnityAnimationGraph {
 
         /// <inheritdoc/>
         bool IAnimationGraphBlackboard.TryGetBlackboardValue(string key, out Color value) {
+            if (TryGetBlackboardValue(key, out var blackboardValue) && blackboardValue.TryGetValue(out value)) {
+                return true;
+            }
+
+            value = default;
+            return false;
+        }
+
+        /// <inheritdoc/>
+        bool IAnimationGraphBlackboard.TryGetBlackboardValue(string key, out Vector4 value) {
             if (TryGetBlackboardValue(key, out var blackboardValue) && blackboardValue.TryGetValue(out value)) {
                 return true;
             }
@@ -389,6 +415,25 @@ namespace UnityAnimationGraph {
         /// <param name="value">設定する Color 値</param>
         /// <returns>設定できた場合は true</returns>
         public bool SetBlackboardValue(string key, Color value) {
+            if (!TryGetBlackboardValueForSet(key, out var valueIndex, out var blackboardValue)) {
+                return false;
+            }
+
+            if (!blackboardValue.TrySetValue(value)) {
+                return false;
+            }
+
+            _blackboardValues[valueIndex] = blackboardValue;
+            return true;
+        }
+
+        /// <summary>
+        /// Blackboard の Vector4 現在値を設定
+        /// </summary>
+        /// <param name="key">Blackboard key</param>
+        /// <param name="value">設定する Vector4 値</param>
+        /// <returns>設定できた場合は true</returns>
+        public bool SetBlackboardValue(string key, Vector4 value) {
             if (!TryGetBlackboardValueForSet(key, out var valueIndex, out var blackboardValue)) {
                 return false;
             }

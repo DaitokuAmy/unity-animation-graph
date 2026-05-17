@@ -9,7 +9,7 @@ namespace UnityAnimationGraph {
         private JoinType _joinType = JoinType.All;
 
         /// <summary>合流方法</summary>
-        public JoinType JoinType => _joinType;
+        internal JoinType JoinType => _joinType;
 
         /// <inheritdoc/>
         protected override float CalculateDuration(int seed, IAnimationGraphContext context) {

@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 
 namespace UnityAnimationGraph {
@@ -9,10 +10,18 @@ namespace UnityAnimationGraph {
         [SerializeField, Tooltip("OrthographicSize Tween 設定")]
         private FloatTween _tween = new(5.0f, 3.0f);
 
-        /// <summary>OrthographicSize Tween 設定</summary>
-        public FloatTween Tween => _tween;
         /// <inheritdoc/>
         protected override FloatTween TweenSettings => _tween;
+
+        /// <inheritdoc/>
+        protected override IEnumerable<string> GetPreviewProperties(Camera target) {
+            yield return "orthographic size";
+        }
+
+        /// <inheritdoc/>
+        protected override float GetBaseValue(Camera target) {
+            return target.orthographicSize;
+        }
 
         /// <inheritdoc/>
         protected override void ApplyValue(Camera target, float value) {

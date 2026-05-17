@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 
 namespace UnityAnimationGraph {
@@ -9,10 +10,19 @@ namespace UnityAnimationGraph {
         [SerializeField, Tooltip("AnchoredPosition Tween 設定")]
         private Vector2Tween _tween = new(Vector2.zero, Vector2.up * 100.0f);
 
-        /// <summary>AnchoredPosition Tween 設定</summary>
-        public Vector2Tween Tween => _tween;
         /// <inheritdoc/>
         protected override Vector2Tween TweenSettings => _tween;
+
+        /// <inheritdoc/>
+        protected override IEnumerable<string> GetPreviewProperties(RectTransform target) {
+            yield return "m_AnchoredPosition.x";
+            yield return "m_AnchoredPosition.y";
+        }
+
+        /// <inheritdoc/>
+        protected override Vector2 GetBaseValue(RectTransform target) {
+            return target.anchoredPosition;
+        }
 
         /// <inheritdoc/>
         protected override void ApplyValue(RectTransform target, Vector2 value) {

@@ -152,6 +152,16 @@ namespace UnityAnimationGraph.Editor {
             return false;
         }
 
+        /// <inheritdoc/>
+        public bool TryGetBlackboardValue(string key, out Vector4 value) {
+            if (TryGetBlackboardEntry(key, out var blackboardValue) && blackboardValue.TryGetValue(out value)) {
+                return true;
+            }
+
+            value = default;
+            return false;
+        }
+
         /// <summary>
         /// Blackboard 定義から Preview 用の初期値を構築
         /// </summary>

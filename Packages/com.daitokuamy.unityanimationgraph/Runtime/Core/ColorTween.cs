@@ -46,7 +46,20 @@ namespace UnityAnimationGraph {
         /// <param name="value">補間色</param>
         /// <returns>取得できた場合は true</returns>
         public bool TryEvaluate(IAnimationGraphBlackboard blackboard, float localTime, float calculatedDuration, out Color value) {
-            if (!_before.TryGetValue(blackboard, out Color before) || !_after.TryGetValue(blackboard, out Color after)) {
+            return TryEvaluate(blackboard, Color.white, localTime, calculatedDuration, out value);
+        }
+
+        /// <summary>
+        /// 指定時刻の補間色の取得を試行
+        /// </summary>
+        /// <param name="blackboard">Blackboard 値の取得元</param>
+        /// <param name="baseValue">乗算値の基準色</param>
+        /// <param name="localTime">ノード開始時刻からの経過時間</param>
+        /// <param name="calculatedDuration">計算済みの実行時間</param>
+        /// <param name="value">補間色</param>
+        /// <returns>取得できた場合は true</returns>
+        public bool TryEvaluate(IAnimationGraphBlackboard blackboard, Color baseValue, float localTime, float calculatedDuration, out Color value) {
+            if (!_before.TryGetValue(blackboard, baseValue, out Color before) || !_after.TryGetValue(blackboard, baseValue, out Color after)) {
                 value = default;
                 return false;
             }

@@ -20,6 +20,7 @@ namespace UnityAnimationGraph.Tests {
         private const string SourcePropertyName = "_source";
         private const string BlackboardKeyPropertyName = "_blackboardKey";
         private const string ValuePropertyName = "_value";
+        private const string RelativePropertyName = "_relative";
         private const string EaseModePropertyName = "_mode";
         private const string EaseTypePropertyName = "_easeType";
 
@@ -46,22 +47,26 @@ namespace UnityAnimationGraph.Tests {
         }
 
         /// <summary>
-        /// Position node は node 直下の duration/delay を実行時間として返す
+        /// Position node は target 解決時に node 直下の duration/delay を実行タイミングとして返す
         /// </summary>
         [Test]
         public void PositionNode_CalculatesDurationAndDelayFromNodeTiming() {
             var node = ScriptableObject.CreateInstance<TweenTransformPositionNode>();
+            var gameObject = new GameObject("Target");
             try {
+                var context = CreateContext(gameObject.transform);
+                SetActionTargetKey(node, TargetKey);
                 SetTweenTiming(node, 2.5f, 0.75f);
 
-                var duration = ((INodeExecutor)node).CalculateDuration(0, new TestAnimationGraphContext());
-                var delay = ((INodeExecutor)node).CalculateDelay(0, new TestAnimationGraphContext());
+                var duration = ((INodeExecutor)node).CalculateDuration(0, context);
+                var delay = ((INodeExecutor)node).CalculateDelay(0, context);
 
                 Assert.That(duration, Is.EqualTo(2.5f).Within(0.0001f));
                 Assert.That(delay, Is.EqualTo(0.75f).Within(0.0001f));
             }
             finally {
                 DestroyObject(node);
+                DestroyObject(gameObject);
             }
         }
 
@@ -112,6 +117,37 @@ namespace UnityAnimationGraph.Tests {
                 DestroyObject(node);
                 DestroyObject(gameObject);
                 DestroyObject(parent);
+            }
+        }
+
+        /// <summary>
+        /// Position node は相対値の基準値を開始時点で固定する
+        /// </summary>
+        [Test]
+        public void PositionNode_UsesCapturedBaseValueForRelativeParameters() {
+            using var builder = new AnimationGraphTestBuilder();
+            var gameObject = new GameObject("Target");
+            try {
+                gameObject.transform.localPosition = new Vector3(10.0f, 0.0f, 0.0f);
+                var context = CreateContext(gameObject.transform);
+                var startNode = builder.CreateStartNode("start", "move");
+                var moveNode = builder.CreateNode<TweenTransformPositionNode>("move");
+                SetActionTargetKey(moveNode, TargetKey);
+                SetVector3TweenDirect(moveNode, Vector3.zero, Vector3.up, 2.0f, EaseType.Linear, Vector3IgnoreMask.None, true, true);
+                var graphAsset = builder.CreateGraph("start", startNode, moveNode);
+                var player = new AnimationGraphPlayer();
+                player.SetContext(context);
+                player.SetGraph(graphAsset);
+
+                player.Play();
+                player.Tick(0.5f);
+                AssertVector3(gameObject.transform.localPosition, new Vector3(10.0f, 0.25f, 0.0f));
+
+                player.Tick(0.5f);
+                AssertVector3(gameObject.transform.localPosition, new Vector3(10.0f, 0.5f, 0.0f));
+            }
+            finally {
+                DestroyObject(gameObject);
             }
         }
 
@@ -217,12 +253,12 @@ namespace UnityAnimationGraph.Tests {
         /// <param name="duration">Tween にかける時間</param>
         /// <param name="easeType">補間カーブ種別</param>
         /// <param name="ignoreMask">更新しない要素</param>
-        private static void SetVector3TweenDirect(Node node, Vector3 before, Vector3 after, float duration, EaseType easeType, Vector3IgnoreMask ignoreMask = Vector3IgnoreMask.None) {
+        private static void SetVector3TweenDirect(Node node, Vector3 before, Vector3 after, float duration, EaseType easeType, Vector3IgnoreMask ignoreMask = Vector3IgnoreMask.None, bool beforeRelative = false, bool afterRelative = false) {
             var serializedNode = new SerializedObject(node);
             SetTweenTiming(serializedNode, duration, 0.0f);
             var tweenProperty = serializedNode.FindProperty(TweenPropertyName);
-            SetDirectVector3Parameter(tweenProperty.FindPropertyRelative(BeforePropertyName), before);
-            SetDirectVector3Parameter(tweenProperty.FindPropertyRelative(AfterPropertyName), after);
+            SetDirectVector3Parameter(tweenProperty.FindPropertyRelative(BeforePropertyName), before, beforeRelative);
+            SetDirectVector3Parameter(tweenProperty.FindPropertyRelative(AfterPropertyName), after, afterRelative);
             tweenProperty.FindPropertyRelative(IgnoreMaskPropertyName).intValue = (int)ignoreMask;
             SetEaseType(tweenProperty.FindPropertyRelative(EasePropertyName), easeType);
             serializedNode.ApplyModifiedPropertiesWithoutUndo();
@@ -304,9 +340,10 @@ namespace UnityAnimationGraph.Tests {
         /// </summary>
         /// <param name="parameterProperty">設定対象 SerializedProperty</param>
         /// <param name="value">設定する Vector3 値</param>
-        private static void SetDirectVector3Parameter(SerializedProperty parameterProperty, Vector3 value) {
+        private static void SetDirectVector3Parameter(SerializedProperty parameterProperty, Vector3 value, bool relative = false) {
             parameterProperty.FindPropertyRelative(SourcePropertyName).enumValueIndex = (int)ParameterSource.Value;
             parameterProperty.FindPropertyRelative(ValuePropertyName).vector3Value = value;
+            parameterProperty.FindPropertyRelative(RelativePropertyName).boolValue = relative;
         }
 
         /// <summary>
@@ -335,7 +372,7 @@ namespace UnityAnimationGraph.Tests {
         /// <param name="easeProperty">設定対象 SerializedProperty</param>
         /// <param name="easeType">補間カーブ種別</param>
         private static void SetEaseType(SerializedProperty easeProperty, EaseType easeType) {
-            easeProperty.FindPropertyRelative(EaseModePropertyName).enumValueIndex = (int)TweenEaseMode.EaseType;
+            easeProperty.FindPropertyRelative(EaseModePropertyName).enumValueIndex = (int)TweenEaseMode.Preset;
             easeProperty.FindPropertyRelative(EaseTypePropertyName).enumValueIndex = (int)easeType;
         }
 

@@ -6,10 +6,10 @@ namespace UnityAnimationGraph {
     /// Tween の補間率の解決方法
     /// </summary>
     public enum TweenEaseMode {
-        /// <summary>EaseType を使用</summary>
-        EaseType,
+        /// <summary>EaseType のプリセットを使用</summary>
+        Preset,
         /// <summary>AnimationCurve を使用</summary>
-        AnimationCurve,
+        Curve,
     }
 
     /// <summary>
@@ -36,7 +36,7 @@ namespace UnityAnimationGraph {
         /// </summary>
         /// <param name="easeType">補間カーブ種別</param>
         public TweenEase(EaseType easeType) {
-            _mode = TweenEaseMode.EaseType;
+            _mode = TweenEaseMode.Preset;
             _easeType = easeType;
             _animationCurve = null;
         }
@@ -46,7 +46,7 @@ namespace UnityAnimationGraph {
         /// </summary>
         /// <param name="animationCurve">補間カーブ</param>
         public TweenEase(AnimationCurve animationCurve) {
-            _mode = TweenEaseMode.AnimationCurve;
+            _mode = TweenEaseMode.Curve;
             _easeType = EaseType.Linear;
             _animationCurve = animationCurve;
         }
@@ -58,7 +58,7 @@ namespace UnityAnimationGraph {
         /// <returns>評価後の補間率</returns>
         public float Evaluate(float ratio) {
             ratio = Mathf.Clamp01(ratio);
-            if (_mode == TweenEaseMode.AnimationCurve) {
+            if (_mode == TweenEaseMode.Curve) {
                 return _animationCurve == null ? ratio : _animationCurve.Evaluate(ratio);
             }
 

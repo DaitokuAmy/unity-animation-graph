@@ -30,6 +30,23 @@ namespace UnityAnimationGraph {
     }
 
     /// <summary>
+    /// Vector4 Tween で更新しない要素
+    /// </summary>
+    [Flags]
+    public enum Vector4IgnoreMask {
+        /// <summary>すべて更新</summary>
+        None = 0,
+        /// <summary>X を更新しない</summary>
+        X = 1 << 0,
+        /// <summary>Y を更新しない</summary>
+        Y = 1 << 1,
+        /// <summary>Z を更新しない</summary>
+        Z = 1 << 2,
+        /// <summary>W を更新しない</summary>
+        W = 1 << 3,
+    }
+
+    /// <summary>
     /// Color Tween で更新しない要素
     /// </summary>
     [Flags]

@@ -64,6 +64,8 @@ namespace UnityAnimationGraph.Tests {
         private const string DefaultVector3ValuePropertyName = "_defaultVector3Value";
         /// <summary>Blackboard 定義の Color default value フィールド名</summary>
         private const string DefaultColorValuePropertyName = "_defaultColorValue";
+        /// <summary>Blackboard 定義の Vector4 default value フィールド名</summary>
+        private const string DefaultVector4ValuePropertyName = "_defaultVector4Value";
 
         private readonly List<UnityEngine.Object> _objects = new();
 
@@ -176,6 +178,7 @@ namespace UnityAnimationGraph.Tests {
                 definitionProperty.FindPropertyRelative(DefaultVector2ValuePropertyName).vector2Value = definitions[i].DefaultVector2Value;
                 definitionProperty.FindPropertyRelative(DefaultVector3ValuePropertyName).vector3Value = definitions[i].DefaultVector3Value;
                 definitionProperty.FindPropertyRelative(DefaultColorValuePropertyName).colorValue = definitions[i].DefaultColorValue;
+                definitionProperty.FindPropertyRelative(DefaultVector4ValuePropertyName).vector4Value = definitions[i].DefaultVector4Value;
             }
 
             serializedGraph.ApplyModifiedPropertiesWithoutUndo();
@@ -452,6 +455,15 @@ namespace UnityAnimationGraph.Tests {
             _blackboardValues[key] = value;
         }
 
+        /// <summary>
+        /// Vector4 Blackboard 値を設定
+        /// </summary>
+        /// <param name="key">Blackboard キー</param>
+        /// <param name="value">設定する Vector4 値</param>
+        public void SetBlackboardValue(string key, Vector4 value) {
+            _blackboardValues[key] = value;
+        }
+
         /// <inheritdoc/>
         public T GetTarget<T>(string key) where T : Component {
             if (TryGetTarget<T>(key, out var target)) {
@@ -541,6 +553,17 @@ namespace UnityAnimationGraph.Tests {
         /// <inheritdoc/>
         public bool TryGetBlackboardValue(string key, out Color value) {
             if (_blackboardValues.TryGetValue(key, out var objectValue) && objectValue is Color typedValue) {
+                value = typedValue;
+                return true;
+            }
+
+            value = default;
+            return false;
+        }
+
+        /// <inheritdoc/>
+        public bool TryGetBlackboardValue(string key, out Vector4 value) {
+            if (_blackboardValues.TryGetValue(key, out var objectValue) && objectValue is Vector4 typedValue) {
                 value = typedValue;
                 return true;
             }

@@ -14,6 +14,8 @@ namespace UnityAnimationGraph.Editor {
         /// </summary>
         private struct PreviewExecutionInfoBuilder {
             private NodePreviewExecutionState _state;
+            private float _progress;
+            private float _previewStartTime;
 
             /// <summary>
             /// 現在時刻に対する ScheduledNode の実行状態を追加
@@ -22,24 +24,49 @@ namespace UnityAnimationGraph.Editor {
             /// <param name="previewTime">Preview の現在時刻</param>
             public void Add(ScheduledNode scheduledNode, float previewTime) {
                 var nextState = NodePreviewExecutionState.None;
-                if (scheduledNode.Duration <= PreviewTimeEpsilon) {
+                var nextProgress = 0.0f;
+                var previewStartTime = scheduledNode.StartTime - scheduledNode.Delay;
+                if (previewStartTime - PreviewTimeEpsilon <= previewTime && previewTime < scheduledNode.StartTime - PreviewTimeEpsilon) {
+                    nextState = NodePreviewExecutionState.Active;
+                }
+                else if (scheduledNode.Duration <= PreviewTimeEpsilon) {
                     if (Mathf.Abs(previewTime - scheduledNode.StartTime) <= PreviewTimeEpsilon) {
                         nextState = NodePreviewExecutionState.Active;
+                        nextProgress = 1.0f;
                     }
                     else if (scheduledNode.StartTime < previewTime - PreviewTimeEpsilon) {
                         nextState = NodePreviewExecutionState.Completed;
+                        nextProgress = 1.0f;
                     }
                 }
                 else if (scheduledNode.StartTime - PreviewTimeEpsilon <= previewTime && previewTime < scheduledNode.EndTime - PreviewTimeEpsilon) {
                     nextState = NodePreviewExecutionState.Active;
+                    nextProgress = Mathf.Clamp01((previewTime - scheduledNode.StartTime) / scheduledNode.Duration);
                 }
                 else if (scheduledNode.EndTime <= previewTime + PreviewTimeEpsilon) {
                     nextState = NodePreviewExecutionState.Completed;
+                    nextProgress = 1.0f;
                 }
 
-                if (nextState == NodePreviewExecutionState.Active || _state == NodePreviewExecutionState.None && nextState == NodePreviewExecutionState.Completed) {
+                if (nextState == NodePreviewExecutionState.Active || _state != NodePreviewExecutionState.Active && nextState == NodePreviewExecutionState.Completed) {
                     _state = nextState;
+                    _progress = nextProgress;
+                    _previewStartTime = previewStartTime;
                 }
+            }
+
+            /// <summary>
+            /// 指定時刻より前の完了状態を消去
+            /// </summary>
+            /// <param name="resetTime">消去境界時刻</param>
+            public void ClearCompletedBefore(float resetTime) {
+                if (_state != NodePreviewExecutionState.Completed || resetTime <= _previewStartTime + PreviewTimeEpsilon) {
+                    return;
+                }
+
+                _state = NodePreviewExecutionState.None;
+                _progress = 0.0f;
+                _previewStartTime = 0.0f;
             }
 
             /// <summary>
@@ -55,7 +82,7 @@ namespace UnityAnimationGraph.Editor {
             /// </summary>
             /// <returns>集計した NodePreviewExecutionInfo</returns>
             public NodePreviewExecutionInfo ToPreviewExecutionInfo() {
-                return new NodePreviewExecutionInfo(_state);
+                return new NodePreviewExecutionInfo(_state, _progress);
             }
         }
 
@@ -232,6 +259,33 @@ namespace UnityAnimationGraph.Editor {
         }
 
         /// <summary>
+        /// 操作対象の AnimationGraphAsset に複数 Signal を複製して追加
+        /// </summary>
+        /// <param name="signalModels">複製する Signal Model 一覧</param>
+        /// <param name="offset">複製先座標に加算する offset</param>
+        /// <returns>複製した Signal Model 一覧</returns>
+        public IReadOnlyList<SignalEditorModel> DuplicateSignals(IReadOnlyList<SignalEditorModel> signalModels, Vector2 offset) {
+            if (signalModels == null) {
+                throw new ArgumentNullException(nameof(signalModels));
+            }
+
+            var duplicatedSignalModels = new List<SignalEditorModel>();
+            var duplicatedSignalIds = new HashSet<string>();
+            for (var i = 0; i < signalModels.Count; i++) {
+                var sourceSignalModel = signalModels[i];
+                if (sourceSignalModel == null || !CanDuplicateSignal(sourceSignalModel) || !duplicatedSignalIds.Add(sourceSignalModel.SignalId)) {
+                    continue;
+                }
+
+                var duplicatedSignal = AnimationGraphAssetUtility.DuplicateSignal(RequireGraphAsset(), sourceSignalModel.Signal, sourceSignalModel.GraphPosition + offset);
+                var duplicatedSignalModel = GetOrAddSignalModel(duplicatedSignal);
+                duplicatedSignalModels.Add(duplicatedSignalModel);
+            }
+
+            return duplicatedSignalModels;
+        }
+
+        /// <summary>
         /// GraphAsset の現在状態からノード Model 一覧を再構築
         /// </summary>
         public void RefreshNodes() {
@@ -283,6 +337,8 @@ namespace UnityAnimationGraph.Editor {
                     builder.Add(scheduledNode, previewTime);
                     previewInfoBuildersByNodeId[node.NodeId] = builder;
                 }
+
+                ApplyLoopPreviewResets(previewInfoBuildersByNodeId, scheduledNodes, previewTime);
             }
 
             var changed = false;
@@ -293,10 +349,116 @@ namespace UnityAnimationGraph.Editor {
                     continue;
                 }
 
+                if (previewSchedule != null) {
+                    changed |= nodeModel.SetPreviewExecutionInfo(new NodePreviewExecutionInfo(NodePreviewExecutionState.None, 0.0f));
+                    continue;
+                }
+
                 changed |= nodeModel.ClearPreviewExecutionInfo();
             }
 
             return changed;
+        }
+
+        private void ApplyLoopPreviewResets(Dictionary<string, PreviewExecutionInfoBuilder> previewInfoBuildersByNodeId, IReadOnlyList<ScheduledNode> scheduledNodes, float previewTime) {
+            var resetTimesByNodeId = new Dictionary<string, float>(StringComparer.Ordinal);
+            for (var i = 0; i < _nodes.Count; i++) {
+                if (_nodes[i] is not LoopNodeEditorModel loopNodeModel) {
+                    continue;
+                }
+
+                var loopBodyNodeIds = BuildLoopBodyNodeIdSet(loopNodeModel, null);
+                if (loopBodyNodeIds.Count == 0 || !TryGetLatestLoopResetTime(loopNodeModel, loopBodyNodeIds, scheduledNodes, previewTime, out var resetTime)) {
+                    continue;
+                }
+
+                foreach (var loopBodyNodeId in loopBodyNodeIds) {
+                    if (!resetTimesByNodeId.TryGetValue(loopBodyNodeId, out var currentResetTime) || currentResetTime < resetTime - PreviewTimeEpsilon) {
+                        resetTimesByNodeId[loopBodyNodeId] = resetTime;
+                    }
+                }
+            }
+
+            foreach (var resetTimePair in resetTimesByNodeId) {
+                if (!previewInfoBuildersByNodeId.TryGetValue(resetTimePair.Key, out var builder)) {
+                    continue;
+                }
+
+                builder.ClearCompletedBefore(resetTimePair.Value);
+                previewInfoBuildersByNodeId[resetTimePair.Key] = builder;
+            }
+        }
+
+        private bool TryGetLatestLoopResetTime(
+            LoopNodeEditorModel loopNodeModel,
+            HashSet<string> loopBodyNodeIds,
+            IReadOnlyList<ScheduledNode> scheduledNodes,
+            float previewTime,
+            out float latestResetTime) {
+            latestResetTime = 0.0f;
+            var loopStartNodeIds = GetLoopStartNodeIds(loopNodeModel, loopBodyNodeIds);
+            if (loopStartNodeIds.Count == 0) {
+                return false;
+            }
+
+            var loopStartNodeIdSet = new HashSet<string>(loopStartNodeIds, StringComparer.Ordinal);
+            var found = false;
+            for (var i = 0; i < scheduledNodes.Count; i++) {
+                var node = scheduledNodes[i].Node;
+                if (node == null || !loopStartNodeIdSet.Contains(node.NodeId)) {
+                    continue;
+                }
+
+                var resetTime = scheduledNodes[i].StartTime - scheduledNodes[i].Delay;
+                if (previewTime + PreviewTimeEpsilon < resetTime) {
+                    continue;
+                }
+
+                if (!found || latestResetTime < resetTime - PreviewTimeEpsilon) {
+                    latestResetTime = resetTime;
+                    found = true;
+                }
+            }
+
+            return found;
+        }
+
+        private IReadOnlyList<string> GetLoopStartNodeIds(LoopNodeEditorModel loopNodeModel, HashSet<string> loopBodyNodeIds) {
+            var incomingNodeIds = new HashSet<string>(loopBodyNodeIds.Count, StringComparer.Ordinal);
+            foreach (var loopBodyNodeId in loopBodyNodeIds) {
+                if (!_nodeModelsById.TryGetValue(loopBodyNodeId, out var bodyNodeModel)) {
+                    continue;
+                }
+
+                var connectedNodeIds = GetPhysicalConnectedNodeIds(bodyNodeModel);
+                for (var i = 0; i < connectedNodeIds.Count; i++) {
+                    if (loopBodyNodeIds.Contains(connectedNodeIds[i])) {
+                        incomingNodeIds.Add(connectedNodeIds[i]);
+                    }
+                }
+            }
+
+            var startNodeIds = new List<string>();
+            var addedStartNodeIds = new HashSet<string>(StringComparer.Ordinal);
+            var loopNodeIds = loopNodeModel.LoopNodeIds;
+            for (var i = 0; i < loopNodeIds.Count; i++) {
+                if (!loopBodyNodeIds.Contains(loopNodeIds[i]) || incomingNodeIds.Contains(loopNodeIds[i])) {
+                    continue;
+                }
+
+                startNodeIds.Add(loopNodeIds[i]);
+                addedStartNodeIds.Add(loopNodeIds[i]);
+            }
+
+            foreach (var loopBodyNodeId in loopBodyNodeIds) {
+                if (incomingNodeIds.Contains(loopBodyNodeId) || addedStartNodeIds.Contains(loopBodyNodeId)) {
+                    continue;
+                }
+
+                startNodeIds.Add(loopBodyNodeId);
+            }
+
+            return startNodeIds;
         }
 
         /// <summary>
@@ -713,6 +875,15 @@ namespace UnityAnimationGraph.Editor {
         /// <returns>複製できる場合は true</returns>
         public bool CanDuplicateNode(NodeEditorModel nodeModel) {
             return CanRemoveNode(nodeModel);
+        }
+
+        /// <summary>
+        /// 指定した Signal を複製できるかを判定
+        /// </summary>
+        /// <param name="signalModel">判定する Signal Model</param>
+        /// <returns>複製できる場合は true</returns>
+        public bool CanDuplicateSignal(SignalEditorModel signalModel) {
+            return ContainsSignal(signalModel);
         }
 
         /// <summary>

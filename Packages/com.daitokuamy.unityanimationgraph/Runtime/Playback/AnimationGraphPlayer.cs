@@ -25,6 +25,8 @@ namespace UnityAnimationGraph {
         }
 
         private readonly AnimationGraphScheduler _scheduler = new();
+        private readonly Dictionary<Type, List<Action<Signal>>> _signalSubscriptionsByType = new();
+        private readonly Dictionary<int, object> _tweenBaseValuesByStableOrder = new();
 
         private List<ScheduledNode> _activeScheduledNodes = new();
         private List<ScheduledNode> _nextActiveScheduledNodes = new();
@@ -101,6 +103,46 @@ namespace UnityAnimationGraph {
         }
 
         /// <summary>
+        /// Preview 再生時に復元対象として登録すべき Property を取得
+        /// </summary>
+        /// <returns>登録対象の Component と SerializedProperty path の一覧</returns>
+        public IEnumerable<(Component Component, string PropertyPath)> GetPreviewProperties() {
+            EnsureSchedule();
+            foreach (var scheduledNode in _schedule.Nodes) {
+                var executor = (INodeExecutor)scheduledNode.Node;
+                foreach (var previewProperty in executor.GetPreviewProperties(_context)) {
+                    yield return previewProperty;
+                }
+            }
+        }
+
+        /// <summary>
+        /// 指定した Signal 型の発火通知を購読
+        /// </summary>
+        /// <param name="callback">Signal 発火時に呼び出す callback</param>
+        /// <typeparam name="TSignal">購読対象の Signal 型</typeparam>
+        public void SubscribeSignal<TSignal>(Action<TSignal> callback) where TSignal : Signal {
+            if (callback == null) {
+                throw new ArgumentNullException(nameof(callback));
+            }
+
+            var signalType = typeof(TSignal);
+            if (!_signalSubscriptionsByType.TryGetValue(signalType, out var callbacks)) {
+                callbacks = new List<Action<Signal>>();
+                _signalSubscriptionsByType.Add(signalType, callbacks);
+            }
+
+            callbacks.Add(signal => callback((TSignal)signal));
+        }
+
+        /// <summary>
+        /// Signal 発火通知の購読をすべて解除
+        /// </summary>
+        public void ClearSignalSubscriptions() {
+            _signalSubscriptionsByType.Clear();
+        }
+
+        /// <summary>
         /// 再生を開始
         /// </summary>
         /// <returns>再生完了を待機する handle</returns>
@@ -150,7 +192,8 @@ namespace UnityAnimationGraph {
             ResetEvaluatedNodesToStart(_currentTime);
             ClearActiveNodes();
             _currentTime = Mathf.Clamp(time, 0.0f, Duration);
-            EvaluateCurrentTime(_currentTime, true, 0.0f);
+            EvaluateCurrentTime(_currentTime, true, 0.0f, false);
+
             if (_state == AnimationGraphPlayerState.Playing && IsEndTime(_currentTime)) {
                 _state = AnimationGraphPlayerState.Stopped;
                 CompleteCurrentPlay(PlayStatus.Completed);
@@ -170,7 +213,7 @@ namespace UnityAnimationGraph {
             var previousTime = _currentTime;
             var scaledDeltaTime = Mathf.Max(0.0f, deltaTime * TimeScale);
             _currentTime = Mathf.Clamp(_currentTime + scaledDeltaTime, 0.0f, Duration);
-            EvaluateCurrentTime(_currentTime, true, previousTime);
+            EvaluateCurrentTime(_currentTime, true, previousTime, true);
             if (IsEndTime(_currentTime)) {
                 _state = AnimationGraphPlayerState.Stopped;
                 CompleteCurrentPlay(PlayStatus.Completed);
@@ -217,7 +260,7 @@ namespace UnityAnimationGraph {
             EnsureSchedule();
             var previousTime = _currentTime;
             _currentTime = Duration;
-            EvaluateCurrentTime(_currentTime, true, previousTime);
+            EvaluateCurrentTime(_currentTime, true, previousTime, true);
             _state = AnimationGraphPlayerState.Stopped;
             CompleteCurrentPlay(PlayStatus.Completed);
             return true;
@@ -301,6 +344,7 @@ namespace UnityAnimationGraph {
         private void ClearActiveNodes() {
             _activeScheduledNodes.Clear();
             _nextActiveScheduledNodes.Clear();
+            _tweenBaseValuesByStableOrder.Clear();
         }
 
         /// <summary>
@@ -329,16 +373,15 @@ namespace UnityAnimationGraph {
         /// <param name="currentTime">評価時刻</param>
         /// <param name="includeCrossedNodes">通過した node の端時刻も評価する場合は true</param>
         /// <param name="previousTime">直前時刻</param>
-        private void EvaluateCurrentTime(float currentTime, bool includeCrossedNodes, float previousTime) {
+        /// <param name="dispatchSignals">Signal を通知する場合は true</param>
+        private void EvaluateCurrentTime(float currentTime, bool includeCrossedNodes, float previousTime, bool dispatchSignals) {
             _nextActiveScheduledNodes.Clear();
             var nodes = _schedule.Nodes;
             for (var i = 0; i < nodes.Count; i++) {
-                EvaluateScheduledNodeAtCurrentTime(nodes[i], currentTime, includeCrossedNodes, previousTime);
+                EvaluateScheduledNodeAtCurrentTime(nodes[i], currentTime, includeCrossedNodes, previousTime, dispatchSignals);
             }
 
-            var activeScheduledNodes = _activeScheduledNodes;
-            _activeScheduledNodes = _nextActiveScheduledNodes;
-            _nextActiveScheduledNodes = activeScheduledNodes;
+            (_activeScheduledNodes, _nextActiveScheduledNodes) = (_nextActiveScheduledNodes, _activeScheduledNodes);
         }
 
         /// <summary>
@@ -348,7 +391,8 @@ namespace UnityAnimationGraph {
         /// <param name="currentTime">評価時刻</param>
         /// <param name="includeCrossedNodes">通過した node の端時刻も評価する場合は true</param>
         /// <param name="previousTime">直前時刻</param>
-        private void EvaluateScheduledNodeAtCurrentTime(ScheduledNode scheduledNode, float currentTime, bool includeCrossedNodes, float previousTime) {
+        /// <param name="dispatchSignals">Signal を通知する場合は true</param>
+        private void EvaluateScheduledNodeAtCurrentTime(ScheduledNode scheduledNode, float currentTime, bool includeCrossedNodes, float previousTime, bool dispatchSignals) {
             var wasActive = IsRecordedActive(scheduledNode);
             var isActive = IsActive(scheduledNode, currentTime, includeCrossedNodes, previousTime);
             var isCrossedEndTime = IsCrossedEndTime(scheduledNode, currentTime, includeCrossedNodes, previousTime);
@@ -357,14 +401,14 @@ namespace UnityAnimationGraph {
             }
 
             if (!wasActive && IsCrossedStartTime(scheduledNode, currentTime, includeCrossedNodes, previousTime)) {
-                EnterScheduledNode(scheduledNode);
+                EnterScheduledNode(scheduledNode, dispatchSignals);
             }
 
             var localTime = isActive ? CalculateLocalTime(scheduledNode, currentTime) : scheduledNode.Duration;
             EvaluateScheduledNode(scheduledNode, localTime);
 
             if (ShouldExitScheduledNode(scheduledNode, currentTime, includeCrossedNodes, previousTime)) {
-                ExitScheduledNode(scheduledNode);
+                ExitScheduledNode(scheduledNode, dispatchSignals);
                 return;
             }
 
@@ -498,6 +542,16 @@ namespace UnityAnimationGraph {
         /// <param name="localTime">評価に使用する local time</param>
         private void EvaluateScheduledNode(ScheduledNode scheduledNode, float localTime) {
             var executor = (INodeExecutor)scheduledNode.Node;
+            if (scheduledNode.Node is ITweenNodeExecutor tweenExecutor) {
+                if (!_tweenBaseValuesByStableOrder.TryGetValue(scheduledNode.StableOrder, out var baseValue)) {
+                    baseValue = tweenExecutor.CaptureBaseValue(scheduledNode.Seed, _context);
+                    _tweenBaseValuesByStableOrder[scheduledNode.StableOrder] = baseValue;
+                }
+
+                tweenExecutor.Evaluate(scheduledNode.Seed, localTime, scheduledNode.Duration, _context, baseValue);
+                return;
+            }
+
             executor.Evaluate(scheduledNode.Seed, localTime, scheduledNode.Duration, _context);
         }
 
@@ -505,8 +559,16 @@ namespace UnityAnimationGraph {
         /// scheduled node の開始処理を実行
         /// </summary>
         /// <param name="scheduledNode">開始する scheduled node</param>
-        private void EnterScheduledNode(ScheduledNode scheduledNode) {
-            DispatchSignals(scheduledNode.Node.EnterSignals, scheduledNode.Seed);
+        /// <param name="dispatchSignals">Signal を通知する場合は true</param>
+        private void EnterScheduledNode(ScheduledNode scheduledNode, bool dispatchSignals) {
+            if (dispatchSignals) {
+                DispatchSignals(scheduledNode.Node.EnterSignals, scheduledNode.Seed);
+            }
+
+            if (scheduledNode.Node is ITweenNodeExecutor tweenExecutor) {
+                _tweenBaseValuesByStableOrder[scheduledNode.StableOrder] = tweenExecutor.CaptureBaseValue(scheduledNode.Seed, _context);
+            }
+
             ((INodeExecutor)scheduledNode.Node).Enter(scheduledNode.Seed, _context);
         }
 
@@ -514,9 +576,12 @@ namespace UnityAnimationGraph {
         /// scheduled node の終了処理を実行
         /// </summary>
         /// <param name="scheduledNode">終了する scheduled node</param>
-        private void ExitScheduledNode(ScheduledNode scheduledNode) {
+        /// <param name="dispatchSignals">Signal を通知する場合は true</param>
+        private void ExitScheduledNode(ScheduledNode scheduledNode, bool dispatchSignals) {
             ((INodeExecutor)scheduledNode.Node).Exit(scheduledNode.Seed, _context);
-            DispatchSignals(scheduledNode.Node.ExitSignals, scheduledNode.Seed);
+            if (dispatchSignals) {
+                DispatchSignals(scheduledNode.Node.ExitSignals, scheduledNode.Seed);
+            }
         }
 
         /// <summary>
@@ -532,6 +597,21 @@ namespace UnityAnimationGraph {
                 }
 
                 ((ISignalExecutor)signal).Dispatch(seed, _context);
+                NotifySignalSubscribers(signal);
+            }
+        }
+
+        /// <summary>
+        /// Signal 購読者へ通知
+        /// </summary>
+        /// <param name="signal">通知する Signal</param>
+        private void NotifySignalSubscribers(Signal signal) {
+            if (!_signalSubscriptionsByType.TryGetValue(signal.GetType(), out var callbacks)) {
+                return;
+            }
+
+            for (var i = 0; i < callbacks.Count; i++) {
+                callbacks[i].Invoke(signal);
             }
         }
 

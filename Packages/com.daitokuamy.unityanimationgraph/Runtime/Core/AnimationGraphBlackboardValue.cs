@@ -7,7 +7,7 @@ namespace UnityAnimationGraph {
     public struct AnimationGraphBlackboardValue {
         private readonly string _key;
         private readonly AnimationGraphValueType _valueType;
-        
+
         private bool _boolValue;
         private int _intValue;
         private float _floatValue;
@@ -15,6 +15,7 @@ namespace UnityAnimationGraph {
         private Vector2 _vector2Value;
         private Vector3 _vector3Value;
         private Color _colorValue;
+        private Vector4 _vector4Value;
 
         /// <summary>Blackboard key</summary>
         public string Key => _key ?? string.Empty;
@@ -34,6 +35,8 @@ namespace UnityAnimationGraph {
         public Vector3 Vector3Value => _vector3Value;
         /// <summary>Color value</summary>
         public Color ColorValue => _colorValue;
+        /// <summary>Vector4 value</summary>
+        public Vector4 Vector4Value => _vector4Value;
 
         /// <summary>
         /// AnimationGraphBlackboardValue を生成
@@ -49,6 +52,7 @@ namespace UnityAnimationGraph {
             _vector2Value = definition.DefaultVector2Value;
             _vector3Value = definition.DefaultVector3Value;
             _colorValue = definition.DefaultColorValue;
+            _vector4Value = definition.DefaultVector4Value;
         }
 
         /// <summary>
@@ -157,6 +161,21 @@ namespace UnityAnimationGraph {
         }
 
         /// <summary>
+        /// Vector4 現在値の取得を試行
+        /// </summary>
+        /// <param name="value">取得した Vector4 値</param>
+        /// <returns>取得できた場合は true</returns>
+        public bool TryGetValue(out Vector4 value) {
+            if (_valueType == AnimationGraphValueType.Vector4) {
+                value = _vector4Value;
+                return true;
+            }
+
+            value = default;
+            return false;
+        }
+
+        /// <summary>
         /// bool 現在値の設定を試行
         /// </summary>
         /// <param name="value">設定する bool 値</param>
@@ -251,6 +270,20 @@ namespace UnityAnimationGraph {
             }
 
             _colorValue = value;
+            return true;
+        }
+
+        /// <summary>
+        /// Vector4 現在値の設定を試行
+        /// </summary>
+        /// <param name="value">設定する Vector4 値</param>
+        /// <returns>設定できた場合は true</returns>
+        public bool TrySetValue(Vector4 value) {
+            if (_valueType != AnimationGraphValueType.Vector4) {
+                return false;
+            }
+
+            _vector4Value = value;
             return true;
         }
     }

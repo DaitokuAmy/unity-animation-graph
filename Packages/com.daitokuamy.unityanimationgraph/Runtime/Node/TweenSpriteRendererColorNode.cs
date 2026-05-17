@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 
 namespace UnityAnimationGraph {
@@ -9,10 +10,21 @@ namespace UnityAnimationGraph {
         [SerializeField, Tooltip("Color Tween 設定")]
         private ColorTween _tween = new(Color.white, Color.red);
 
-        /// <summary>Color Tween 設定</summary>
-        public ColorTween Tween => _tween;
         /// <inheritdoc/>
         protected override ColorTween TweenSettings => _tween;
+
+        /// <inheritdoc/>
+        protected override IEnumerable<string> GetPreviewProperties(SpriteRenderer target) {
+            yield return "m_Color.r";
+            yield return "m_Color.g";
+            yield return "m_Color.b";
+            yield return "m_Color.a";
+        }
+
+        /// <inheritdoc/>
+        protected override Color GetBaseValue(SpriteRenderer target) {
+            return target.color;
+        }
 
         /// <inheritdoc/>
         protected override void ApplyValue(SpriteRenderer target, Color value) {

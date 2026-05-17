@@ -13,7 +13,7 @@ namespace UnityAnimationGraph.Editor {
         /// <summary>シグナル型</summary>
         public Type SignalType => _signal.GetType();
         /// <summary>シグナル表示名</summary>
-        public string DisplayName => SignalMetadata.GetDisplayName(SignalType);
+        public string DisplayName => _signal.DisplayName;
         /// <summary>シグナル名</summary>
         public string Name => _signal.name ?? string.Empty;
         /// <summary>エディタ上のシグナル位置</summary>

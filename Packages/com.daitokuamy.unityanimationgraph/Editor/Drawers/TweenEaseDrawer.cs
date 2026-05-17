@@ -31,7 +31,7 @@ namespace UnityAnimationGraph.Editor {
             var valuePosition = new Rect(modePosition.xMax + FieldSpacing, contentPosition.y, contentPosition.width - modeWidth - FieldSpacing, contentPosition.height);
             EditorGUI.PropertyField(modePosition, modeProperty, GUIContent.none);
 
-            if ((TweenEaseMode)modeProperty.enumValueIndex == TweenEaseMode.AnimationCurve) {
+            if ((TweenEaseMode)modeProperty.enumValueIndex == TweenEaseMode.Curve) {
                 EditorGUI.PropertyField(valuePosition, animationCurveProperty, GUIContent.none);
             }
             else {

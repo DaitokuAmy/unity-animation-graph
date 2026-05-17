@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 
 namespace UnityAnimationGraph {
@@ -11,12 +12,21 @@ namespace UnityAnimationGraph {
         [SerializeField, Tooltip("Tween を適用する Transform 空間")]
         private Space _space = Space.Self;
 
-        /// <summary>Rotation Tween 設定</summary>
-        public Vector3Tween Tween => _tween;
-        /// <summary>Tween を適用する Transform 空間</summary>
-        public Space TransformSpace => _space;
         /// <inheritdoc/>
         protected override Vector3Tween TweenSettings => _tween;
+
+        /// <inheritdoc/>
+        protected override IEnumerable<string> GetPreviewProperties(Transform target) {
+            yield return "m_LocalRotation.x";
+            yield return "m_LocalRotation.y";
+            yield return "m_LocalRotation.z";
+            yield return "m_LocalRotation.w";
+        }
+
+        /// <inheritdoc/>
+        protected override Vector3 GetBaseValue(Transform target) {
+            return _space == Space.World ? target.rotation.eulerAngles : target.localRotation.eulerAngles;
+        }
 
         /// <inheritdoc/>
         protected override void ApplyValue(Transform target, Vector3 value) {

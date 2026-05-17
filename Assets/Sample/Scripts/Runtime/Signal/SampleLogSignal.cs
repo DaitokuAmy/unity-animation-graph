@@ -1,6 +1,7 @@
+using UnityAnimationGraph;
 using UnityEngine;
 
-namespace UnityAnimationGraph.Sample {
+namespace Sample {
     /// <summary>
     /// Sample 用に通過通知を Console へ出力する Signal
     /// </summary>

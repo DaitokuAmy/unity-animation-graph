@@ -31,6 +31,8 @@ namespace UnityAnimationGraph.Tests {
         private const string DefaultVector3ValuePropertyName = "_defaultVector3Value";
         /// <summary>Blackboard 定義の Color default value フィールド名</summary>
         private const string DefaultColorValuePropertyName = "_defaultColorValue";
+        /// <summary>Blackboard 定義の Vector4 default value フィールド名</summary>
+        private const string DefaultVector4ValuePropertyName = "_defaultVector4Value";
 
         /// <summary>
         /// target 定義は key だけで取得できる
@@ -91,6 +93,7 @@ namespace UnityAnimationGraph.Tests {
             var vector2DefaultValue = new Vector2(1.0f, 2.0f);
             var vector3DefaultValue = new Vector3(3.0f, 4.0f, 5.0f);
             var colorDefaultValue = new Color(0.2f, 0.4f, 0.6f, 0.8f);
+            var vector4DefaultValue = new Vector4(6.0f, 7.0f, 8.0f, 9.0f);
 
             try {
                 SetBlackboardDefinitions(
@@ -101,7 +104,8 @@ namespace UnityAnimationGraph.Tests {
                     new AnimationGraphBlackboardDefinition("label", "idle"),
                     new AnimationGraphBlackboardDefinition("offset", vector2DefaultValue),
                     new AnimationGraphBlackboardDefinition("position", vector3DefaultValue),
-                    new AnimationGraphBlackboardDefinition("tint", colorDefaultValue));
+                    new AnimationGraphBlackboardDefinition("tint", colorDefaultValue),
+                    new AnimationGraphBlackboardDefinition("bounds", vector4DefaultValue));
 
                 Assert.IsTrue(graphAsset.TryGetBlackboardDefaultValue("flag", out bool flagValue));
                 Assert.IsTrue(flagValue);
@@ -117,6 +121,8 @@ namespace UnityAnimationGraph.Tests {
                 Assert.That(positionValue, Is.EqualTo(vector3DefaultValue));
                 Assert.IsTrue(graphAsset.TryGetBlackboardDefaultValue("tint", out Color tintValue));
                 Assert.That(tintValue, Is.EqualTo(colorDefaultValue));
+                Assert.IsTrue(graphAsset.TryGetBlackboardDefaultValue("bounds", out Vector4 boundsValue));
+                Assert.That(boundsValue, Is.EqualTo(vector4DefaultValue));
             }
             finally {
                 Object.DestroyImmediate(graphAsset);
@@ -161,6 +167,7 @@ namespace UnityAnimationGraph.Tests {
                 definitionProperty.FindPropertyRelative(DefaultVector2ValuePropertyName).vector2Value = definitions[i].DefaultVector2Value;
                 definitionProperty.FindPropertyRelative(DefaultVector3ValuePropertyName).vector3Value = definitions[i].DefaultVector3Value;
                 definitionProperty.FindPropertyRelative(DefaultColorValuePropertyName).colorValue = definitions[i].DefaultColorValue;
+                definitionProperty.FindPropertyRelative(DefaultVector4ValuePropertyName).vector4Value = definitions[i].DefaultVector4Value;
             }
 
             serializedGraph.ApplyModifiedPropertiesWithoutUndo();
