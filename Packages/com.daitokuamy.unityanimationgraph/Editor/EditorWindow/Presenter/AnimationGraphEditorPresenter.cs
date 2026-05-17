@@ -91,6 +91,21 @@ namespace UnityAnimationGraph.Editor {
         /// </summary>
         private const float PreviewTimeEpsilon = 0.0001f;
 
+        /// <summary>
+        /// 実行中 Runner の schedule 表示更新間隔
+        /// </summary>
+        private const double ActivePreviewScheduleRefreshInterval = 1.0 / 30.0;
+
+        /// <summary>
+        /// Runner 探索のみを行う idle 更新間隔
+        /// </summary>
+        private const double IdlePreviewScheduleRefreshInterval = 0.25;
+
+        /// <summary>
+        /// 停止中 Timeline 表示用 schedule の cache 有効時間
+        /// </summary>
+        private const double IdlePreviewScheduleCacheDuration = 0.5;
+
         private readonly AnimationGraphAssetEditorModel _assetModel = new();
         private readonly List<NodeEditorModel> _copiedNodeModels = new();
         private readonly List<SignalEditorModel> _copiedSignalModels = new();
@@ -121,6 +136,9 @@ namespace UnityAnimationGraph.Editor {
         private StyleColor _footerDefaultColor;
         private AnimationGraphRunner _previewRunner;
         private AnimationGraphSchedule _previewSchedule;
+        private AnimationGraphAsset _idlePreviewScheduleGraphAsset;
+        private AnimationGraphRunner _idlePreviewScheduleRunner;
+        private AnimationGraphSchedule _idlePreviewSchedule;
         private AnimationGraphPlayerState _previewState;
         private float _previewTime;
         private AnimationGraphPlayer _editorPreviewPlayer;
@@ -134,6 +152,8 @@ namespace UnityAnimationGraph.Editor {
         private bool _hasEditorPreviewInteraction;
         private int _previewFrameRate = DefaultPreviewFrameRate;
         private double _lastEditorPreviewUpdateTime;
+        private double _lastPreviewScheduleRefreshTime = double.NegativeInfinity;
+        private double _lastIdlePreviewScheduleBuildTime = double.NegativeInfinity;
 
         /// <summary>Inspector 表示対象 node ID 一覧が変更されたときに発火</summary>
         public event Action<IReadOnlyList<string>> InspectedNodeIdsChanged;
@@ -350,6 +370,7 @@ namespace UnityAnimationGraph.Editor {
             }
 
             _hasEditorPreviewInteraction = false;
+            InvalidateIdlePreviewSchedule();
             _assetModel.SetGraphAsset(graphAsset);
             if (graphAsset != null && !_assetModel.HasStartNode && _assetModel.Nodes.Count == 0) {
                 try {
@@ -364,7 +385,7 @@ namespace UnityAnimationGraph.Editor {
             ClearInspectorSelection();
             _schemaView.SetGraphAsset(graphAsset);
             _graphView.SetGraphAsset(_assetModel);
-            RefreshPreviewSchedule();
+            RefreshPreviewSchedule(true);
             RefreshPreviewSourceFromSelection(false);
             UpdatePreviewControls();
             if (graphAsset == null) {
@@ -387,6 +408,7 @@ namespace UnityAnimationGraph.Editor {
         /// </summary>
         /// <returns>Preview の更新に成功した場合は true</returns>
         private bool RefreshGraphState() {
+            InvalidateIdlePreviewSchedule();
             _assetModel.RefreshNodes();
             _schemaView.Refresh();
             _graphView.Rebuild(_assetModel);
@@ -399,6 +421,7 @@ namespace UnityAnimationGraph.Editor {
         /// Schema 変更を Node 表示と Preview 評価に反映
         /// </summary>
         private void OnSchemaChanged() {
+            InvalidateIdlePreviewSchedule();
             RefreshPreviewAfterGraphChanged();
             RefreshNodeDetails();
         }
@@ -413,7 +436,9 @@ namespace UnityAnimationGraph.Editor {
             }
 
             if (RefreshPreviewSourceFromSelection(false)) {
+                RefreshPreviewSchedule(true);
                 UpdatePreviewControls();
+                return;
             }
 
             RefreshPreviewSchedule();
@@ -479,6 +504,7 @@ namespace UnityAnimationGraph.Editor {
 
             _editorPreviewRoot = nextRoot;
             _editorPreviewSourceRunner = nextRunner;
+            InvalidateIdlePreviewSchedule();
             UpdatePreviewSourceField();
             return true;
         }
@@ -607,6 +633,7 @@ namespace UnityAnimationGraph.Editor {
         /// <param name="footerMessage">停止後に表示する Footer メッセージ</param>
         /// <param name="isError">Footer メッセージをエラー表示にする場合は true</param>
         private void StopEditorPreview(string footerMessage, bool isError = false) {
+            _previewTimelineView?.CancelDrag();
             if (_editorPreviewPlayer == null && !_ownsAnimationMode && !IsPreviewAnimationModeActive()) {
                 RefreshPreviewSourceFromSelection(false);
                 UpdatePreviewControls();
@@ -1062,11 +1089,11 @@ namespace UnityAnimationGraph.Editor {
                 return;
             }
 
-            ResetEditorPreviewSamplingState();
             EnsureAnimationMode();
             AnimationMode.BeginSampling();
             try {
-                _editorPreviewPlayer.SeekFromInitialState(time);
+                _editorPreviewPlayer.Seek(time);
+                _editorPreviewPlayer.InterruptPlayWithoutCancelingActiveNodes();
                 RegisterEditorPreviewPropertyModifications();
             }
             finally {
@@ -1429,16 +1456,65 @@ namespace UnityAnimationGraph.Editor {
                 return false;
             }
 
+            if (TryGetCachedIdlePreviewSchedule(graphAsset, previewRunner, out previewSchedule)) {
+                return true;
+            }
+
             try {
                 var targetBindings = GetEditorPreviewTargetBindings(graphAsset, previewRunner);
                 var context = new AnimationGraphEditorPreviewContext(graphAsset, rootGameObject, targetBindings);
                 var scheduler = new AnimationGraphScheduler();
                 previewSchedule = scheduler.Build(graphAsset, context);
+                CacheIdlePreviewSchedule(graphAsset, previewRunner, previewSchedule);
                 return previewSchedule != null;
             }
             catch {
+                InvalidateIdlePreviewSchedule();
                 return false;
             }
+        }
+
+        /// <summary>
+        /// 停止中 Timeline 表示用 schedule cache を取得
+        /// </summary>
+        /// <param name="graphAsset">Schedule の対象 GraphAsset</param>
+        /// <param name="previewRunner">Schedule の対象 Runner</param>
+        /// <param name="previewSchedule">Cache 済み schedule</param>
+        /// <returns>有効な cache がある場合は true</returns>
+        private bool TryGetCachedIdlePreviewSchedule(AnimationGraphAsset graphAsset, AnimationGraphRunner previewRunner, out AnimationGraphSchedule previewSchedule) {
+            previewSchedule = null;
+            if (_idlePreviewSchedule == null
+                || _idlePreviewScheduleGraphAsset != graphAsset
+                || _idlePreviewScheduleRunner != previewRunner
+                || EditorApplication.timeSinceStartup - _lastIdlePreviewScheduleBuildTime > IdlePreviewScheduleCacheDuration) {
+                return false;
+            }
+
+            previewSchedule = _idlePreviewSchedule;
+            return true;
+        }
+
+        /// <summary>
+        /// 停止中 Timeline 表示用 schedule を cache
+        /// </summary>
+        /// <param name="graphAsset">Schedule の対象 GraphAsset</param>
+        /// <param name="previewRunner">Schedule の対象 Runner</param>
+        /// <param name="previewSchedule">Cache する schedule</param>
+        private void CacheIdlePreviewSchedule(AnimationGraphAsset graphAsset, AnimationGraphRunner previewRunner, AnimationGraphSchedule previewSchedule) {
+            _idlePreviewScheduleGraphAsset = graphAsset;
+            _idlePreviewScheduleRunner = previewRunner;
+            _idlePreviewSchedule = previewSchedule;
+            _lastIdlePreviewScheduleBuildTime = EditorApplication.timeSinceStartup;
+        }
+
+        /// <summary>
+        /// 停止中 Timeline 表示用 schedule cache を破棄
+        /// </summary>
+        private void InvalidateIdlePreviewSchedule() {
+            _idlePreviewScheduleGraphAsset = null;
+            _idlePreviewScheduleRunner = null;
+            _idlePreviewSchedule = null;
+            _lastIdlePreviewScheduleBuildTime = double.NegativeInfinity;
         }
 
         /// <summary>
@@ -1510,6 +1586,10 @@ namespace UnityAnimationGraph.Editor {
                 return;
             }
 
+            if (_previewSourceField.value == _editorPreviewSourceRunner) {
+                return;
+            }
+
             _previewSourceField.SetValueWithoutNotify(_editorPreviewSourceRunner);
             _previewSourceField.MarkDirtyRepaint();
         }
@@ -1545,7 +1625,12 @@ namespace UnityAnimationGraph.Editor {
         /// <summary>
         /// 実行中 Runner の schedule と現在時刻を Node 表示へ反映
         /// </summary>
-        private void RefreshPreviewSchedule() {
+        private void RefreshPreviewSchedule(bool force = false) {
+            if (!force && !ShouldRefreshPreviewSchedule()) {
+                return;
+            }
+
+            _lastPreviewScheduleRefreshTime = EditorApplication.timeSinceStartup;
             if (_assetModel == null || !_assetModel.HasGraphAsset) {
                 SetPreviewSchedule(null, null, AnimationGraphPlayerState.Stopped, 0.0f);
                 return;
@@ -1562,6 +1647,7 @@ namespace UnityAnimationGraph.Editor {
         /// 実行中 Runner の schedule を再構築して Node 表示へ反映
         /// </summary>
         private void RebuildPreviewSchedule() {
+            _lastPreviewScheduleRefreshTime = EditorApplication.timeSinceStartup;
             if (_assetModel == null || !_assetModel.HasGraphAsset) {
                 SetPreviewSchedule(null, null, AnimationGraphPlayerState.Stopped, 0.0f);
                 return;
@@ -1575,6 +1661,18 @@ namespace UnityAnimationGraph.Editor {
 
             previewRunner.RebuildSchedule();
             SetPreviewSchedule(previewRunner, previewRunner.Schedule, previewRunner.State, previewRunner.CurrentTime);
+        }
+
+        /// <summary>
+        /// 実行中 Runner の schedule 表示を更新するか判定
+        /// </summary>
+        /// <returns>更新する場合は true</returns>
+        private bool ShouldRefreshPreviewSchedule() {
+            var selectedGraphAsset = GetSelectedGraphAsset();
+            var interval = IsActivePreviewRunner(_previewRunner, selectedGraphAsset) && _previewRunner.State == AnimationGraphPlayerState.Playing
+                ? ActivePreviewScheduleRefreshInterval
+                : IdlePreviewScheduleRefreshInterval;
+            return EditorApplication.timeSinceStartup - _lastPreviewScheduleRefreshTime >= interval;
         }
 
         /// <summary>

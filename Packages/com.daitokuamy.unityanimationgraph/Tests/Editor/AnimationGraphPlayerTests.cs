@@ -137,32 +137,6 @@ namespace UnityAnimationGraph.Tests {
         }
 
         /// <summary>
-        /// SeekFromInitialState は直前時刻からの巻き戻し評価を行わない
-        /// </summary>
-        [Test]
-        public void SeekFromInitialState_DoesNotResetEvaluatedNodesFromCurrentTime() {
-            using var builder = new AnimationGraphTestBuilder();
-            var events = new List<string>();
-            var startNode = builder.CreateStartNode("start", "first");
-            var firstNode = builder.CreateActionNode("first", 1.0f, "second");
-            var secondNode = builder.CreateActionNode("second", 2.0f);
-            firstNode.ConfigureEvents(events, "first");
-            secondNode.ConfigureEvents(events, "second");
-            var graphAsset = builder.CreateGraph("start", startNode, firstNode, secondNode);
-            var player = CreatePlayer(graphAsset);
-
-            player.Seek(2.0f);
-            events.Clear();
-
-            player.SeekFromInitialState(0.5f);
-
-            Assert.That(events, Is.EqualTo(new[] { "first.Enter", "first.Evaluate" }));
-            Assert.That(player.CurrentTime, Is.EqualTo(0.5f).Within(0.0001f));
-            Assert.That(firstNode.LastLocalTime, Is.EqualTo(0.5f).Within(0.0001f));
-            Assert.That(secondNode.LastLocalTime, Is.EqualTo(1.0f).Within(0.0001f));
-        }
-
-        /// <summary>
         /// RebuildSchedule は GraphAsset の構造変更を反映する
         /// </summary>
         [Test]
@@ -408,6 +382,29 @@ namespace UnityAnimationGraph.Tests {
 
             Assert.That(actionNode.EnterCount, Is.EqualTo(2));
             Assert.That(actionNode.CancelCount, Is.EqualTo(0));
+        }
+
+        /// <summary>
+        /// Seek 後に中断した再生は Stop 時に active node をキャンセルしない
+        /// </summary>
+        [Test]
+        public void Stop_DoesNotCancelActiveNodesAfterSeekInterruptsPlayWithoutCancelingActiveNodes() {
+            using var builder = new AnimationGraphTestBuilder();
+            var startNode = builder.CreateStartNode("start", "action");
+            var actionNode = builder.CreateActionNode("action", 2.0f);
+            var graphAsset = builder.CreateGraph("start", startNode, actionNode);
+            var player = CreatePlayer(graphAsset);
+            var handle = player.Play();
+            player.Tick(0.5f);
+            player.Pause();
+
+            player.Seek(1.0f);
+            player.InterruptPlayWithoutCancelingActiveNodes();
+            player.Stop();
+
+            Assert.That(actionNode.CancelCount, Is.EqualTo(0));
+            Assert.IsTrue(handle.IsDone);
+            Assert.IsTrue(handle.IsInterrupted);
         }
 
         /// <summary>

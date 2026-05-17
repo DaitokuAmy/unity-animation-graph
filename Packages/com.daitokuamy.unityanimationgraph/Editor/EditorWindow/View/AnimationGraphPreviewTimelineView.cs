@@ -124,6 +124,17 @@ namespace UnityAnimationGraph.Editor {
             }
         }
 
+        /// <summary>
+        /// 実行中の Timeline drag を通知なしで終了
+        /// </summary>
+        public void CancelDrag() {
+            if (!_isDragging) {
+                return;
+            }
+
+            EndDrag(false);
+        }
+
         private static VisualElement CreateTrack() {
             var track = new VisualElement {
                 pickingMode = PickingMode.Ignore,

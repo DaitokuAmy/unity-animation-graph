@@ -197,11 +197,17 @@ namespace UnityAnimationGraph {
         }
 
         /// <summary>
-        /// 現在の評価状態を戻さず、0 秒から指定時刻までを順方向に評価
+        /// 現在の再生 handle を中断し、active node の記録は保持
         /// </summary>
-        /// <param name="time">評価する時刻</param>
-        internal void SeekFromInitialState(float time) {
-            Seek(time, false);
+        internal void InterruptPlayWithoutCancelingActiveNodes() {
+            if (_playStatus != PlayStatus.Playing) {
+                return;
+            }
+
+            _playStatus = PlayStatus.Interrupted;
+            var continuation = _playContinuation;
+            _playContinuation = null;
+            continuation?.Invoke();
         }
 
         /// <summary>
