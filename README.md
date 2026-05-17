@@ -29,7 +29,7 @@ Tween、待機、分岐、合流、ループ、Timeline / ParticleSystem 再生�
 
 - Package name: `com.daitokuamy.unityanimationgraph`
 - Display name: `Unity Animation Graph`
-- Version: `0.9.0`
+- Version: `0.9.1`
 - Unity version: `6000.2`
 - Dependencies: `com.unity.timeline` `1.8.9`
 - License: MIT
