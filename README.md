@@ -11,7 +11,7 @@ Tween、待機、分岐、合流、ループ、Timeline / ParticleSystem 再生�
 - `AnimationGraphAsset` に演出フローを保存し、Project 上のアセットとして管理できる
 - GraphView ベースの専用エディタで、ノードの追加、接続、複製、削除、プレビューができる
 - `Target Key` で操作対象を抽象化し、同じグラフを別 GameObject や別シーンで再利用できる
-- `Blackboard` で bool / int / float / string / Vector2 / Vector3 / Color の初期値と実行時値を扱える
+- `Blackboard` で bool / int / float / string / Vector2 / Vector3 / Vector4 / Color の初期値と実行時値を扱える
 - Tween 系ノード、制御ノード、Timeline / ParticleSystem ノードを組み込みで利用できる
 - 独自 `Node` と独自 `Signal` を追加して、プロジェクト固有の演出処理をグラフに載せられる
 
@@ -29,7 +29,9 @@ Tween、待機、分岐、合流、ループ、Timeline / ParticleSystem 再生�
 
 - Package name: `com.daitokuamy.unityanimationgraph`
 - Display name: `Unity Animation Graph`
-- Unity version / dependencies: `Packages/com.daitokuamy.unityanimationgraph/package.json` を参照
+- Version: `0.9.0`
+- Unity version: `6000.2`
+- Dependencies: `com.unity.timeline` `1.8.9`
 - License: MIT
 
 ## インストール
@@ -92,6 +94,7 @@ Action 系ノードは `Target Key` を使って対象 Component を解決しま
 - `String`
 - `Vector2`
 - `Vector3`
+- `Vector4`
 - `Color`
 
 `Blackboard` は主に次の用途で使います。
@@ -174,6 +177,17 @@ Inspector には、その GraphAsset の `Target` 定義に対応する `Target 
 - `Update Type`: `Update` / `LateUpdate` / `ManualUpdate`
 - `Target Binding Groups`: GraphAsset ごとの Target key と Component の対応表
 
+主なランタイム API:
+
+- `Play()` / `Play(AnimationGraphAsset)`: 再生を開始し、`AnimationGraphPlayHandle` を返す
+- `Pause()` / `Stop()`: 再生の一時停止、停止
+- `Seek(time)`: 0 秒から指定時刻まで順方向に評価する
+- `ManualUpdate(deltaTime)`: `Update Type` が `ManualUpdate` のときだけ手動で時間を進める
+- `SetTarget(key, component)`: Target Binding をコードから差し替える
+- `SetBlackboardValue(key, value)`: Blackboard の現在値を差し替える
+- `TimeScale`: `Update` / `LateUpdate` / `ManualUpdate` で進む時間に倍率をかける
+- `SubscribeSignal<TSignal>(callback)` / `ClearSignalSubscriptions()`: Signal 通知を購読、解除する
+
 <!-- TODO: docs/img/unity-animation-graph-runner-inspector.png を追加し、AnimationGraphRunner の Target Binding 設定例を差し込む -->
 
 コードから再生する場合:
@@ -208,6 +222,25 @@ public sealed class AnimationGraphCoroutineExample : MonoBehaviour {
         yield return handle;
 
         if (handle.IsCompleted) {
+            Debug.Log("Animation graph completed.");
+        }
+    }
+}
+```
+
+`AnimationGraphPlayHandle` は `await` でも待機できます。戻り値は最後まで自然完了した場合に `true` になります。
+
+```csharp
+using UnityEngine;
+using UnityAnimationGraph;
+
+public sealed class AnimationGraphAwaitExample : MonoBehaviour {
+    [SerializeField]
+    private AnimationGraphRunner _runner;
+
+    private async void OnEnable() {
+        var completed = await _runner.Play();
+        if (completed) {
             Debug.Log("Animation graph completed.");
         }
     }
@@ -302,34 +335,58 @@ public sealed class AnimationGraphBlackboardExample : MonoBehaviour {
 
 ## 独自ノードを追加する
 
-独自処理をグラフに追加したい場合は、`ActionNode` または `ControlNode` を継承したクラスを作ります。通常、Component を操作するノードは `ActionNode` を使います。
+独自処理をグラフに追加したい場合は、`ActionNode<TTarget>` または `ControlNode` を継承したクラスを作ります。通常、Component を操作するノードは `ActionNode<TTarget>` を使います。
 
-最小例:
+例: Transform の localPosition を、直値または Vector3 Blackboard 値へ Tween するノード
 
 ```csharp
+using System.Collections.Generic;
 using UnityEngine;
 using UnityAnimationGraph;
 
 namespace App.Animation {
-    [AnimationGraphNode("Set Active", "Custom/Set Active")]
-    public sealed class SetActiveNode : ActionNode {
+    [NodeInfo("Move Local Position", "Custom/Move Local Position")]
+    public sealed class MoveLocalPositionNode : ActionNode<Transform> {
+        [SerializeField, Min(0.0f)]
+        private float _duration = 0.4f;
+        [SerializeField, Min(0.0f)]
+        private float _delay;
         [SerializeField]
-        private bool _active = true;
+        private Vector3 _from;
+        [SerializeField]
+        private Vector3 _to = Vector3.up;
+        [SerializeField]
+        private EaseType _ease = EaseType.EaseOutCubic;
+        [SerializeField, BlackboardKey(AnimationGraphValueType.Vector3)]
+        private string _toKey = string.Empty;
 
-        protected override float CalculateDuration(int seed, IAnimationGraphContext context) {
-            return 0.0f;
+        protected override float CalculateDuration(int seed, Transform target, IAnimationGraphBlackboard blackboard) {
+            return Mathf.Max(0.0f, _duration);
         }
 
-        protected override float CalculateDelay(int seed, IAnimationGraphContext context) {
-            return 0.0f;
+        protected override float CalculateDelay(int seed, Transform target, IAnimationGraphBlackboard blackboard) {
+            return Mathf.Max(0.0f, _delay);
         }
 
-        protected override void Evaluate(int seed, float localTime, float calculatedDuration, IAnimationGraphContext context) {
-            if (!context.TryGetTarget<Transform>(TargetKey, out var target)) {
-                return;
+        protected override IEnumerable<string> GetPreviewProperties(Transform target) {
+            yield return "m_LocalPosition.x";
+            yield return "m_LocalPosition.y";
+            yield return "m_LocalPosition.z";
+        }
+
+        protected override void Evaluate(int seed, Transform target, float localTime, float calculatedDuration, IAnimationGraphBlackboard blackboard) {
+            var to = ResolveTo(blackboard);
+            var ratio = calculatedDuration <= 0.0f ? 1.0f : Mathf.Clamp01(localTime / calculatedDuration);
+            var easedRatio = Easing.Evaluate(_ease, ratio);
+            target.localPosition = Vector3.LerpUnclamped(_from, to, easedRatio);
+        }
+
+        private Vector3 ResolveTo(IAnimationGraphBlackboard blackboard) {
+            if (!string.IsNullOrEmpty(_toKey) && blackboard.TryGetBlackboardValue(_toKey, out Vector3 value)) {
+                return value;
             }
 
-            target.gameObject.SetActive(_active);
+            return _to;
         }
     }
 }
@@ -337,11 +394,12 @@ namespace App.Animation {
 
 ポイント:
 
-- `[AnimationGraphNode("表示名", "メニュー/パス")]` を付けると、GraphView の右クリックメニューに表示されます
-- `ActionNode` には `TargetKey` があり、Schema の `Target` と Runner の `Target Binding` から対象を解決します
-- `CalculateDuration` はスケジュール構築時に使われます
-- `Evaluate` は再生時やプレビュー時に呼ばれます
-- `context.TryGetTarget<T>(TargetKey, out var target)` を使うと、未設定時に再生を止めずに済みます
+- `[NodeInfo("表示名", "メニュー/パス")]` を付けると、GraphView の右クリックメニューに表示されます
+- `ActionNode<TTarget>` は Schema の `Target` と Runner の `Target Binding` から対象 Component を解決し、`Evaluate` に渡します
+- `CalculateDuration` と `CalculateDelay` はスケジュール構築時に使われます。時間を持つ Animation ノードでは明示的に返します
+- `Evaluate` は再生時やプレビュー時に呼ばれ、`localTime / calculatedDuration` から進捗を作れます
+- Blackboard 値を使う場合は、`BlackboardKey` 属性で候補を絞り、`blackboard.TryGetBlackboardValue(...)` で型付きに取得します
+- Editor Preview で変更対象を復元したい場合は、`GetPreviewProperties` で SerializedProperty path を返します
 
 ## 独自 Signal を追加する
 
@@ -352,6 +410,7 @@ using UnityEngine;
 using UnityAnimationGraph;
 
 namespace App.Animation {
+    [SignalInfo("Debug Log", "Custom/Debug Log")]
     public sealed class DebugLogSignal : Signal {
         [SerializeField]
         private string _message = "Signal";
@@ -363,6 +422,8 @@ namespace App.Animation {
 }
 ```
 
+`SignalInfo` を付けると Signal 作成メニューの表示名とパスを指定できます。ランタイム側では `AnimationGraphRunner.SubscribeSignal<TSignal>(...)` で特定の Signal 型を購読できます。
+
 ## サンプル
 
 このリポジトリには動作確認用のサンプルがあります。
@@ -373,8 +434,14 @@ namespace App.Animation {
 - グラフアセット: `Assets/Sample/Data/AnimationGraph_03.asset`
 - サンプルノード: `Assets/Sample/Scripts/Runtime/Node/SampleMoveLocalPositionNode.cs`
 - サンプルノード: `Assets/Sample/Scripts/Runtime/Node/SampleChangeColorNode.cs`
+- サンプル Signal: `Assets/Sample/Scripts/Runtime/Signal/SampleLogSignal.cs`
+- Signal 購読例: `Assets/Sample/Scripts/Runtime/SampleObserver.cs`
 
 まず挙動を見たい場合は、`Assets/Sample/Scenes/Sample.unity` を開き、Hierarchy 上の対象 GameObject と `Animation Graph` ウィンドウを見比べながら `Play` プレビューまたは Play Mode で確認してください。
+
+## テスト
+
+Editor テストは `Packages/com.daitokuamy.unityanimationgraph/Tests/Editor` にあります。Unity Test Runner の EditMode で、Scheduler / Player / Runner / Tween / Timeline / ParticleSystem / EditorModel 周辺の動作を確認できます。
 
 ## 補足
 
