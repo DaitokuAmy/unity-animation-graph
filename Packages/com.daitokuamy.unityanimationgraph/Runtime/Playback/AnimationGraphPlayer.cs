@@ -24,8 +24,60 @@ namespace UnityAnimationGraph {
             Interrupted,
         }
 
+        /// <summary>
+        /// Signal 購読解除用ハンドル
+        /// </summary>
+        private sealed class SignalSubscription : IDisposable {
+            private AnimationGraphPlayer _player;
+            private readonly Type _signalType;
+            private readonly Action<Signal, IAnimationGraphContext> _callback;
+
+            /// <summary>
+            /// SignalSubscription を作成
+            /// </summary>
+            /// <param name="player">購読元 player</param>
+            /// <param name="signalType">購読対象 Signal 型</param>
+            /// <param name="callback">Signal 発火時に呼び出す callback</param>
+            public SignalSubscription(AnimationGraphPlayer player, Type signalType, Action<Signal, IAnimationGraphContext> callback) {
+                _player = player;
+                _signalType = signalType;
+                _callback = callback;
+            }
+
+            /// <inheritdoc/>
+            public void Dispose() {
+                var player = _player;
+                if (player == null) {
+                    return;
+                }
+
+                _player = null;
+                player.RemoveSignalSubscription(_signalType, this);
+            }
+
+            /// <summary>
+            /// 購読を無効化
+            /// </summary>
+            public void Deactivate() {
+                _player = null;
+            }
+
+            /// <summary>
+            /// Signal 購読者へ通知
+            /// </summary>
+            /// <param name="signal">通知する Signal</param>
+            /// <param name="context">通知時の AnimationGraphContext</param>
+            public void Invoke(Signal signal, IAnimationGraphContext context) {
+                if (_player == null) {
+                    return;
+                }
+
+                _callback.Invoke(signal, context);
+            }
+        }
+
         private readonly AnimationGraphScheduler _scheduler = new();
-        private readonly Dictionary<Type, List<Action<Signal>>> _signalSubscriptionsByType = new();
+        private readonly Dictionary<Type, List<SignalSubscription>> _signalSubscriptionsByType = new();
         private readonly TweenBaseValueStore _tweenBaseValues = new();
 
         private List<ScheduledNode> _activeScheduledNodes = new();
@@ -121,24 +173,36 @@ namespace UnityAnimationGraph {
         /// </summary>
         /// <param name="callback">Signal 発火時に呼び出す callback</param>
         /// <typeparam name="TSignal">購読対象の Signal 型</typeparam>
-        public void SubscribeSignal<TSignal>(Action<TSignal> callback) where TSignal : Signal {
+        /// <returns>購読解除に使用する disposable</returns>
+        public IDisposable SubscribeSignal<TSignal>(Action<SignalContext<TSignal>> callback) where TSignal : Signal {
             if (callback == null) {
                 throw new ArgumentNullException(nameof(callback));
             }
 
             var signalType = typeof(TSignal);
             if (!_signalSubscriptionsByType.TryGetValue(signalType, out var callbacks)) {
-                callbacks = new List<Action<Signal>>();
+                callbacks = new List<SignalSubscription>();
                 _signalSubscriptionsByType.Add(signalType, callbacks);
             }
 
-            callbacks.Add(signal => callback((TSignal)signal));
+            var subscription = new SignalSubscription(
+                this,
+                signalType,
+                (signal, context) => callback(new SignalContext<TSignal>((TSignal)signal, context)));
+            callbacks.Add(subscription);
+            return subscription;
         }
 
         /// <summary>
         /// Signal 発火通知の購読をすべて解除
         /// </summary>
         public void ClearSignalSubscriptions() {
+            foreach (var callbacks in _signalSubscriptionsByType.Values) {
+                for (var i = 0; i < callbacks.Count; i++) {
+                    callbacks[i].Deactivate();
+                }
+            }
+
             _signalSubscriptionsByType.Clear();
         }
 
@@ -713,8 +777,25 @@ namespace UnityAnimationGraph {
                 return;
             }
 
-            for (var i = 0; i < callbacks.Count; i++) {
-                callbacks[i].Invoke(signal);
+            var callbackSnapshot = callbacks.ToArray();
+            for (var i = 0; i < callbackSnapshot.Length; i++) {
+                callbackSnapshot[i].Invoke(signal, _context);
+            }
+        }
+
+        /// <summary>
+        /// Signal 購読を解除
+        /// </summary>
+        /// <param name="signalType">購読対象 Signal 型</param>
+        /// <param name="subscription">解除する subscription</param>
+        private void RemoveSignalSubscription(Type signalType, SignalSubscription subscription) {
+            if (!_signalSubscriptionsByType.TryGetValue(signalType, out var callbacks)) {
+                return;
+            }
+
+            callbacks.Remove(subscription);
+            if (callbacks.Count == 0) {
+                _signalSubscriptionsByType.Remove(signalType);
             }
         }
 

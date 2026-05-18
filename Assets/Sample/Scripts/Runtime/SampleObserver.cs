@@ -1,3 +1,4 @@
+using System;
 using UnityAnimationGraph;
 using UnityEngine;
 
@@ -9,24 +10,23 @@ namespace Sample {
         [SerializeField, Tooltip("監視に使うRunner")]
         private AnimationGraphRunner _runner;
 
+        private IDisposable _signalSubscription;
+
         private void OnEnable() {
             if (_runner == null) {
                 return;
             }
 
-            _runner.SubscribeSignal<SampleLogSignal>(OnSampleLogSignal);
+            _signalSubscription = _runner.SubscribeSignal<SampleLogSignal>(OnSampleLogSignal);
         }
 
         private void OnDisable() {
-            if (_runner == null) {
-                return;
-            }
-
-            _runner.ClearSignalSubscriptions();
+            _signalSubscription?.Dispose();
+            _signalSubscription = null;
         }
 
-        private void OnSampleLogSignal(SampleLogSignal signal) {
-            Debug.Log($"Observed Signal: {signal.Message}", this);
+        private void OnSampleLogSignal(SignalContext<SampleLogSignal> context) {
+            Debug.Log($"Observed Signal: {context.Signal.Message}", this);
         }
     }
 }

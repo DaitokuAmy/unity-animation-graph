@@ -190,7 +190,8 @@ Inspector には、その GraphAsset の `Target` 定義に対応する `Target 
 - `SetBlackboardValue(key, value)`: Blackboard の現在値を差し替える
 - `UpdateMode`: 自動 Tick の Unity 更新タイミングを切り替える
 - `TimeScale`: `Update` / `LateUpdate` / `ManualUpdate` で進む時間に倍率をかける
-- `SubscribeSignal<TSignal>(callback)` / `ClearSignalSubscriptions()`: Signal 通知を購読、解除する
+- `SubscribeSignal<TSignal>(callback)`: Signal 通知を購読し、戻り値の `IDisposable` で個別に購読解除する
+- `ClearSignalSubscriptions()`: Signal 通知の購読をすべて解除する
 
 <!-- TODO: docs/img/unity-animation-graph-runner-inspector.png を追加し、AnimationGraphRunner の Target Binding 設定例を差し込む -->
 
@@ -457,7 +458,7 @@ namespace App.Animation {
 }
 ```
 
-`SignalInfo` を付けると Signal 作成メニューの表示名とパスを指定できます。ランタイム側では `AnimationGraphRunner.SubscribeSignal<TSignal>(...)` で特定の Signal 型を購読できます。
+`SignalInfo` を付けると Signal 作成メニューの表示名とパスを指定できます。ランタイム側では `AnimationGraphRunner.SubscribeSignal<TSignal>(...)` で特定の Signal 型を購読できます。購読 callback には `SignalContext<TSignal>` が渡され、発火した `Signal` と通知時の `IAnimationGraphContext` を参照できます。購読解除は戻り値の `IDisposable.Dispose()` で行います。
 
 ## サンプル
 

@@ -281,18 +281,41 @@ namespace UnityAnimationGraph.Tests {
             builder.SetEnterSignals(actionNode, enterSignal);
             var graphAsset = builder.CreateGraph("start", startNode, actionNode);
             var player = CreatePlayer(graphAsset);
-            var receivedSignals = new List<TestSignal>();
+            var receivedSignals = new List<SignalContext<TestSignal>>();
             player.SubscribeSignal<TestSignal>(receivedSignals.Add);
 
             player.Play();
             player.Tick(0.5f);
 
             Assert.That(receivedSignals.Count, Is.EqualTo(1));
-            Assert.That(receivedSignals[0], Is.SameAs(enterSignal));
+            Assert.That(receivedSignals[0].Signal, Is.SameAs(enterSignal));
+            Assert.That(receivedSignals[0].AnimationGraphContext, Is.SameAs(player.Context));
         }
 
         /// <summary>
-        /// ClearSignalSubscriptions は Signal 発火通知の購読を解除する
+        /// Dispose は Signal 発火通知の購読を解除する
+        /// </summary>
+        [Test]
+        public void SignalSubscriptionDispose_RemovesSignalSubscriber() {
+            using var builder = new AnimationGraphTestBuilder();
+            var startNode = builder.CreateStartNode("start", "action");
+            var actionNode = builder.CreateActionNode("action", 1.0f);
+            var enterSignal = builder.CreateSignal("enter");
+            builder.SetEnterSignals(actionNode, enterSignal);
+            var graphAsset = builder.CreateGraph("start", startNode, actionNode);
+            var player = CreatePlayer(graphAsset);
+            var receivedSignals = new List<SignalContext<TestSignal>>();
+            var subscription = player.SubscribeSignal<TestSignal>(receivedSignals.Add);
+            subscription.Dispose();
+
+            player.Play();
+            player.Tick(0.5f);
+
+            Assert.That(receivedSignals, Is.Empty);
+        }
+
+        /// <summary>
+        /// ClearSignalSubscriptions は Signal 発火通知の購読をすべて解除する
         /// </summary>
         [Test]
         public void ClearSignalSubscriptions_RemovesSignalSubscribers() {
@@ -303,14 +326,15 @@ namespace UnityAnimationGraph.Tests {
             builder.SetEnterSignals(actionNode, enterSignal);
             var graphAsset = builder.CreateGraph("start", startNode, actionNode);
             var player = CreatePlayer(graphAsset);
-            var receivedSignals = new List<TestSignal>();
-            player.SubscribeSignal<TestSignal>(receivedSignals.Add);
+            var receivedSignalCount = 0;
+            player.SubscribeSignal<TestSignal>(_ => receivedSignalCount++);
+            player.SubscribeSignal<TestSignal>(_ => receivedSignalCount++);
             player.ClearSignalSubscriptions();
 
             player.Play();
             player.Tick(0.5f);
 
-            Assert.That(receivedSignals, Is.Empty);
+            Assert.That(receivedSignalCount, Is.EqualTo(0));
         }
 
         /// <summary>
@@ -327,7 +351,7 @@ namespace UnityAnimationGraph.Tests {
             builder.SetExitSignals(actionNode, exitSignal);
             var graphAsset = builder.CreateGraph("start", startNode, actionNode);
             var player = CreatePlayer(graphAsset);
-            var receivedSignals = new List<TestSignal>();
+            var receivedSignals = new List<SignalContext<TestSignal>>();
             player.SubscribeSignal<TestSignal>(receivedSignals.Add);
 
             player.Seek(1.0f);

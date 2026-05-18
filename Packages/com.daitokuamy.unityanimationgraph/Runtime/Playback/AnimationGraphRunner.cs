@@ -394,8 +394,9 @@ namespace UnityAnimationGraph {
         /// </summary>
         /// <param name="callback">Signal 発火時に呼び出す callback</param>
         /// <typeparam name="TSignal">購読対象の Signal 型</typeparam>
-        public void SubscribeSignal<TSignal>(Action<TSignal> callback) where TSignal : Signal {
-            _player.SubscribeSignal(callback);
+        /// <returns>購読解除に使用する disposable</returns>
+        public IDisposable SubscribeSignal<TSignal>(Action<SignalContext<TSignal>> callback) where TSignal : Signal {
+            return _player.SubscribeSignal(callback);
         }
 
         /// <summary>
