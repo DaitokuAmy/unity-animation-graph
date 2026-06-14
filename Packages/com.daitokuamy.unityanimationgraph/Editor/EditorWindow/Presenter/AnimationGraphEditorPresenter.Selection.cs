@@ -58,6 +58,10 @@ namespace UnityAnimationGraph.Editor {
         /// 保持している Node と Signal を Graph に貼り付け
         /// </summary>
         private void PasteCopiedElements() {
+            if (!EnsureGraphEditingAllowed()) {
+                return;
+            }
+
             if (_copiedNodeModels.Count == 0 && _copiedSignalModels.Count == 0) {
                 SetFooterMessage("No copied item", true);
                 return;
@@ -77,6 +81,10 @@ namespace UnityAnimationGraph.Editor {
         /// 選択中の Node と Signal を複製
         /// </summary>
         private void DuplicateSelection() {
+            if (!EnsureGraphEditingAllowed()) {
+                return;
+            }
+
             var selectedNodeModels = _graphView.GetSelectedNodeModels();
             var selectedSignalModels = _graphView.GetSelectedSignalModels();
             var duplicatedNodeModels = _assetModel.DuplicateNodes(selectedNodeModels, DuplicateOffset);
@@ -93,6 +101,10 @@ namespace UnityAnimationGraph.Editor {
         /// 選択中の edge、Node、Signal を削除
         /// </summary>
         private void DeleteSelection() {
+            if (!EnsureGraphEditingAllowed()) {
+                return;
+            }
+
             var selectedEdges = _graphView.GetSelectedEdgeConnections();
             for (var i = 0; i < selectedEdges.Count; i++) {
                 _assetModel.Disconnect(selectedEdges[i].OutputPortKind, selectedEdges[i].SourceNodeModel, selectedEdges[i].TargetNodeModel);

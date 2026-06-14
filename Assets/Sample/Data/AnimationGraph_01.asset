@@ -200,7 +200,7 @@ MonoBehaviour:
     _enterEnabled: 0
     _exitEnabled: 0
   _nodeId: 28d1f99065e84279b46d342a0ec515bb
-  _graphPosition: {x: 457, y: 94}
+  _graphPosition: {x: 457, y: 116}
   _nextNodeIds:
   - 36dfbe67cf934019afb9e87d1d16e299
   - efd9efe781f040f388fb70b77d518971

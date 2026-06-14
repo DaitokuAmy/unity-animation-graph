@@ -14,6 +14,7 @@ namespace UnityAnimationGraph.Editor {
 
         private UnityEditor.Editor _editor;
         private Vector2 _scrollPosition;
+        private bool _isReadOnly;
 
         /// <summary>表示中 Node の serialized property が変更されたときに発火</summary>
         public event Action NodePropertiesChanged;
@@ -120,6 +121,19 @@ namespace UnityAnimationGraph.Editor {
             _inspectorContainer.MarkDirtyRepaint();
         }
 
+        /// <summary>
+        /// Inspector の編集可否を設定
+        /// </summary>
+        /// <param name="isReadOnly">編集を禁止する場合は true</param>
+        public void SetReadOnly(bool isReadOnly) {
+            if (_isReadOnly == isReadOnly) {
+                return;
+            }
+
+            _isReadOnly = isReadOnly;
+            _inspectorContainer.MarkDirtyRepaint();
+        }
+
         /// <inheritdoc/>
         public void Dispose() {
             DestroyEditor();
@@ -133,11 +147,17 @@ namespace UnityAnimationGraph.Editor {
             _scrollPosition = EditorGUILayout.BeginScrollView(_scrollPosition);
             _editor.serializedObject.Update();
             EditorGUI.BeginChangeCheck();
-            _editor.OnInspectorGUI();
+            using (new EditorGUI.DisabledScope(_isReadOnly)) {
+                _editor.OnInspectorGUI();
+            }
+
             var changed = EditorGUI.EndChangeCheck();
-            _editor.serializedObject.ApplyModifiedProperties();
+            if (!_isReadOnly) {
+                _editor.serializedObject.ApplyModifiedProperties();
+            }
+
             EditorGUILayout.EndScrollView();
-            if (changed) {
+            if (!_isReadOnly && changed) {
                 NodePropertiesChanged?.Invoke();
             }
         }

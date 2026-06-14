@@ -17,6 +17,7 @@ namespace UnityAnimationGraph.Editor {
 
         private AnimationGraphAssetEditorModel _assetModel;
         private bool _isRebuilding;
+        private bool _isReadOnly;
 
         /// <summary>ノード作成要求</summary>
         public event Action<Type, Vector2> NodeCreateRequested;
@@ -106,6 +107,14 @@ namespace UnityAnimationGraph.Editor {
         public void SetGraphAsset(AnimationGraphAssetEditorModel assetModel) {
             _assetModel = assetModel;
             Rebuild(assetModel);
+        }
+
+        /// <summary>
+        /// GraphView の編集可否を設定
+        /// </summary>
+        /// <param name="isReadOnly">編集を禁止する場合は true</param>
+        public void SetReadOnly(bool isReadOnly) {
+            _isReadOnly = isReadOnly;
         }
 
         /// <summary>
@@ -289,7 +298,7 @@ namespace UnityAnimationGraph.Editor {
         /// <inheritdoc/>
         public override void BuildContextualMenu(ContextualMenuPopulateEvent evt) {
             base.BuildContextualMenu(evt);
-            if (_assetModel == null || !_assetModel.HasGraphAsset) {
+            if (_isReadOnly || _assetModel == null || !_assetModel.HasGraphAsset) {
                 return;
             }
 
@@ -311,7 +320,7 @@ namespace UnityAnimationGraph.Editor {
         /// <inheritdoc/>
         public override List<Port> GetCompatiblePorts(Port startPort, NodeAdapter nodeAdapter) {
             var compatiblePorts = new List<Port>();
-            if (_assetModel == null || startPort == null) {
+            if (_isReadOnly || _assetModel == null || startPort == null) {
                 return compatiblePorts;
             }
 
@@ -411,6 +420,14 @@ namespace UnityAnimationGraph.Editor {
 
         private GraphViewChange OnGraphViewChanged(GraphViewChange graphViewChange) {
             if (_isRebuilding) {
+                return graphViewChange;
+            }
+
+            if (_isReadOnly) {
+                graphViewChange.edgesToCreate = null;
+                graphViewChange.elementsToRemove = null;
+                graphViewChange.movedElements = null;
+                graphViewChange.moveDelta = Vector2.zero;
                 return graphViewChange;
             }
 
@@ -611,34 +628,66 @@ namespace UnityAnimationGraph.Editor {
         }
 
         private void OnNodeViewActionTargetKeyChanged(NodeEditorModel nodeModel, string targetKey) {
+            if (_isReadOnly) {
+                return;
+            }
+
             ActionTargetKeyChanged?.Invoke(nodeModel, targetKey);
         }
 
         private void OnNodeViewDetailStringChanged(NodeEditorModel nodeModel, NodeDetailField field, string value) {
+            if (_isReadOnly) {
+                return;
+            }
+
             DetailStringChanged?.Invoke(nodeModel, field, value);
         }
 
         private void OnNodeViewDetailBoolChanged(NodeEditorModel nodeModel, NodeDetailField field, bool value) {
+            if (_isReadOnly) {
+                return;
+            }
+
             DetailBoolChanged?.Invoke(nodeModel, field, value);
         }
 
         private void OnNodeViewDetailIntChanged(NodeEditorModel nodeModel, NodeDetailField field, int value) {
+            if (_isReadOnly) {
+                return;
+            }
+
             DetailIntChanged?.Invoke(nodeModel, field, value);
         }
 
         private void OnNodeViewDetailFloatChanged(NodeEditorModel nodeModel, NodeDetailField field, float value) {
+            if (_isReadOnly) {
+                return;
+            }
+
             DetailFloatChanged?.Invoke(nodeModel, field, value);
         }
 
         private void OnNodeViewDelayChanged(DelayNodeEditorModel nodeModel, float delay) {
+            if (_isReadOnly) {
+                return;
+            }
+
             DelayChanged?.Invoke(nodeModel, delay);
         }
 
         private void OnNodeViewJoinTypeChanged(NodeEditorModel nodeModel, JoinType joinType) {
+            if (_isReadOnly) {
+                return;
+            }
+
             JoinTypeChanged?.Invoke(nodeModel, joinType);
         }
 
         private void OnNodeViewLoopCountChanged(LoopNodeEditorModel nodeModel, int loopCount) {
+            if (_isReadOnly) {
+                return;
+            }
+
             LoopCountChanged?.Invoke(nodeModel, loopCount);
         }
 
@@ -655,18 +704,33 @@ namespace UnityAnimationGraph.Editor {
             }
 
             if (actionKey && evt.keyCode == KeyCode.V) {
+                if (_isReadOnly) {
+                    evt.StopPropagation();
+                    return;
+                }
+
                 PasteRequested?.Invoke();
                 evt.StopPropagation();
                 return;
             }
 
             if (actionKey && evt.keyCode == KeyCode.D) {
+                if (_isReadOnly) {
+                    evt.StopPropagation();
+                    return;
+                }
+
                 DuplicateRequested?.Invoke();
                 evt.StopPropagation();
                 return;
             }
 
             if (evt.keyCode == KeyCode.Delete || evt.keyCode == KeyCode.Backspace) {
+                if (_isReadOnly) {
+                    evt.StopPropagation();
+                    return;
+                }
+
                 DeleteRequested?.Invoke();
                 evt.StopPropagation();
             }

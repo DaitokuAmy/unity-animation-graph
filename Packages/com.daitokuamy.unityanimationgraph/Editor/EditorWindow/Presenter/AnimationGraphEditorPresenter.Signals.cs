@@ -13,6 +13,10 @@ namespace UnityAnimationGraph.Editor {
         /// <param name="signalModel">移動対象 Signal model</param>
         /// <param name="signalPosition">移動後の表示範囲</param>
         private void MoveSignal(SignalEditorModel signalModel, Rect signalPosition) {
+            if (!EnsureGraphEditingAllowed()) {
+                return;
+            }
+
             signalModel.SetGraphPosition(signalPosition.position);
         }
 
@@ -24,6 +28,10 @@ namespace UnityAnimationGraph.Editor {
         /// <param name="targetSignalModel">接続先 Signal model</param>
         /// <returns>接続できた場合は true</returns>
         private bool ConnectSignal(AnimationGraphOutputPortKind outputPortKind, NodeEditorModel sourceNodeModel, SignalEditorModel targetSignalModel) {
+            if (!EnsureGraphEditingAllowed()) {
+                return false;
+            }
+
             if (!_assetModel.ConnectSignal(outputPortKind, sourceNodeModel, targetSignalModel, out var errorMessage)) {
                 SetFooterMessage(errorMessage, true);
                 return false;
@@ -43,6 +51,10 @@ namespace UnityAnimationGraph.Editor {
         /// <param name="sourceNodeModel">接続元 Node model</param>
         /// <param name="targetSignalModel">接続先 Signal model</param>
         private void DisconnectSignal(AnimationGraphOutputPortKind outputPortKind, NodeEditorModel sourceNodeModel, SignalEditorModel targetSignalModel) {
+            if (!EnsureGraphEditingAllowed()) {
+                return;
+            }
+
             if (!_assetModel.DisconnectSignal(outputPortKind, sourceNodeModel, targetSignalModel)) {
                 return;
             }
@@ -60,6 +72,10 @@ namespace UnityAnimationGraph.Editor {
         /// <param name="signalType">追加する Signal type</param>
         /// <param name="graphPosition">Graph 上の追加位置</param>
         private void AddSignal(Type signalType, Vector2 graphPosition) {
+            if (!EnsureGraphEditingAllowed()) {
+                return;
+            }
+
             if (!_assetModel.HasGraphAsset) {
                 SetFooterMessage("GraphAsset is not selected", true);
                 return;

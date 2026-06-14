@@ -13,6 +13,10 @@ namespace UnityAnimationGraph.Editor {
         /// <param name="nodeType">追加する Node type</param>
         /// <param name="graphPosition">Graph 上の追加位置</param>
         private void AddNode(Type nodeType, Vector2 graphPosition) {
+            if (!EnsureGraphEditingAllowed()) {
+                return;
+            }
+
             if (!_assetModel.HasGraphAsset) {
                 SetFooterMessage("GraphAsset is not selected", true);
                 return;
@@ -33,6 +37,10 @@ namespace UnityAnimationGraph.Editor {
         /// <param name="nodeModel">移動対象 Node model</param>
         /// <param name="nodePosition">移動後の表示範囲</param>
         private void MoveNode(NodeEditorModel nodeModel, Rect nodePosition) {
+            if (!EnsureGraphEditingAllowed()) {
+                return;
+            }
+
             nodeModel.SetGraphPosition(nodePosition.position);
         }
 
@@ -42,6 +50,10 @@ namespace UnityAnimationGraph.Editor {
         /// <param name="nodeModel">更新対象 Node model</param>
         /// <param name="targetKey">Target key</param>
         private void SetActionTargetKey(NodeEditorModel nodeModel, string targetKey) {
+            if (!EnsureGraphEditingAllowed()) {
+                return;
+            }
+
             if (nodeModel == null) {
                 return;
             }
@@ -61,6 +73,10 @@ namespace UnityAnimationGraph.Editor {
         /// <param name="nodeModel">更新対象 DelayNode model</param>
         /// <param name="delay">待機時間</param>
         private void SetDelay(DelayNodeEditorModel nodeModel, float delay) {
+            if (!EnsureGraphEditingAllowed()) {
+                return;
+            }
+
             if (nodeModel == null) {
                 return;
             }
@@ -81,6 +97,10 @@ namespace UnityAnimationGraph.Editor {
         /// <param name="field">更新対象 field</param>
         /// <param name="value">設定する値</param>
         private void SetNodeDetailString(NodeEditorModel nodeModel, NodeDetailField field, string value) {
+            if (!EnsureGraphEditingAllowed()) {
+                return;
+            }
+
             if (nodeModel == null) {
                 return;
             }
@@ -96,6 +116,10 @@ namespace UnityAnimationGraph.Editor {
         /// <param name="field">更新対象 field</param>
         /// <param name="value">設定する値</param>
         private void SetNodeDetailBool(NodeEditorModel nodeModel, NodeDetailField field, bool value) {
+            if (!EnsureGraphEditingAllowed()) {
+                return;
+            }
+
             if (nodeModel == null) {
                 return;
             }
@@ -111,6 +135,10 @@ namespace UnityAnimationGraph.Editor {
         /// <param name="field">更新対象 field</param>
         /// <param name="value">設定する値</param>
         private void SetNodeDetailInt(NodeEditorModel nodeModel, NodeDetailField field, int value) {
+            if (!EnsureGraphEditingAllowed()) {
+                return;
+            }
+
             if (nodeModel == null) {
                 return;
             }
@@ -126,6 +154,10 @@ namespace UnityAnimationGraph.Editor {
         /// <param name="field">更新対象 field</param>
         /// <param name="value">設定する値</param>
         private void SetNodeDetailFloat(NodeEditorModel nodeModel, NodeDetailField field, float value) {
+            if (!EnsureGraphEditingAllowed()) {
+                return;
+            }
+
             if (nodeModel == null) {
                 return;
             }
@@ -140,6 +172,10 @@ namespace UnityAnimationGraph.Editor {
         /// <param name="nodeModel">更新対象 Node model</param>
         /// <param name="joinType">Join type</param>
         private void SetJoinType(NodeEditorModel nodeModel, JoinType joinType) {
+            if (!EnsureGraphEditingAllowed()) {
+                return;
+            }
+
             if (nodeModel == null) {
                 return;
             }
@@ -159,6 +195,10 @@ namespace UnityAnimationGraph.Editor {
         /// <param name="nodeModel">更新対象 LoopNode model</param>
         /// <param name="loopCount">繰り返し回数</param>
         private void SetLoopCount(LoopNodeEditorModel nodeModel, int loopCount) {
+            if (!EnsureGraphEditingAllowed()) {
+                return;
+            }
+
             if (nodeModel == null) {
                 return;
             }
@@ -189,6 +229,10 @@ namespace UnityAnimationGraph.Editor {
         /// <param name="targetNodeModel">接続先 Node model</param>
         /// <returns>接続できた場合は true</returns>
         private bool ConnectNodes(AnimationGraphOutputPortKind outputPortKind, NodeEditorModel sourceNodeModel, NodeEditorModel targetNodeModel) {
+            if (!EnsureGraphEditingAllowed()) {
+                return false;
+            }
+
             if (!_assetModel.Connect(outputPortKind, sourceNodeModel, targetNodeModel, out var errorMessage)) {
                 SetFooterMessage(errorMessage, true);
                 return false;
@@ -208,6 +252,10 @@ namespace UnityAnimationGraph.Editor {
         /// <param name="sourceNodeModel">接続元 Node model</param>
         /// <param name="targetNodeModel">接続先 Node model</param>
         private void DisconnectNodes(AnimationGraphOutputPortKind outputPortKind, NodeEditorModel sourceNodeModel, NodeEditorModel targetNodeModel) {
+            if (!EnsureGraphEditingAllowed()) {
+                return;
+            }
+
             if (_assetModel.Disconnect(outputPortKind, sourceNodeModel, targetNodeModel)) {
                 if (RefreshPreviewAfterGraphChanged()) {
                     SetFooterMessage($"{sourceNodeModel.DisplayName} disconnected");

@@ -106,6 +106,7 @@ namespace UnityAnimationGraph.Editor {
         private ReorderableList _blackboardDefinitionsList;
         private TargetComponentSearchProvider _targetComponentSearchProvider;
         private Vector2 _scrollPosition;
+        private bool _isReadOnly;
 
         /// <summary>Schema edit notification</summary>
         public event Action SchemaChanged;
@@ -142,6 +143,19 @@ namespace UnityAnimationGraph.Editor {
         public void SetGraphAsset(AnimationGraphAsset graphAsset) {
             _graphAsset = graphAsset;
             RebuildLists();
+            _container.MarkDirtyRepaint();
+        }
+
+        /// <summary>
+        /// Schema の編集可否を設定
+        /// </summary>
+        /// <param name="isReadOnly">編集を禁止する場合は true</param>
+        public void SetReadOnly(bool isReadOnly) {
+            if (_isReadOnly == isReadOnly) {
+                return;
+            }
+
+            _isReadOnly = isReadOnly;
             _container.MarkDirtyRepaint();
         }
 
@@ -269,7 +283,7 @@ namespace UnityAnimationGraph.Editor {
         }
 
         private void SetTargetDefinitionMonoScriptGuid(string propertyPath, string monoScriptGuid) {
-            if (_serializedGraph == null) {
+            if (_isReadOnly || _serializedGraph == null) {
                 return;
             }
 
@@ -335,14 +349,17 @@ namespace UnityAnimationGraph.Editor {
 
             _serializedGraph.Update();
             _scrollPosition = EditorGUILayout.BeginScrollView(_scrollPosition);
-            DrawSeedField(_serializedGraph.FindProperty(RandomSeedPropertyName), _serializedGraph.FindProperty(GraphSeedPropertyName));
-            EditorGUILayout.Space(8.0f);
-            _targetDefinitionsList.DoLayoutList();
-            EditorGUILayout.Space(8.0f);
-            _blackboardDefinitionsList.DoLayoutList();
+            using (new EditorGUI.DisabledScope(_isReadOnly)) {
+                DrawSeedField(_serializedGraph.FindProperty(RandomSeedPropertyName), _serializedGraph.FindProperty(GraphSeedPropertyName));
+                EditorGUILayout.Space(8.0f);
+                _targetDefinitionsList.DoLayoutList();
+                EditorGUILayout.Space(8.0f);
+                _blackboardDefinitionsList.DoLayoutList();
+            }
+
             EditorGUILayout.EndScrollView();
 
-            if (_serializedGraph.ApplyModifiedProperties()) {
+            if (!_isReadOnly && _serializedGraph.ApplyModifiedProperties()) {
                 EditorUtility.SetDirty(_graphAsset);
                 SchemaChanged?.Invoke();
             }
@@ -380,6 +397,10 @@ namespace UnityAnimationGraph.Editor {
         }
 
         private void AddElement(ReorderableList reorderableList, Action<SerializedProperty> resetElement) {
+            if (_isReadOnly) {
+                return;
+            }
+
             var property = reorderableList.serializedProperty;
             var index = property.arraySize;
             property.arraySize++;

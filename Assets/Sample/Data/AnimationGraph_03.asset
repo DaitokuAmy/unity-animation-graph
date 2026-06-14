@@ -12,10 +12,19 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: f6f0704416964f048a3ab1dd93b49d7f, type: 3}
   m_Name: SampleMoveLocalPositionNode
   m_EditorClassIdentifier: Assembly-CSharp::UnityAnimationGraph.Sample.SampleMoveLocalPositionNode
+  _displayName: 
+  _signalPorts:
+    _enterEnabled: 0
+    _exitEnabled: 0
   _nodeId: 8e9ee4dd003b46e8b91b7c24faf2f0eb
   _graphPosition: {x: 95, y: 231}
   _nextNodeIds: []
-  _targetKey: Target
+  _enableEnterSignalPort: 0
+  _enableExitSignalPort: 0
+  _signalPortSettingsVersion: 1
+  _enterSignals: []
+  _exitSignals: []
+  _targetKey: MoveTarget
   _duration: 1
   _delay: 0
   _from: {x: 0, y: 0, z: 0}
@@ -32,10 +41,19 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: b68686c4982f4097bc199f470217aab8, type: 3}
   m_Name: RepeatNode
   m_EditorClassIdentifier: UnityAnimationGraph::UnityAnimationGraph.RepeatNode
+  _displayName: 
+  _signalPorts:
+    _enterEnabled: 0
+    _exitEnabled: 0
   _nodeId: 872db1a967624136bd3828e7016c9db8
   _graphPosition: {x: -118, y: 101}
   _nextNodeIds:
   - 0de2b523ffad40bfa7cdc484761617a7
+  _enableEnterSignalPort: 0
+  _enableExitSignalPort: 0
+  _signalPortSettingsVersion: 1
+  _enterSignals: []
+  _exitSignals: []
   _loopCount: 3
   _loopNodeIds:
   - 8e9ee4dd003b46e8b91b7c24faf2f0eb
@@ -53,6 +71,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: UnityAnimationGraph::UnityAnimationGraph.AnimationGraphAsset
   _assetGuid: 28c2e45805b01c34e8c8caab9e72c410
   _graphSeed: 988330306
+  _randomSeed: 0
   _startNodeId: 5ea37df4778a44a2ba9fb00c9ce4852b
   _nodes:
   - {fileID: 832963955223547466}
@@ -61,7 +80,9 @@ MonoBehaviour:
   - {fileID: 7246135758792466407}
   _targetDefinitions:
   - _key: MoveTarget
+    _monoScriptGuid: 
   - _key: RotateTarget
+    _monoScriptGuid: 
   _blackboardDefinitions:
   - _key: TargetPos1
     _valueType: 5
@@ -72,6 +93,7 @@ MonoBehaviour:
     _defaultVector2Value: {x: 0, y: 0}
     _defaultVector3Value: {x: 0, y: 10, z: 0}
     _defaultColorValue: {r: 0, g: 0, b: 0, a: 0}
+    _defaultVector4Value: {x: 0, y: 0, z: 0, w: 0}
   - _key: TargetColor1
     _valueType: 6
     _defaultBoolValue: 0
@@ -81,6 +103,7 @@ MonoBehaviour:
     _defaultVector2Value: {x: 0, y: 0}
     _defaultVector3Value: {x: 0, y: 0, z: 0}
     _defaultColorValue: {r: 1, g: 0, b: 0, a: 1}
+    _defaultVector4Value: {x: 0, y: 0, z: 0, w: 0}
 --- !u!114 &832963955223547466
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -93,10 +116,19 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: ed21bb646d224f8c8c4ee218e1871c53, type: 3}
   m_Name: StartNode
   m_EditorClassIdentifier: UnityAnimationGraph::UnityAnimationGraph.StartNode
+  _displayName: 
+  _signalPorts:
+    _enterEnabled: 0
+    _exitEnabled: 0
   _nodeId: 5ea37df4778a44a2ba9fb00c9ce4852b
   _graphPosition: {x: -351, y: 101}
   _nextNodeIds:
   - 872db1a967624136bd3828e7016c9db8
+  _enableEnterSignalPort: 0
+  _enableExitSignalPort: 0
+  _signalPortSettingsVersion: 1
+  _enterSignals: []
+  _exitSignals: []
 --- !u!114 &7246135758792466407
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -109,10 +141,19 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: f6f0704416964f048a3ab1dd93b49d7f, type: 3}
   m_Name: SampleMoveLocalPositionNode
   m_EditorClassIdentifier: Assembly-CSharp::UnityAnimationGraph.Sample.SampleMoveLocalPositionNode
+  _displayName: 
+  _signalPorts:
+    _enterEnabled: 0
+    _exitEnabled: 0
   _nodeId: 0de2b523ffad40bfa7cdc484761617a7
   _graphPosition: {x: 95, y: 101}
   _nextNodeIds: []
-  _targetKey: 
+  _enableEnterSignalPort: 0
+  _enableExitSignalPort: 0
+  _signalPortSettingsVersion: 1
+  _enterSignals: []
+  _exitSignals: []
+  _targetKey: MoveTarget
   _duration: 1
   _delay: 0
   _from: {x: 0, y: 5, z: 0}

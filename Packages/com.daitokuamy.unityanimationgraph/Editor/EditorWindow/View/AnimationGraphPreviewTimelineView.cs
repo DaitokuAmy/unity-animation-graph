@@ -95,7 +95,8 @@ namespace UnityAnimationGraph.Editor {
         /// <param name="duration">総時間</param>
         /// <param name="frameRate">表示と frame seek に使用する frame rate</param>
         public void SetPreviewState(float currentTime, float duration, int frameRate) {
-            var nextDuration = Mathf.Max(0.0f, duration);
+            var nextCurrentTime = IsFinite(currentTime) ? currentTime : 0.0f;
+            var nextDuration = IsFinite(duration) ? Mathf.Max(0.0f, duration) : 0.0f;
             var nextFrameRate = Mathf.Max(1, frameRate);
             var shouldRebuildTicks = Mathf.Abs(_duration - nextDuration) > TimeEpsilon || _frameRate != nextFrameRate;
 
@@ -106,7 +107,7 @@ namespace UnityAnimationGraph.Editor {
                 RebuildTicks();
             }
 
-            SetTimeWithoutNotify(currentTime);
+            SetTimeWithoutNotify(nextCurrentTime);
         }
 
         /// <summary>
@@ -194,7 +195,9 @@ namespace UnityAnimationGraph.Editor {
         }
 
         private void SetTimeWithoutNotify(float currentTime) {
-            _currentTime = Mathf.Clamp(currentTime, 0.0f, _timelineDuration);
+            var nextCurrentTime = IsFinite(currentTime) ? currentTime : 0.0f;
+            var timelineDuration = IsFinite(_timelineDuration) ? Mathf.Max(0.0f, _timelineDuration) : 0.0f;
+            _currentTime = Mathf.Clamp(nextCurrentTime, 0.0f, timelineDuration);
             UpdatePlayhead();
         }
 
@@ -285,11 +288,11 @@ namespace UnityAnimationGraph.Editor {
         }
 
         private void SeekFromLocalX(float localX, bool forceDispatch) {
-            if (_timelineDuration <= TimeEpsilon) {
+            if (!IsFinite(localX) || !IsFinite(_timelineDuration) || _timelineDuration <= TimeEpsilon) {
                 return;
             }
 
-            var width = Mathf.Max(1.0f, _contentWidth);
+            var width = IsFinite(_contentWidth) ? Mathf.Max(1.0f, _contentWidth) : 1.0f;
             var ratio = Mathf.Clamp01((localX - TimelineLeftPadding) / width);
             var nextTime = SnapTimeToFrame(ratio * _timelineDuration);
             if (Mathf.Abs(_currentTime - nextTime) > TimeEpsilon) {
@@ -300,6 +303,10 @@ namespace UnityAnimationGraph.Editor {
         }
 
         private void DispatchSeekRequested(float time, bool forceDispatch) {
+            if (!IsFinite(time)) {
+                return;
+            }
+
             if (!forceDispatch && !CanDispatchDragSeek()) {
                 return;
             }
@@ -318,8 +325,10 @@ namespace UnityAnimationGraph.Editor {
         }
 
         private void UpdatePlayhead() {
-            var width = _contentWidth;
-            var ratio = _timelineDuration <= TimeEpsilon ? 0.0f : Mathf.Clamp01(_currentTime / _timelineDuration);
+            var width = IsFinite(_contentWidth) ? Mathf.Max(0.0f, _contentWidth) : 0.0f;
+            var currentTime = IsFinite(_currentTime) ? _currentTime : 0.0f;
+            var timelineDuration = IsFinite(_timelineDuration) ? _timelineDuration : 0.0f;
+            var ratio = timelineDuration <= TimeEpsilon ? 0.0f : Mathf.Clamp01(currentTime / timelineDuration);
             _elapsedFill.style.width = ratio * width;
             if (width <= 0.0f) {
                 _playhead.style.left = TimelineLeftPadding;
@@ -335,21 +344,27 @@ namespace UnityAnimationGraph.Editor {
         private void RebuildTicks() {
             _tickContainer.Clear();
             _timeLabelContainer.Clear();
+            _contentWidth = 0.0f;
+
             var width = resolvedStyle.width;
+            if (!IsFinite(width) || width <= 0.0f || !IsFinite(_duration) || _duration <= TimeEpsilon) {
+                return;
+            }
+
             _contentWidth = GetContentWidth(width);
-            if (width <= 0.0f || _duration <= TimeEpsilon) {
+            if (!IsFinite(_contentWidth) || _contentWidth <= TimeEpsilon) {
                 return;
             }
 
             var totalFrames = GetTotalFrames();
             var stepFrames = Mathf.Max(1, Mathf.CeilToInt(totalFrames / (float)MaxTickCount));
             var framesPerSecond = Mathf.Max(1, Mathf.RoundToInt(_frameRate));
-            for (var frame = 0; frame <= totalFrames; frame += stepFrames) {
+            for (var tickIndex = 0; tickIndex <= MaxTickCount; tickIndex++) {
+                var frame = (int)Math.Min(totalFrames, (long)tickIndex * stepFrames);
                 AddTick(frame, totalFrames, frame % framesPerSecond == 0, true);
-            }
-
-            if (totalFrames % stepFrames != 0) {
-                AddTick(totalFrames, totalFrames, true, true);
+                if (frame >= totalFrames) {
+                    break;
+                }
             }
 
             AddInactiveTicks(totalFrames);
@@ -363,29 +378,48 @@ namespace UnityAnimationGraph.Editor {
 
         private void AddInactiveTicks(int totalFrames) {
             var width = resolvedStyle.width;
+            if (!IsFinite(width) || !IsFinite(_contentWidth) || _contentWidth <= TimeEpsilon) {
+                return;
+            }
+
             var timelineRight = GetTimelineRight(width);
-            if (TimelineLeftPadding + _contentWidth >= timelineRight - 1.0f) {
+            var remainingWidth = timelineRight - TimelineLeftPadding - _contentWidth;
+            if (!IsFinite(remainingWidth) || remainingWidth <= 1.0f) {
                 return;
             }
 
             var cellWidth = totalFrames <= 0 ? MaxFrameCellWidth : _contentWidth / totalFrames;
-            if (cellWidth <= TimeEpsilon) {
+            if (!IsFinite(cellWidth) || cellWidth <= TimeEpsilon) {
                 cellWidth = MaxFrameCellWidth;
             }
 
+            var rawInactiveTickCount = remainingWidth / cellWidth;
+            if (!IsFinite(rawInactiveTickCount) || rawInactiveTickCount <= 0.0f) {
+                return;
+            }
+
+            var inactiveTickCount = Mathf.Min(MaxTickCount, Mathf.CeilToInt(Mathf.Min(rawInactiveTickCount, MaxTickCount)));
+            if (inactiveTickCount <= 0) {
+                return;
+            }
+
             var framesPerSecond = Mathf.Max(1, Mathf.RoundToInt(_frameRate));
-            for (var frameOffset = 1; ; frameOffset++) {
+            for (var frameOffset = 1; frameOffset <= inactiveTickCount; frameOffset++) {
                 var x = _contentWidth + (frameOffset * cellWidth);
                 if (TimelineLeftPadding + x > timelineRight) {
                     return;
                 }
 
-                var frame = totalFrames + frameOffset;
+                var frame = totalFrames >= int.MaxValue - frameOffset ? int.MaxValue : totalFrames + frameOffset;
                 AddTickAtPosition(x, frame % framesPerSecond == 0, false);
             }
         }
 
         private void AddTickAtPosition(float x, bool isMajor, bool isActive) {
+            if (!IsFinite(x)) {
+                return;
+            }
+
             var tick = new VisualElement {
                 pickingMode = PickingMode.Ignore,
             };
@@ -410,12 +444,12 @@ namespace UnityAnimationGraph.Editor {
         }
 
         private void AddTimeLabels() {
-            if (_timelineDuration <= TimeEpsilon) {
+            if (!IsFinite(_timelineDuration) || !IsFinite(_contentWidth) || _timelineDuration <= TimeEpsilon || _contentWidth <= TimeEpsilon) {
                 return;
             }
 
             var maxLabelCount = Mathf.Max(1, Mathf.FloorToInt(_contentWidth / TimeLabelApproximateWidth));
-            var totalSeconds = Mathf.Max(1, Mathf.CeilToInt(_timelineDuration));
+            var totalSeconds = _timelineDuration >= int.MaxValue ? int.MaxValue : Mathf.Max(1, Mathf.CeilToInt(_timelineDuration));
             var stepSeconds = Mathf.Max(1, Mathf.CeilToInt(totalSeconds / (float)maxLabelCount));
             var labelTimes = new List<float> {
                 0.0f,
@@ -430,6 +464,15 @@ namespace UnityAnimationGraph.Editor {
         }
 
         private void AddTimeLabel(float time) {
+            if (!IsFinite(time) || !IsFinite(_timelineDuration) || _timelineDuration <= TimeEpsilon) {
+                return;
+            }
+
+            var width = resolvedStyle.width;
+            if (!IsFinite(width)) {
+                return;
+            }
+
             var label = new Label(FormatTimeLabel(time)) {
                 pickingMode = PickingMode.Ignore,
             };
@@ -438,7 +481,7 @@ namespace UnityAnimationGraph.Editor {
             label.style.left = Mathf.Clamp(
                 TimelineLeftPadding + (ratio * _contentWidth) - (TimeLabelWidth * 0.5f),
                 0.0f,
-                Mathf.Max(0.0f, resolvedStyle.width - TimeLabelWidth));
+                Mathf.Max(0.0f, width - TimeLabelWidth));
             label.style.top = 0.0f;
             label.style.width = TimeLabelWidth;
             label.style.height = TimeLabelHeight;
@@ -453,40 +496,75 @@ namespace UnityAnimationGraph.Editor {
         }
 
         private float SnapTimeToFrame(float time) {
-            if (_frameRate <= 0 || _timelineDuration <= TimeEpsilon) {
-                return Mathf.Clamp(time, 0.0f, _timelineDuration);
+            var nextTime = IsFinite(time) ? time : 0.0f;
+            var timelineDuration = IsFinite(_timelineDuration) ? Mathf.Max(0.0f, _timelineDuration) : 0.0f;
+            if (_frameRate <= 0 || timelineDuration <= TimeEpsilon) {
+                return Mathf.Clamp(nextTime, 0.0f, timelineDuration);
             }
 
-            var frame = Mathf.Clamp(Mathf.RoundToInt(time * _frameRate), 0, GetTotalFrames());
+            var framePosition = nextTime * _frameRate;
+            var totalFrames = GetTotalFrames();
+            if (!IsFinite(framePosition)) {
+                return 0.0f;
+            }
+
+            var frame = framePosition >= int.MaxValue ? totalFrames : Mathf.Clamp(Mathf.RoundToInt(framePosition), 0, totalFrames);
             return frame / (float)_frameRate;
         }
 
         private int GetTotalFrames() {
-            return Mathf.Max(1, Mathf.CeilToInt(_duration * _frameRate));
+            var totalFrames = _duration * _frameRate;
+            if (!IsFinite(totalFrames) || totalFrames <= 1.0f) {
+                return 1;
+            }
+
+            if (totalFrames >= int.MaxValue) {
+                return int.MaxValue;
+            }
+
+            return Mathf.Max(1, Mathf.CeilToInt(totalFrames));
         }
 
         private float GetContentWidth(float availableWidth) {
-            if (availableWidth <= 0.0f || _duration <= TimeEpsilon) {
+            if (!IsFinite(availableWidth) || availableWidth <= 0.0f || !IsFinite(_duration) || _duration <= TimeEpsilon) {
                 return 0.0f;
             }
 
-            return Mathf.Min(GetTimelineAvailableWidth(availableWidth), GetTotalFrames() * MaxFrameCellWidth);
+            var contentWidth = Mathf.Min(GetTimelineAvailableWidth(availableWidth), GetTotalFrames() * MaxFrameCellWidth);
+            return IsFinite(contentWidth) ? Mathf.Max(0.0f, contentWidth) : 0.0f;
         }
 
         private static float GetTimelineAvailableWidth(float width) {
+            if (!IsFinite(width)) {
+                return 0.0f;
+            }
+
             return Mathf.Max(0.0f, GetTimelineRight(width) - TimelineLeftPadding);
         }
 
         private static float GetTimelineRight(float width) {
+            if (!IsFinite(width)) {
+                return TimelineLeftPadding;
+            }
+
             return Mathf.Max(TimelineLeftPadding, width - TimelineRightPadding);
         }
 
         private static float GetFrameAlignedDuration(float duration, int frameRate) {
-            if (duration <= TimeEpsilon || frameRate <= 0) {
+            if (!IsFinite(duration) || duration <= TimeEpsilon || frameRate <= 0) {
                 return 0.0f;
             }
 
-            return Mathf.CeilToInt(duration * frameRate) / (float)frameRate;
+            var totalFrames = duration * frameRate;
+            if (!IsFinite(totalFrames) || totalFrames >= int.MaxValue) {
+                return duration;
+            }
+
+            return Mathf.CeilToInt(totalFrames) / (float)frameRate;
+        }
+
+        private static bool IsFinite(float value) {
+            return !float.IsNaN(value) && !float.IsInfinity(value);
         }
     }
 }

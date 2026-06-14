@@ -22,6 +22,7 @@ namespace UnityAnimationGraph.Editor {
         private const float MinInspectorPanelHeight = 160.0f;
         private const float MinSchemaPanelHeight = 180.0f;
         private const float MinSidePanelWidth = 280.0f;
+        private const int PlayModePlaceholderPadding = 12;
 
         [SerializeField]
         private AnimationGraphAsset _graphAsset;
@@ -65,12 +66,15 @@ namespace UnityAnimationGraph.Editor {
         /// </summary>
         private void OnEnable() {
             titleContent = new GUIContent(WindowTitle);
+            EditorApplication.playModeStateChanged -= OnPlayModeStateChanged;
+            EditorApplication.playModeStateChanged += OnPlayModeStateChanged;
         }
 
         /// <summary>
         /// Window 無効化時に Presenter を解放
         /// </summary>
         private void OnDisable() {
+            EditorApplication.playModeStateChanged -= OnPlayModeStateChanged;
             ClearPresenter();
         }
 
@@ -78,6 +82,7 @@ namespace UnityAnimationGraph.Editor {
         /// Window 破棄時に Presenter を解放
         /// </summary>
         private void OnDestroy() {
+            EditorApplication.playModeStateChanged -= OnPlayModeStateChanged;
             ClearPresenter();
         }
 
@@ -87,6 +92,11 @@ namespace UnityAnimationGraph.Editor {
         private void CreateGUI() {
             ClearPresenter();
             rootVisualElement.Clear();
+            ResetRootStyle();
+            if (ShouldSuspendEditor()) {
+                CreatePlayModePlaceholder();
+                return;
+            }
 
             var header = CreateHeader(out var graphAssetField);
             _graphAssetField = graphAssetField;
@@ -134,6 +144,43 @@ namespace UnityAnimationGraph.Editor {
                 inspectorView,
                 footerLabel,
                 _inspectedNodeIds);
+        }
+
+        private static bool ShouldSuspendEditor() {
+            return EditorApplication.isPlayingOrWillChangePlaymode && !EditorApplication.isPlaying;
+        }
+
+        private void CreatePlayModePlaceholder() {
+            rootVisualElement.style.flexDirection = FlexDirection.Column;
+            rootVisualElement.style.paddingLeft = PlayModePlaceholderPadding;
+            rootVisualElement.style.paddingRight = PlayModePlaceholderPadding;
+            rootVisualElement.style.paddingTop = PlayModePlaceholderPadding;
+            rootVisualElement.style.paddingBottom = PlayModePlaceholderPadding;
+            rootVisualElement.Add(new Label("Animation Graph is waiting for Play Mode transition."));
+        }
+
+        private void ResetRootStyle() {
+            rootVisualElement.style.flexDirection = FlexDirection.Column;
+            rootVisualElement.style.paddingLeft = 0;
+            rootVisualElement.style.paddingRight = 0;
+            rootVisualElement.style.paddingTop = 0;
+            rootVisualElement.style.paddingBottom = 0;
+        }
+
+        private void OnPlayModeStateChanged(PlayModeStateChange stateChange) {
+            switch (stateChange) {
+                case PlayModeStateChange.ExitingEditMode:
+                case PlayModeStateChange.ExitingPlayMode:
+                    ClearPresenter();
+                    rootVisualElement.Clear();
+                    ResetRootStyle();
+                    CreatePlayModePlaceholder();
+                    break;
+                case PlayModeStateChange.EnteredPlayMode:
+                case PlayModeStateChange.EnteredEditMode:
+                    CreateGUI();
+                    break;
+            }
         }
 
         /// <summary>
