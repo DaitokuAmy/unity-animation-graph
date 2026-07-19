@@ -242,9 +242,9 @@ namespace UnityAnimationGraph.Editor {
                     }
                 }
 
-                if (sourceNodeModel is LoopNodeEditorModel sourceLoopNodeModel && duplicatedNodeModels[i] is LoopNodeEditorModel duplicatedLoopNodeModel) {
+                if (sourceNodeModel is ScopedControlNodeEditorModel sourceLoopNodeModel && duplicatedNodeModels[i] is ScopedControlNodeEditorModel duplicatedLoopNodeModel) {
                     var duplicatedLoopNodeIds = new List<string>();
-                    var loopNodeIds = sourceLoopNodeModel.LoopNodeIds;
+                    var loopNodeIds = sourceLoopNodeModel.BodyNodeIds;
                     for (var j = 0; j < loopNodeIds.Count; j++) {
                         if (!duplicatedNodeModelsBySourceId.TryGetValue(loopNodeIds[j], out var duplicatedLoopTargetNodeModel)) {
                             continue;
@@ -253,7 +253,7 @@ namespace UnityAnimationGraph.Editor {
                         duplicatedLoopNodeIds.Add(duplicatedLoopTargetNodeModel.NodeId);
                     }
 
-                    duplicatedLoopNodeModel.SetLoopNodeIds(duplicatedLoopNodeIds);
+                    duplicatedLoopNodeModel.SetBodyNodeIds(duplicatedLoopNodeIds);
                 }
             }
 
@@ -365,7 +365,7 @@ namespace UnityAnimationGraph.Editor {
         private void ApplyLoopPreviewResets(Dictionary<string, PreviewExecutionInfoBuilder> previewInfoBuildersByNodeId, IReadOnlyList<ScheduledNode> scheduledNodes, float previewTime) {
             var resetTimesByNodeId = new Dictionary<string, float>(StringComparer.Ordinal);
             for (var i = 0; i < _nodes.Count; i++) {
-                if (_nodes[i] is not LoopNodeEditorModel loopNodeModel) {
+                if (_nodes[i] is not ScopedControlNodeEditorModel loopNodeModel) {
                     continue;
                 }
 
@@ -392,7 +392,7 @@ namespace UnityAnimationGraph.Editor {
         }
 
         private bool TryGetLatestLoopResetTime(
-            LoopNodeEditorModel loopNodeModel,
+            ScopedControlNodeEditorModel loopNodeModel,
             HashSet<string> loopBodyNodeIds,
             IReadOnlyList<ScheduledNode> scheduledNodes,
             float previewTime,
@@ -425,7 +425,7 @@ namespace UnityAnimationGraph.Editor {
             return found;
         }
 
-        private IReadOnlyList<string> GetLoopStartNodeIds(LoopNodeEditorModel loopNodeModel, HashSet<string> loopBodyNodeIds) {
+        private IReadOnlyList<string> GetLoopStartNodeIds(ScopedControlNodeEditorModel loopNodeModel, HashSet<string> loopBodyNodeIds) {
             var incomingNodeIds = new HashSet<string>(loopBodyNodeIds.Count, StringComparer.Ordinal);
             foreach (var loopBodyNodeId in loopBodyNodeIds) {
                 if (!_nodeModelsById.TryGetValue(loopBodyNodeId, out var bodyNodeModel)) {
@@ -442,7 +442,7 @@ namespace UnityAnimationGraph.Editor {
 
             var startNodeIds = new List<string>();
             var addedStartNodeIds = new HashSet<string>(StringComparer.Ordinal);
-            var loopNodeIds = loopNodeModel.LoopNodeIds;
+            var loopNodeIds = loopNodeModel.BodyNodeIds;
             for (var i = 0; i < loopNodeIds.Count; i++) {
                 if (!loopBodyNodeIds.Contains(loopNodeIds[i]) || incomingNodeIds.Contains(loopNodeIds[i])) {
                     continue;
@@ -474,7 +474,7 @@ namespace UnityAnimationGraph.Editor {
             }
 
             for (var i = 0; i < _nodes.Count; i++) {
-                if (_nodes[i] is not LoopNodeEditorModel loopNodeModel) {
+                if (_nodes[i] is not ScopedControlNodeEditorModel loopNodeModel) {
                     continue;
                 }
 
@@ -1054,7 +1054,7 @@ namespace UnityAnimationGraph.Editor {
                 return outputPortKind.BranchExtensionIndex < branchNodeModel.ExtensionPortCount;
             }
 
-            return outputPortKind == AnimationGraphOutputPortKind.Loop && nodeModel is LoopNodeEditorModel;
+            return outputPortKind == AnimationGraphOutputPortKind.Loop && nodeModel is ScopedControlNodeEditorModel;
         }
 
         private static bool CanUseSignalOutputPort(NodeEditorModel nodeModel, AnimationGraphOutputPortKind outputPortKind) {
@@ -1114,7 +1114,7 @@ namespace UnityAnimationGraph.Editor {
                     return false;
                 }
 
-                if (!CanAddNodeToLoop((LoopNodeEditorModel)sourceNodeModel, targetNodeModel, out errorMessage)) {
+                if (!CanAddNodeToLoop((ScopedControlNodeEditorModel)sourceNodeModel, targetNodeModel, out errorMessage)) {
                     return false;
                 }
 
@@ -1157,11 +1157,11 @@ namespace UnityAnimationGraph.Editor {
         /// <summary>
         /// 指定したノードを LoopNode に追加できるかを判定
         /// </summary>
-        /// <param name="loopNodeModel">追加先の LoopNodeEditorModel</param>
+        /// <param name="loopNodeModel">追加先の ScopedControlNodeEditorModel</param>
         /// <param name="targetNodeModel">追加するノード Model</param>
         /// <param name="errorMessage">追加できない理由</param>
         /// <returns>追加できる場合は true</returns>
-        private bool CanAddNodeToLoop(LoopNodeEditorModel loopNodeModel, NodeEditorModel targetNodeModel, out string errorMessage) {
+        private bool CanAddNodeToLoop(ScopedControlNodeEditorModel loopNodeModel, NodeEditorModel targetNodeModel, out string errorMessage) {
             if (targetNodeModel.NodeType == typeof(StartNode)) {
                 errorMessage = "LoopNode cannot contain StartNode";
                 return false;
@@ -1180,10 +1180,10 @@ namespace UnityAnimationGraph.Editor {
         /// 指定したノードが所属する LoopNode を取得
         /// </summary>
         /// <param name="nodeId">所属を調べるノード ID</param>
-        /// <returns>所属する LoopNodeEditorModel</returns>
-        private LoopNodeEditorModel FindLoopOwner(string nodeId) {
+        /// <returns>所属する ScopedControlNodeEditorModel</returns>
+        private ScopedControlNodeEditorModel FindLoopOwner(string nodeId) {
             for (var i = 0; i < _nodes.Count; i++) {
-                if (_nodes[i] is not LoopNodeEditorModel loopNodeModel) {
+                if (_nodes[i] is not ScopedControlNodeEditorModel loopNodeModel) {
                     continue;
                 }
 
@@ -1195,12 +1195,41 @@ namespace UnityAnimationGraph.Editor {
             return null;
         }
 
-        private void AddLoopValidationMessages(LoopNodeEditorModel loopNodeModel, Dictionary<string, string> messagesByNodeId) {
+        /// <summary>
+        /// ActionNode から参照可能な target 一覧を取得
+        /// </summary>
+        internal IReadOnlyList<TargetReference> GetTargetReferences(NodeEditorModel nodeModel) {
+            var references = new List<TargetReference> { new(TargetReferenceKind.Binding, string.Empty) };
+            for (var i = 0; i < TargetDefinitions.Count; i++) {
+                var definition = TargetDefinitions[i];
+                if (definition.Multiplicity == TargetMultiplicity.Single) {
+                    references.Add(new TargetReference(TargetReferenceKind.Binding, definition.Key));
+                }
+            }
+
+            var owner = FindLoopOwner(nodeModel.NodeId);
+            while (owner != null) {
+                if (owner.Node is IIterationScopeProvider) {
+                    for (var i = 0; i < TargetDefinitions.Count; i++) {
+                        var definition = TargetDefinitions[i];
+                        if (definition.Multiplicity == TargetMultiplicity.Collection) {
+                            references.Add(new TargetReference(TargetReferenceKind.CollectionItem, definition.Key, owner.NodeId));
+                        }
+                    }
+                }
+
+                owner = FindLoopOwner(owner.NodeId);
+            }
+
+            return references;
+        }
+
+        private void AddLoopValidationMessages(ScopedControlNodeEditorModel loopNodeModel, Dictionary<string, string> messagesByNodeId) {
             var loopBodyNodeIds = BuildLoopBodyNodeIdSet(loopNodeModel, messagesByNodeId);
             AddLoopBodyIsolationValidationMessages(loopNodeModel, loopBodyNodeIds, messagesByNodeId);
         }
 
-        private bool ContainsLoopBodyNode(LoopNodeEditorModel loopNodeModel, string nodeId) {
+        private bool ContainsLoopBodyNode(ScopedControlNodeEditorModel loopNodeModel, string nodeId) {
             return !string.IsNullOrEmpty(nodeId) && BuildLoopBodyNodeIdSet(loopNodeModel, null).Contains(nodeId);
         }
 
@@ -1213,12 +1242,12 @@ namespace UnityAnimationGraph.Editor {
             }
         }
 
-        private HashSet<string> BuildLoopBodyNodeIdSet(LoopNodeEditorModel loopNodeModel, Dictionary<string, string> messagesByNodeId) {
+        private HashSet<string> BuildLoopBodyNodeIdSet(ScopedControlNodeEditorModel loopNodeModel, Dictionary<string, string> messagesByNodeId) {
             var loopBodyNodeIds = new HashSet<string>(StringComparer.Ordinal);
             var nodeIdsToVisit = new Queue<string>();
             var explicitLoopNodeIds = new HashSet<string>(StringComparer.Ordinal);
             var loopExitNodeIds = new HashSet<string>(loopNodeModel.NextNodeIds, StringComparer.Ordinal);
-            var loopNodeIds = loopNodeModel.LoopNodeIds;
+            var loopNodeIds = loopNodeModel.BodyNodeIds;
             for (var i = 0; i < loopNodeIds.Count; i++) {
                 var loopNodeId = loopNodeIds[i];
                 if (string.IsNullOrEmpty(loopNodeId)) {
@@ -1282,7 +1311,7 @@ namespace UnityAnimationGraph.Editor {
             return loopBodyNodeIds;
         }
 
-        private void AddLoopBodyIsolationValidationMessages(LoopNodeEditorModel loopNodeModel, HashSet<string> loopBodyNodeIds, Dictionary<string, string> messagesByNodeId) {
+        private void AddLoopBodyIsolationValidationMessages(ScopedControlNodeEditorModel loopNodeModel, HashSet<string> loopBodyNodeIds, Dictionary<string, string> messagesByNodeId) {
             var loopExitNodeIds = new HashSet<string>(loopNodeModel.NextNodeIds, StringComparer.Ordinal);
             foreach (var loopBodyNodeId in loopBodyNodeIds) {
                 if (!_nodeModelsById.TryGetValue(loopBodyNodeId, out var bodyNodeModel)) {
@@ -1408,8 +1437,8 @@ namespace UnityAnimationGraph.Editor {
 
         private static IReadOnlyList<string> GetConnectedNodeIds(NodeEditorModel nodeModel) {
             var nodeIds = new List<string>(GetPhysicalConnectedNodeIds(nodeModel));
-            if (nodeModel is LoopNodeEditorModel loopNodeModel) {
-                var loopNodeIds = loopNodeModel.LoopNodeIds;
+            if (nodeModel is ScopedControlNodeEditorModel loopNodeModel) {
+                var loopNodeIds = loopNodeModel.BodyNodeIds;
                 for (var i = 0; i < loopNodeIds.Count; i++) {
                     nodeIds.Add(loopNodeIds[i]);
                 }
@@ -1433,8 +1462,8 @@ namespace UnityAnimationGraph.Editor {
                 return branchNodeModel.GetExtensionNodeIds(outputPortKind.BranchExtensionIndex);
             }
 
-            return outputPortKind == AnimationGraphOutputPortKind.Loop && nodeModel is LoopNodeEditorModel loopNodeModel
-                ? loopNodeModel.LoopNodeIds
+            return outputPortKind == AnimationGraphOutputPortKind.Loop && nodeModel is ScopedControlNodeEditorModel loopNodeModel
+                ? loopNodeModel.BodyNodeIds
                 : Array.Empty<string>();
         }
 
@@ -1480,7 +1509,7 @@ namespace UnityAnimationGraph.Editor {
             }
 
             if (outputPortKind == AnimationGraphOutputPortKind.Loop) {
-                ((LoopNodeEditorModel)nodeModel).SetLoopNodeIds(nodeIds);
+                ((ScopedControlNodeEditorModel)nodeModel).SetBodyNodeIds(nodeIds);
             }
         }
 
@@ -1540,8 +1569,8 @@ namespace UnityAnimationGraph.Editor {
                 }
             }
 
-            if (node is LoopNode loopNode) {
-                var loopNodeIds = loopNode.LoopNodeIds;
+            if (node is ScopedControlNode loopNode) {
+                var loopNodeIds = loopNode.BodyNodeIds;
                 for (var i = 0; i < loopNodeIds.Count; i++) {
                     nodeIds.Add(loopNodeIds[i]);
                 }

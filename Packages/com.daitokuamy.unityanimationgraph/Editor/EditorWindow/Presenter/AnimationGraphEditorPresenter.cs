@@ -231,7 +231,7 @@ namespace UnityAnimationGraph.Editor {
             _graphView.PasteRequested += PasteCopiedElements;
             _graphView.DuplicateRequested += DuplicateSelection;
             _graphView.DeleteRequested += DeleteSelection;
-            _graphView.ActionTargetKeyChanged += SetActionTargetKey;
+            _graphView.ActionTargetReferenceChanged += SetActionTargetReference;
             _graphView.DetailStringChanged += SetNodeDetailString;
             _graphView.DetailBoolChanged += SetNodeDetailBool;
             _graphView.DetailIntChanged += SetNodeDetailInt;
@@ -239,6 +239,9 @@ namespace UnityAnimationGraph.Editor {
             _graphView.DelayChanged += SetDelay;
             _graphView.JoinTypeChanged += SetJoinType;
             _graphView.LoopCountChanged += SetLoopCount;
+            _graphView.LoopCountSourceChanged += SetLoopCountSource;
+            _graphView.LoopStartIndexChanged += SetLoopStartIndex;
+            _graphView.LoopCountTargetKeyChanged += SetLoopCountTargetKey;
             _schemaView.SchemaChanged += OnSchemaChanged;
             _inspectorView.NodePropertiesChanged += RefreshGraph;
             EditorApplication.update += OnEditorUpdate;
@@ -316,7 +319,7 @@ namespace UnityAnimationGraph.Editor {
                 _graphView.PasteRequested -= PasteCopiedElements;
                 _graphView.DuplicateRequested -= DuplicateSelection;
                 _graphView.DeleteRequested -= DeleteSelection;
-                _graphView.ActionTargetKeyChanged -= SetActionTargetKey;
+                _graphView.ActionTargetReferenceChanged -= SetActionTargetReference;
                 _graphView.DetailStringChanged -= SetNodeDetailString;
                 _graphView.DetailBoolChanged -= SetNodeDetailBool;
                 _graphView.DetailIntChanged -= SetNodeDetailInt;
@@ -324,6 +327,9 @@ namespace UnityAnimationGraph.Editor {
                 _graphView.DelayChanged -= SetDelay;
                 _graphView.JoinTypeChanged -= SetJoinType;
                 _graphView.LoopCountChanged -= SetLoopCount;
+                _graphView.LoopCountSourceChanged -= SetLoopCountSource;
+                _graphView.LoopStartIndexChanged -= SetLoopStartIndex;
+                _graphView.LoopCountTargetKeyChanged -= SetLoopCountTargetKey;
             }
 
             if (_schemaView != null) {
@@ -970,11 +976,11 @@ namespace UnityAnimationGraph.Editor {
         /// <param name="previewRunner">Target binding 取得元の Runner</param>
         /// <returns>Preview source が解決できた場合は true</returns>
         private bool TryResolveEditorPreviewStartSource(out GameObject rootGameObject, out AnimationGraphRunner previewRunner) {
+            ClearDestroyedEditorPreviewSource();
             rootGameObject = _editorPreviewRoot;
             previewRunner = _editorPreviewSourceRunner;
-            if ((rootGameObject == null || previewRunner == null)
-                && _previewSourceField != null
-                && _previewSourceField.value is AnimationGraphRunner fieldRunner) {
+            var fieldRunner = _previewSourceField?.value as AnimationGraphRunner;
+            if ((rootGameObject == null || previewRunner == null) && fieldRunner != null) {
                 rootGameObject = fieldRunner.gameObject;
                 previewRunner = fieldRunner;
             }
@@ -993,6 +999,19 @@ namespace UnityAnimationGraph.Editor {
             _editorPreviewSourceRunner = previewRunner;
             UpdatePreviewSourceField();
             return true;
+        }
+
+        private void ClearDestroyedEditorPreviewSource() {
+            if (_editorPreviewRoot != null && _editorPreviewSourceRunner != null) {
+                return;
+            }
+
+            _editorPreviewRoot = null;
+            _editorPreviewSourceRunner = null;
+            if (_previewSourceField != null && !ReferenceEquals(_previewSourceField.value, null)) {
+                _previewSourceField.SetValueWithoutNotify(null);
+                _previewSourceField.MarkDirtyRepaint();
+            }
         }
 
         /// <summary>

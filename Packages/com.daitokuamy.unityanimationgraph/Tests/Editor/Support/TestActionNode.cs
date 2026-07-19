@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using UnityEngine;
 
 namespace UnityAnimationGraph.Tests {
     /// <summary>
@@ -98,5 +99,28 @@ namespace UnityAnimationGraph.Tests {
             _events?.Add($"{_eventPrefix}.{eventName}");
         }
     }
-}
 
+    /// <summary>
+    /// 解決された Transform を記録するテスト用 ActionNode
+    /// </summary>
+    internal sealed class TestTargetActionNode : ActionNode<Transform> {
+        private IList<Transform> _targets;
+
+        /// <summary>
+        /// target の記録先を設定
+        /// </summary>
+        public void Configure(IList<Transform> targets) {
+            _targets = targets;
+        }
+
+        /// <inheritdoc/>
+        protected override float CalculateDuration(int seed, Transform target, IAnimationGraphBlackboard blackboard) {
+            return 1.0f;
+        }
+
+        /// <inheritdoc/>
+        protected override void Evaluate(int seed, Transform target, float localTime, float calculatedDuration, IAnimationGraphBlackboard blackboard) {
+            _targets?.Add(target);
+        }
+    }
+}

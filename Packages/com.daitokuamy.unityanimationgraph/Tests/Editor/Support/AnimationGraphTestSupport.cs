@@ -50,6 +50,8 @@ namespace UnityAnimationGraph.Tests {
         private const string KeyPropertyName = "_key";
         /// <summary>target 定義の MonoScript GUID フィールド名</summary>
         private const string MonoScriptGuidPropertyName = "_monoScriptGuid";
+        /// <summary>target 定義の multiplicity フィールド名</summary>
+        private const string TargetMultiplicityPropertyName = "_multiplicity";
         /// <summary>Blackboard 定義の value type フィールド名</summary>
         private const string ValueTypePropertyName = "_valueType";
         /// <summary>Blackboard 定義の bool default value フィールド名</summary>
@@ -155,6 +157,7 @@ namespace UnityAnimationGraph.Tests {
                 var definitionProperty = definitionsProperty.GetArrayElementAtIndex(i);
                 definitionProperty.FindPropertyRelative(KeyPropertyName).stringValue = definitions[i].Key;
                 definitionProperty.FindPropertyRelative(MonoScriptGuidPropertyName).stringValue = definitions[i].MonoScriptGuid;
+                definitionProperty.FindPropertyRelative(TargetMultiplicityPropertyName).enumValueIndex = (int)definitions[i].Multiplicity;
             }
 
             serializedGraph.ApplyModifiedPropertiesWithoutUndo();
@@ -395,6 +398,7 @@ namespace UnityAnimationGraph.Tests {
     internal sealed class TestAnimationGraphContext : IAnimationGraphContext {
         private readonly Dictionary<string, object> _blackboardValues = new(StringComparer.Ordinal);
         private readonly Dictionary<string, Component> _targets = new(StringComparer.Ordinal);
+        private readonly Dictionary<string, IReadOnlyList<Component>> _targetCollections = new(StringComparer.Ordinal);
 
         /// <summary>
         /// target Component を設定
@@ -403,6 +407,13 @@ namespace UnityAnimationGraph.Tests {
         /// <param name="target">設定する target</param>
         public void SetTarget(string key, Component target) {
             _targets[key] = target;
+        }
+
+        /// <summary>
+        /// target collection を設定
+        /// </summary>
+        public void SetTargets(string key, params Component[] targets) {
+            _targetCollections[key] = targets ?? Array.Empty<Component>();
         }
 
         /// <summary>
@@ -495,6 +506,27 @@ namespace UnityAnimationGraph.Tests {
 
             target = null;
             return false;
+        }
+
+        /// <inheritdoc/>
+        public bool TryGetTargets<T>(string key, out IReadOnlyList<T> targets) where T : Component {
+            if (!_targetCollections.TryGetValue(key, out var source)) {
+                targets = Array.Empty<T>();
+                return false;
+            }
+
+            var typedTargets = new T[source.Count];
+            for (var i = 0; i < source.Count; i++) {
+                if (source[i] != null && source[i] is not T) {
+                    targets = Array.Empty<T>();
+                    return false;
+                }
+
+                typedTargets[i] = source[i] as T;
+            }
+
+            targets = typedTargets;
+            return true;
         }
 
         /// <inheritdoc/>

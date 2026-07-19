@@ -10,6 +10,7 @@ namespace UnityAnimationGraph.Editor {
     internal sealed class AnimationGraphEditorPreviewContext : IAnimationGraphContext {
         private readonly Dictionary<string, BlackboardValue> _blackboardValuesByKey = new(StringComparer.Ordinal);
         private readonly Dictionary<string, Component> _targetsByKey = new(StringComparer.Ordinal);
+        private readonly Dictionary<string, IReadOnlyList<Component>> _targetCollectionsByKey = new(StringComparer.Ordinal);
         private readonly HashSet<string> _typedTargetKeys = new(StringComparer.Ordinal);
         private readonly List<string> _missingTargetMessages = new();
         private readonly GameObject _rootGameObject;
@@ -46,6 +47,7 @@ namespace UnityAnimationGraph.Editor {
 
             _blackboardValuesByKey.Clear();
             _targetsByKey.Clear();
+            _targetCollectionsByKey.Clear();
             _typedTargetKeys.Clear();
             _missingTargetMessages.Clear();
             BuildBlackboardValues(graphAsset.BlackboardDefinitions);
@@ -80,6 +82,27 @@ namespace UnityAnimationGraph.Editor {
             }
 
             return TryFindTarget(out target);
+        }
+
+        /// <inheritdoc/>
+        public bool TryGetTargets<T>(string key, out IReadOnlyList<T> targets) where T : Component {
+            if (!_targetCollectionsByKey.TryGetValue(key, out var source)) {
+                targets = Array.Empty<T>();
+                return false;
+            }
+
+            var typedTargets = new T[source.Count];
+            for (var i = 0; i < source.Count; i++) {
+                if (source[i] != null && source[i] is not T) {
+                    targets = Array.Empty<T>();
+                    return false;
+                }
+
+                typedTargets[i] = source[i] as T;
+            }
+
+            targets = typedTargets;
+            return true;
         }
 
         /// <inheritdoc/>
@@ -195,6 +218,14 @@ namespace UnityAnimationGraph.Editor {
                 }
 
                 _typedTargetKeys.Add(key);
+                if (definition.Multiplicity == TargetMultiplicity.Collection) {
+                    if (!_targetCollectionsByKey.ContainsKey(key)) {
+                        _targetCollectionsByKey.Add(key, Array.Empty<Component>());
+                    }
+
+                    continue;
+                }
+
                 if (_targetsByKey.TryGetValue(key, out var boundTarget)) {
                     if (boundTarget != null && componentType.IsInstanceOfType(boundTarget)) {
                         continue;
@@ -234,6 +265,11 @@ namespace UnityAnimationGraph.Editor {
         private void BindRunnerTarget(TargetBinding binding) {
             var key = binding.Key;
             if (string.IsNullOrEmpty(key)) {
+                return;
+            }
+
+            if (binding.Multiplicity == TargetMultiplicity.Collection) {
+                _targetCollectionsByKey[key] = binding.Targets;
                 return;
             }
 

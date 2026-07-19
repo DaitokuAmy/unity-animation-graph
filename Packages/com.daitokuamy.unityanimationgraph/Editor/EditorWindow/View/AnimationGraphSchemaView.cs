@@ -17,6 +17,7 @@ namespace UnityAnimationGraph.Editor {
         private const string BlackboardDefinitionsPropertyName = "_blackboardDefinitions";
         private const string KeyPropertyName = "_key";
         private const string MonoScriptGuidPropertyName = "_monoScriptGuid";
+        private const string MultiplicityPropertyName = "_multiplicity";
         private const string ValueTypePropertyName = "_valueType";
         private const string DefaultBoolValuePropertyName = "_defaultBoolValue";
         private const string DefaultIntValuePropertyName = "_defaultIntValue";
@@ -184,12 +185,15 @@ namespace UnityAnimationGraph.Editor {
         private void DrawTargetDefinitionElement(Rect rect, SerializedProperty elementProperty) {
             rect.y += ElementTopPadding;
             rect.height = EditorGUIUtility.singleLineHeight;
-            var componentWidth = Mathf.Min(TargetComponentWidth, Mathf.Max(0.0f, (rect.width - TargetElementSpacing) * 0.5f));
-            var keyWidth = Mathf.Max(0.0f, rect.width - componentWidth - TargetElementSpacing);
+            const float MultiplicityWidth = 90.0f;
+            var componentWidth = Mathf.Min(TargetComponentWidth, Mathf.Max(0.0f, (rect.width - TargetElementSpacing * 2.0f - MultiplicityWidth) * 0.5f));
+            var keyWidth = Mathf.Max(0.0f, rect.width - componentWidth - MultiplicityWidth - TargetElementSpacing * 2.0f);
             var keyRect = new Rect(rect.x, rect.y, keyWidth, rect.height);
             var componentRect = new Rect(keyRect.xMax + TargetElementSpacing, rect.y, componentWidth, rect.height);
+            var multiplicityRect = new Rect(componentRect.xMax + TargetElementSpacing, rect.y, MultiplicityWidth, rect.height);
             EditorGUI.PropertyField(keyRect, elementProperty.FindPropertyRelative(KeyPropertyName), GUIContent.none);
             DrawComponentTypeSelector(componentRect, elementProperty.FindPropertyRelative(MonoScriptGuidPropertyName));
+            EditorGUI.PropertyField(multiplicityRect, elementProperty.FindPropertyRelative(MultiplicityPropertyName), GUIContent.none);
         }
 
         private static void DrawBlackboardDefinitionElement(Rect rect, SerializedProperty elementProperty) {
@@ -262,6 +266,7 @@ namespace UnityAnimationGraph.Editor {
         private static void ResetTargetDefinitionProperty(SerializedProperty elementProperty) {
             elementProperty.FindPropertyRelative(KeyPropertyName).stringValue = string.Empty;
             elementProperty.FindPropertyRelative(MonoScriptGuidPropertyName).stringValue = string.Empty;
+            elementProperty.FindPropertyRelative(MultiplicityPropertyName).enumValueIndex = (int)TargetMultiplicity.Single;
         }
 
         private void DrawComponentTypeSelector(Rect rect, SerializedProperty monoScriptGuidProperty) {
@@ -378,7 +383,7 @@ namespace UnityAnimationGraph.Editor {
 
         private ReorderableList CreateTargetDefinitionsList(SerializedProperty definitionsProperty) {
             var list = new ReorderableList(_serializedGraph, definitionsProperty, true, true, true, true) {
-                drawHeaderCallback = rect => EditorGUI.LabelField(rect, "Target (Key / Component)"),
+                drawHeaderCallback = rect => EditorGUI.LabelField(rect, "Target (Key / Component / Multiplicity)"),
                 elementHeight = EditorGUIUtility.singleLineHeight + 6.0f,
                 drawElementCallback = (rect, index, _, _) => DrawTargetDefinitionElement(rect, definitionsProperty.GetArrayElementAtIndex(index)),
                 onAddCallback = reorderableList => AddElement(reorderableList, ResetTargetDefinitionProperty),

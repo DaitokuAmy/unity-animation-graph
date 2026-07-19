@@ -34,14 +34,28 @@ namespace UnityAnimationGraph.Editor {
         private const string SignalIdPropertyName = "_signalId";
         /// <summary>Signal のグラフ位置フィールド名</summary>
         private const string SignalGraphPositionPropertyName = "_graphPosition";
-        /// <summary>ActionNode の target key フィールド名</summary>
-        private const string ActionTargetKeyPropertyName = "_targetKey";
+        /// <summary>ActionNode の target reference フィールド名</summary>
+        private const string ActionTargetReferencePropertyName = "_targetReference";
+        /// <summary>ActionNode の旧 target key フィールド名</summary>
+        private const string LegacyActionTargetKeyPropertyName = "_targetKey";
+        /// <summary>TargetReference の kind フィールド名</summary>
+        private const string TargetReferenceKindPropertyName = "_kind";
+        /// <summary>TargetReference の target key フィールド名</summary>
+        private const string TargetReferenceTargetKeyPropertyName = "_targetKey";
+        /// <summary>TargetReference の scope node ID フィールド名</summary>
+        private const string TargetReferenceScopeNodeIdPropertyName = "_scopeNodeId";
         /// <summary>DelayNode delay property name</summary>
         private const string DelayPropertyName = "_delay";
         /// <summary>JoinNode join type property name</summary>
         private const string JoinTypePropertyName = "_joinType";
         /// <summary>LoopNode のループ実行回数フィールド名</summary>
         private const string LoopCountPropertyName = "_loopCount";
+        /// <summary>LoopNode の count source フィールド名</summary>
+        private const string LoopCountSourcePropertyName = "_loopCountSource";
+        /// <summary>LoopNode の開始 index フィールド名</summary>
+        private const string LoopStartIndexPropertyName = "_startIndex";
+        /// <summary>LoopNode の count collection target key フィールド名</summary>
+        private const string LoopCountTargetKeyPropertyName = "_loopCountTargetKey";
         /// <summary>BranchNode の拡張 Port 後続ノード ID リストフィールド名</summary>
         private const string BranchExtensionNodeIdsPropertyName = "_extensionNodeIds";
         /// <summary>BranchNodeIdList の後続ノード ID フィールド名</summary>
@@ -66,6 +80,8 @@ namespace UnityAnimationGraph.Editor {
         private const string KeyPropertyName = "_key";
         /// <summary>target 定義の MonoScript GUID フィールド名</summary>
         private const string MonoScriptGuidPropertyName = "_monoScriptGuid";
+        /// <summary>target 定義の multiplicity フィールド名</summary>
+        private const string TargetMultiplicityPropertyName = "_multiplicity";
         /// <summary>Blackboard 定義の value type フィールド名</summary>
         private const string ValueTypePropertyName = "_valueType";
         /// <summary>Blackboard 定義の bool default value フィールド名</summary>
@@ -518,6 +534,13 @@ namespace UnityAnimationGraph.Editor {
         /// <param name="node">設定対象の ActionNode</param>
         /// <param name="targetKey">設定する target key</param>
         public static void SetActionNodeTargetKey(ActionNode node, string targetKey) {
+            SetActionNodeTargetReference(node, new TargetReference(TargetReferenceKind.Binding, targetKey));
+        }
+
+        /// <summary>
+        /// ActionNode の target 参照を設定
+        /// </summary>
+        public static void SetActionNodeTargetReference(ActionNode node, TargetReference targetReference) {
             if (node == null) {
                 throw new ArgumentNullException(nameof(node));
             }
@@ -526,7 +549,11 @@ namespace UnityAnimationGraph.Editor {
             Undo.RecordObject(node, undoName);
 
             var serializedNode = new SerializedObject(node);
-            serializedNode.FindProperty(ActionTargetKeyPropertyName).stringValue = targetKey ?? string.Empty;
+            serializedNode.FindProperty(LegacyActionTargetKeyPropertyName).stringValue = string.Empty;
+            var targetReferenceProperty = serializedNode.FindProperty(ActionTargetReferencePropertyName);
+            targetReferenceProperty.FindPropertyRelative(TargetReferenceKindPropertyName).enumValueIndex = (int)targetReference.Kind;
+            targetReferenceProperty.FindPropertyRelative(TargetReferenceTargetKeyPropertyName).stringValue = targetReference.TargetKey;
+            targetReferenceProperty.FindPropertyRelative(TargetReferenceScopeNodeIdPropertyName).stringValue = targetReference.ScopeNodeId;
             serializedNode.ApplyModifiedProperties();
             EditorUtility.SetDirty(node);
         }
@@ -623,7 +650,40 @@ namespace UnityAnimationGraph.Editor {
             Undo.RecordObject(node, undoName);
 
             var serializedNode = new SerializedObject(node);
-            serializedNode.FindProperty(LoopCountPropertyName).intValue = Mathf.Max(1, loopCount);
+            serializedNode.FindProperty(LoopCountPropertyName).intValue = Mathf.Max(0, loopCount);
+            serializedNode.ApplyModifiedProperties();
+            EditorUtility.SetDirty(node);
+        }
+
+        /// <summary>
+        /// LoopNode の count source を設定
+        /// </summary>
+        public static void SetLoopNodeCountSource(LoopNode node, LoopCountSource countSource) {
+            SetLoopNodeProperty(node, "Set Animation Graph Loop Count Source", property => property.FindProperty(LoopCountSourcePropertyName).enumValueIndex = (int)countSource);
+        }
+
+        /// <summary>
+        /// LoopNode の開始 index を設定
+        /// </summary>
+        public static void SetLoopNodeStartIndex(LoopNode node, int startIndex) {
+            SetLoopNodeProperty(node, "Set Animation Graph Loop Start Index", property => property.FindProperty(LoopStartIndexPropertyName).intValue = Mathf.Max(0, startIndex));
+        }
+
+        /// <summary>
+        /// LoopNode の count collection target key を設定
+        /// </summary>
+        public static void SetLoopNodeCountTargetKey(LoopNode node, string targetKey) {
+            SetLoopNodeProperty(node, "Set Animation Graph Loop Count Target", property => property.FindProperty(LoopCountTargetKeyPropertyName).stringValue = targetKey ?? string.Empty);
+        }
+
+        private static void SetLoopNodeProperty(LoopNode node, string undoName, Action<SerializedObject> setter) {
+            if (node == null) {
+                throw new ArgumentNullException(nameof(node));
+            }
+
+            Undo.RecordObject(node, undoName);
+            var serializedNode = new SerializedObject(node);
+            setter(serializedNode);
             serializedNode.ApplyModifiedProperties();
             EditorUtility.SetDirty(node);
         }
@@ -756,8 +816,8 @@ namespace UnityAnimationGraph.Editor {
                     }
                 }
 
-                if (current is LoopNode loopNode) {
-                    var loopNodeIds = loopNode.LoopNodeIds;
+                if (current is ScopedControlNode scopedNode) {
+                    var loopNodeIds = scopedNode.BodyNodeIds;
                     for (var j = 0; j < loopNodeIds.Count; j++) {
                         if (loopNodeIds[j] != node.NodeId) {
                             continue;
@@ -829,6 +889,7 @@ namespace UnityAnimationGraph.Editor {
                 var definitionProperty = definitionsProperty.GetArrayElementAtIndex(i);
                 definitionProperty.FindPropertyRelative(KeyPropertyName).stringValue = definitions[i].Key;
                 definitionProperty.FindPropertyRelative(MonoScriptGuidPropertyName).stringValue = definitions[i].MonoScriptGuid;
+                definitionProperty.FindPropertyRelative(TargetMultiplicityPropertyName).enumValueIndex = (int)definitions[i].Multiplicity;
             }
 
             serializedGraph.ApplyModifiedProperties();

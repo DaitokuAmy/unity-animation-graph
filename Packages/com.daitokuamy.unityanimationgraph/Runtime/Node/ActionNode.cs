@@ -6,11 +6,17 @@ namespace UnityAnimationGraph {
     /// Animation Graph でターゲットを操作するノードの基底クラス
     /// </summary>
     public abstract class ActionNode : Node {
-        [SerializeField, TargetKey, Tooltip("操作対象を解決するためのターゲットキー")]
+        [SerializeField, Tooltip("操作対象を解決するための target 参照")]
+        private TargetReference _targetReference;
+        [SerializeField, HideInInspector]
         private string _targetKey = string.Empty;
 
+        /// <summary>操作対象を解決するための target 参照</summary>
+        internal TargetReference TargetReference => _targetReference.Kind == TargetReferenceKind.CollectionItem || !string.IsNullOrEmpty(_targetReference.TargetKey)
+            ? _targetReference
+            : new TargetReference(TargetReferenceKind.Binding, _targetKey);
         /// <summary>操作対象を解決するためのターゲットキー</summary>
-        internal string TargetKey => _targetKey;
+        internal string TargetKey => TargetReference.TargetKey;
     }
 
     /// <summary>
@@ -19,6 +25,9 @@ namespace UnityAnimationGraph {
     /// <typeparam name="TTarget">操作対象 Component 型</typeparam>
     public abstract class ActionNode<TTarget> : ActionNode
         where TTarget : Component {
+        /// <summary>null target を有効な解決結果として扱う場合は true</summary>
+        protected virtual bool AllowNullTarget => false;
+
         /// <inheritdoc/>
         protected sealed override float CalculateDuration(int seed, IAnimationGraphContext context) {
             return TryResolveTarget(context, out var target)
@@ -177,13 +186,26 @@ namespace UnityAnimationGraph {
                 return false;
             }
 
-            return context.TryGetTarget(TargetKey, out target) && target != null;
+            if (TargetReference.Kind == TargetReferenceKind.CollectionItem) {
+                var resolved = context is ScopedAnimationGraphContext scopedContext
+                    && scopedContext.TryGetScopedTarget(TargetReference.ScopeNodeId, TargetReference.TargetKey, out target);
+                return resolved && (target != null || AllowNullTarget);
+            }
+
+            return context.TryGetTarget(TargetKey, out target)
+                && (target != null || AllowNullTarget);
         }
 
         /// <inheritdoc/>
         protected override string Validate(NodeValidationContext context) {
             if (string.IsNullOrEmpty(TargetKey)) {
                 return $"{DisplayName} has empty target key";
+            }
+
+            if (TargetReference.Kind == TargetReferenceKind.CollectionItem) {
+                return string.IsNullOrEmpty(TargetReference.ScopeNodeId)
+                    ? $"{DisplayName} has empty iteration scope node ID"
+                    : string.Empty;
             }
 
             return context.HasTargetDefinition(TargetKey)

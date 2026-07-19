@@ -31,7 +31,7 @@ namespace UnityAnimationGraph.Editor {
             }
 
             var currentValue = property.stringValue ?? string.Empty;
-            var options = CreateOptions(graphAsset, currentValue);
+            var options = CreateOptions(graphAsset, currentValue, ((TargetKeyAttribute)attribute).Multiplicity);
             var displayOptions = CreateDisplayOptions(graphAsset, options);
             var selectedIndex = FindOptionIndex(options, currentValue);
             var previousShowMixedValue = EditorGUI.showMixedValue;
@@ -51,12 +51,16 @@ namespace UnityAnimationGraph.Editor {
             EditorGUI.EndProperty();
         }
 
-        private static List<string> CreateOptions(AnimationGraphAsset graphAsset, string currentValue) {
+        private static List<string> CreateOptions(AnimationGraphAsset graphAsset, string currentValue, TargetMultiplicity multiplicity) {
             var options = new List<string>();
             AddOption(options, string.Empty);
 
             var definitions = graphAsset.TargetDefinitions;
             for (var i = 0; i < definitions.Count; i++) {
+                if (definitions[i].Multiplicity != multiplicity) {
+                    continue;
+                }
+
                 AddOption(options, definitions[i].Key);
             }
 

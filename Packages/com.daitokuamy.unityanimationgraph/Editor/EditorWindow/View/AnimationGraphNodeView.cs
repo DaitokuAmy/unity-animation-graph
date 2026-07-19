@@ -24,6 +24,7 @@ namespace UnityAnimationGraph.Editor {
 
         private readonly Dictionary<AnimationGraphOutputPortKind, Port> _outputPortsByKind = new();
         private readonly Func<IReadOnlyList<TargetDefinition>> _targetDefinitionsProvider;
+        private readonly Func<NodeEditorModel, IReadOnlyList<TargetReference>> _targetReferencesProvider;
         private readonly Func<IReadOnlyList<BlackboardDefinition>> _blackboardDefinitionsProvider;
         private readonly VisualElement _titleProgressFill;
         private readonly VisualElement _detailsContainer;
@@ -39,7 +40,7 @@ namespace UnityAnimationGraph.Editor {
         /// <summary>選択状態が変化したときに発火</summary>
         public event Action SelectionChanged;
         /// <summary>ActionNode target key change request</summary>
-        public event Action<NodeEditorModel, string> ActionTargetKeyChanged;
+        public event Action<NodeEditorModel, TargetReference> ActionTargetReferenceChanged;
         /// <summary>Node detail string field change request</summary>
         public event Action<NodeEditorModel, NodeDetailField, string> DetailStringChanged;
         /// <summary>Node detail bool field change request</summary>
@@ -54,6 +55,12 @@ namespace UnityAnimationGraph.Editor {
         public event Action<NodeEditorModel, JoinType> JoinTypeChanged;
         /// <summary>LoopNode loop count change request</summary>
         public event Action<LoopNodeEditorModel, int> LoopCountChanged;
+        /// <summary>LoopNode count source change request</summary>
+        public event Action<LoopNodeEditorModel, LoopCountSource> LoopCountSourceChanged;
+        /// <summary>LoopNode start index change request</summary>
+        public event Action<LoopNodeEditorModel, int> LoopStartIndexChanged;
+        /// <summary>LoopNode count target key change request</summary>
+        public event Action<LoopNodeEditorModel, string> LoopCountTargetKeyChanged;
 
         /// <summary>
         /// AnimationGraphNodeView を作成
@@ -61,9 +68,11 @@ namespace UnityAnimationGraph.Editor {
         /// <param name="nodeModel">表示対象の NodeEditorModel</param>
         /// <param name="targetDefinitionsProvider">Provider for target key candidates</param>
         /// <param name="blackboardDefinitionsProvider">Provider for blackboard key candidates</param>
-        public AnimationGraphNodeView(NodeEditorModel nodeModel, Func<IReadOnlyList<TargetDefinition>> targetDefinitionsProvider, Func<IReadOnlyList<BlackboardDefinition>> blackboardDefinitionsProvider) {
+        public AnimationGraphNodeView(NodeEditorModel nodeModel, Func<IReadOnlyList<TargetDefinition>> targetDefinitionsProvider,
+            Func<NodeEditorModel, IReadOnlyList<TargetReference>> targetReferencesProvider, Func<IReadOnlyList<BlackboardDefinition>> blackboardDefinitionsProvider) {
             NodeModel = nodeModel ?? throw new ArgumentNullException(nameof(nodeModel));
             _targetDefinitionsProvider = targetDefinitionsProvider ?? throw new ArgumentNullException(nameof(targetDefinitionsProvider));
+            _targetReferencesProvider = targetReferencesProvider ?? throw new ArgumentNullException(nameof(targetReferencesProvider));
             _blackboardDefinitionsProvider = blackboardDefinitionsProvider ?? throw new ArgumentNullException(nameof(blackboardDefinitionsProvider));
             title = nodeModel.DisplayName;
             viewDataKey = nodeModel.NodeId;
@@ -143,7 +152,7 @@ namespace UnityAnimationGraph.Editor {
             _detailsContainer.Clear();
 
             if (NodeModel.Node is ActionNode actionNode) {
-                AddTargetKeyPopup(actionNode.TargetKey);
+                AddTargetReferencePopup(actionNode.TargetReference);
             }
 
             if (NodeModel is DelayNodeEditorModel delayNodeModel) {
@@ -151,7 +160,7 @@ namespace UnityAnimationGraph.Editor {
             }
 
             if (NodeModel is LoopNodeEditorModel loopNodeModel) {
-                AddLoopCountField(loopNodeModel);
+                AddLoopSettings(loopNodeModel);
             }
 
             for (var i = 0; i < NodeModel.DetailFields.Count; i++) {
@@ -193,7 +202,7 @@ namespace UnityAnimationGraph.Editor {
                 AddOutputPort(AnimationGraphOutputPortKind.Next, "Next", Port.Capacity.Multi, keyColor);
             }
 
-            if (NodeModel.NodeType == typeof(LoopNode)) {
+            if (typeof(ScopedControlNode).IsAssignableFrom(NodeModel.NodeType)) {
                 AddOutputPort(AnimationGraphOutputPortKind.Loop, "Loop", Port.Capacity.Multi, keyColor);
             }
 
@@ -232,24 +241,71 @@ namespace UnityAnimationGraph.Editor {
             _detailsContainer.Add(CreateDetailRow(label, value));
         }
 
-        private void AddTargetKeyPopup(string currentTargetKey) {
-            var choices = CreateTargetKeyChoices(_targetDefinitionsProvider(), currentTargetKey);
-            var selectedIndex = FindChoiceIndex(choices, currentTargetKey);
-            var popup = new PopupField<string>(choices, selectedIndex);
-            popup.formatSelectedValueCallback = value => FormatTargetKeyChoice(value, _targetDefinitionsProvider());
-            popup.formatListItemCallback = value => FormatTargetKeyChoice(value, _targetDefinitionsProvider());
+        private void AddTargetReferencePopup(TargetReference currentReference) {
+            var choices = new List<TargetReference>(_targetReferencesProvider(NodeModel));
+            var selectedIndex = FindTargetReferenceIndex(choices, currentReference);
+            var isCurrentMissing = selectedIndex < 0;
+            if (selectedIndex < 0) {
+                choices.Add(currentReference);
+                selectedIndex = choices.Count - 1;
+            }
+
+            var popup = new PopupField<TargetReference>(choices, selectedIndex);
+            popup.formatSelectedValueCallback = value => FormatTargetReference(value, choices, isCurrentMissing && IsSameTargetReference(value, currentReference));
+            popup.formatListItemCallback = value => FormatTargetReference(value, choices, isCurrentMissing && IsSameTargetReference(value, currentReference));
             popup.SetValueWithoutNotify(choices[selectedIndex]);
             popup.RegisterValueChangedCallback(evt => {
-                var nextTargetKey = evt.newValue ?? string.Empty;
-                if (nextTargetKey == currentTargetKey) {
+                var nextReference = evt.newValue;
+                if (IsSameTargetReference(nextReference, currentReference)) {
                     return;
                 }
 
-                ActionTargetKeyChanged?.Invoke(NodeModel, nextTargetKey);
+                ActionTargetReferenceChanged?.Invoke(NodeModel, nextReference);
             });
             ConfigureInputElement(popup);
             popup.style.marginBottom = 3.0f;
             _detailsContainer.Add(popup);
+        }
+
+        private static int FindTargetReferenceIndex(IReadOnlyList<TargetReference> choices, TargetReference value) {
+            for (var i = 0; i < choices.Count; i++) {
+                if (IsSameTargetReference(choices[i], value)) {
+                    return i;
+                }
+            }
+
+            return -1;
+        }
+
+        private static bool IsSameTargetReference(TargetReference left, TargetReference right) {
+            return left.Kind == right.Kind && left.TargetKey == right.TargetKey && left.ScopeNodeId == right.ScopeNodeId;
+        }
+
+        private static string FormatTargetReference(TargetReference reference, IReadOnlyList<TargetReference> choices, bool isMissing) {
+            if (string.IsNullOrEmpty(reference.TargetKey)) {
+                return "<None>";
+            }
+
+            if (reference.Kind == TargetReferenceKind.Binding) {
+                return $"Binding/{reference.TargetKey}";
+            }
+
+            var depth = 0;
+            var sameKeyCount = 0;
+            for (var i = 0; i < choices.Count; i++) {
+                if (choices[i].Kind != TargetReferenceKind.CollectionItem || choices[i].TargetKey != reference.TargetKey) {
+                    continue;
+                }
+
+                if (IsSameTargetReference(choices[i], reference)) {
+                    depth = sameKeyCount;
+                }
+
+                sameKeyCount++;
+            }
+
+            var suffix = sameKeyCount <= 1 ? string.Empty : depth == 0 ? " (Nearest)" : $" (Outer {depth})";
+            return $"CollectionItem/{reference.TargetKey}{suffix}{(isMissing ? " (Missing Scope)" : string.Empty)}";
         }
 
         private void AddJoinTypePopup(JoinType currentJoinType) {
@@ -307,7 +363,35 @@ namespace UnityAnimationGraph.Editor {
             _detailsContainer.Add(row);
         }
 
-        private void AddLoopCountField(LoopNodeEditorModel loopNodeModel) {
+        private void AddLoopSettings(LoopNodeEditorModel loopNodeModel) {
+            var sourceChoices = new List<LoopCountSource> { LoopCountSource.Fixed, LoopCountSource.Collection };
+            var sourcePopup = new PopupField<LoopCountSource>("Count Source", sourceChoices, sourceChoices.IndexOf(loopNodeModel.CountSource));
+            sourcePopup.RegisterValueChangedCallback(evt => LoopCountSourceChanged?.Invoke(loopNodeModel, evt.newValue));
+            ConfigureInputElement(sourcePopup);
+            _detailsContainer.Add(sourcePopup);
+
+            var startIndexField = new IntegerField("Start Index") { isDelayed = true };
+            startIndexField.SetValueWithoutNotify(loopNodeModel.StartIndex);
+            startIndexField.RegisterValueChangedCallback(evt => {
+                var nextStartIndex = Mathf.Max(0, evt.newValue);
+                startIndexField.SetValueWithoutNotify(nextStartIndex);
+                LoopStartIndexChanged?.Invoke(loopNodeModel, nextStartIndex);
+            });
+            ConfigureInputElement(startIndexField);
+            _detailsContainer.Add(startIndexField);
+
+            if (loopNodeModel.CountSource == LoopCountSource.Collection) {
+                var targetChoices = CreateCollectionTargetKeyChoices(_targetDefinitionsProvider(), loopNodeModel.LoopCountTargetKey);
+                var selectedIndex = FindChoiceIndex(targetChoices, loopNodeModel.LoopCountTargetKey);
+                var targetPopup = new PopupField<string>("Count Target", targetChoices, selectedIndex);
+                targetPopup.formatSelectedValueCallback = value => FormatTargetKeyChoice(value, _targetDefinitionsProvider());
+                targetPopup.formatListItemCallback = value => FormatTargetKeyChoice(value, _targetDefinitionsProvider());
+                targetPopup.RegisterValueChangedCallback(evt => LoopCountTargetKeyChanged?.Invoke(loopNodeModel, evt.newValue ?? string.Empty));
+                ConfigureInputElement(targetPopup);
+                _detailsContainer.Add(targetPopup);
+                return;
+            }
+
             var row = new VisualElement {
                 style = {
                     flexDirection = FlexDirection.Row,
@@ -328,7 +412,7 @@ namespace UnityAnimationGraph.Editor {
             };
             loopCountField.SetValueWithoutNotify(loopNodeModel.LoopCount);
             loopCountField.RegisterValueChangedCallback(evt => {
-                var nextLoopCount = Mathf.Max(1, evt.newValue);
+                var nextLoopCount = Mathf.Max(0, evt.newValue);
                 if (nextLoopCount == evt.previousValue) {
                     return;
                 }
@@ -340,6 +424,18 @@ namespace UnityAnimationGraph.Editor {
             loopCountField.style.flexGrow = 0.0f;
             row.Add(loopCountField);
             _detailsContainer.Add(row);
+        }
+
+        private static List<string> CreateCollectionTargetKeyChoices(IReadOnlyList<TargetDefinition> targetDefinitions, string currentTargetKey) {
+            var choices = new List<string> { string.Empty };
+            for (var i = 0; i < targetDefinitions.Count; i++) {
+                if (targetDefinitions[i].Multiplicity == TargetMultiplicity.Collection) {
+                    AddUniqueChoice(choices, targetDefinitions[i].Key);
+                }
+            }
+
+            AddUniqueChoice(choices, currentTargetKey);
+            return choices;
         }
 
         private void AddDetailField(NodeDetailField field) {

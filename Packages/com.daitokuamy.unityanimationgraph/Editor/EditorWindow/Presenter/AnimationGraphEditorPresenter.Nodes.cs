@@ -49,7 +49,7 @@ namespace UnityAnimationGraph.Editor {
         /// </summary>
         /// <param name="nodeModel">更新対象 Node model</param>
         /// <param name="targetKey">Target key</param>
-        private void SetActionTargetKey(NodeEditorModel nodeModel, string targetKey) {
+        private void SetActionTargetReference(NodeEditorModel nodeModel, TargetReference targetReference) {
             if (!EnsureGraphEditingAllowed()) {
                 return;
             }
@@ -58,12 +58,12 @@ namespace UnityAnimationGraph.Editor {
                 return;
             }
 
-            nodeModel.SetActionTargetKey(targetKey);
+            nodeModel.SetActionTargetReference(targetReference);
             var previewUpdated = RefreshPreviewAfterGraphChanged();
             RefreshNodeDetails();
             RefreshInspectorSelection();
             if (previewUpdated) {
-                SetFooterMessage($"{nodeModel.DisplayName} target: {GetDisplayValue(targetKey)}");
+                SetFooterMessage($"{nodeModel.DisplayName} target: {GetDisplayValue(targetReference.TargetKey)}");
             }
         }
 
@@ -210,6 +210,39 @@ namespace UnityAnimationGraph.Editor {
             if (previewUpdated) {
                 SetFooterMessage($"{nodeModel.DisplayName} count: {nodeModel.LoopCount}");
             }
+        }
+
+        private void SetLoopCountSource(LoopNodeEditorModel nodeModel, LoopCountSource countSource) {
+            if (!EnsureGraphEditingAllowed() || nodeModel == null) {
+                return;
+            }
+
+            nodeModel.SetCountSource(countSource);
+            RefreshPreviewAfterGraphChanged();
+            RefreshNodeDetails();
+            RefreshInspectorSelection();
+        }
+
+        private void SetLoopStartIndex(LoopNodeEditorModel nodeModel, int startIndex) {
+            if (!EnsureGraphEditingAllowed() || nodeModel == null) {
+                return;
+            }
+
+            nodeModel.SetStartIndex(startIndex);
+            RefreshPreviewAfterGraphChanged();
+            RefreshNodeDetails();
+            RefreshInspectorSelection();
+        }
+
+        private void SetLoopCountTargetKey(LoopNodeEditorModel nodeModel, string targetKey) {
+            if (!EnsureGraphEditingAllowed() || nodeModel == null) {
+                return;
+            }
+
+            nodeModel.SetLoopCountTargetKey(targetKey);
+            RefreshPreviewAfterGraphChanged();
+            RefreshNodeDetails();
+            RefreshInspectorSelection();
         }
 
         private void RefreshAfterNodeDetailFieldChanged(NodeEditorModel nodeModel, NodeDetailField field, string displayValue) {

@@ -17,6 +17,8 @@ namespace UnityAnimationGraph {
         public int Seed { get; }
         /// <summary>安定順序</summary>
         internal int StableOrder { get; }
+        /// <summary>この schedule node 固有の評価 context</summary>
+        internal IAnimationGraphContext Context { get; }
 
         /// <summary>
         /// ScheduledNode を生成
@@ -27,13 +29,14 @@ namespace UnityAnimationGraph {
         /// <param name="duration">実行時間</param>
         /// <param name="seed">評価に使用するシード</param>
         /// <param name="stableOrder">安定順序</param>
-        internal ScheduledNode(Node node, float startTime, float delay, float duration, int seed, int stableOrder) {
+        internal ScheduledNode(Node node, float startTime, float delay, float duration, int seed, int stableOrder, IAnimationGraphContext context = null) {
             Node = node;
             StartTime = startTime;
             Delay = delay;
             Duration = duration;
             Seed = seed;
             StableOrder = stableOrder;
+            Context = context;
         }
     }
 }

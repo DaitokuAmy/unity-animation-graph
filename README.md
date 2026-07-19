@@ -4,7 +4,7 @@
 
 Tween、待機、分岐、合流、ループ、Timeline / ParticleSystem 再生などをグラフ上で接続し、対象コンポーネントは `Target Key`、再生時に変えたい値は `Blackboard` で受け渡します。
 
-<!-- TODO: docs/img/unity-animation-graph-editor-overview.png を追加し、Animation Graph Editor 全体のスクリーンショットを差し込む -->
+![Animation Graph Editor](docs/img/animation-graph-editor-image.png)
 
 ## 特長
 
@@ -29,7 +29,7 @@ Tween、待機、分岐、合流、ループ、Timeline / ParticleSystem 再生�
 
 - Package name: `com.daitokuamy.unityanimationgraph`
 - Display name: `Unity Animation Graph`
-- Version: `0.9.1`
+- Version: `0.9.3`
 - Unity version: `6000.2`
 - Dependencies: `com.unity.timeline` `1.8.9`
 - License: MIT
@@ -318,6 +318,8 @@ public sealed class AnimationGraphBlackboardExample : MonoBehaviour {
 ```
 
 ## 組み込みノード
+
+各Nodeの設定項目、Target型、実行時の挙動、LoopとCollectionの詳細は[Built-in Node Reference](docs/node-reference.md)を参照してください。
 
 ### 制御ノード
 

@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using UnityEditor;
+using UnityEditorInternal;
 using UnityEngine;
 
 namespace UnityAnimationGraph.Editor {
@@ -26,6 +27,10 @@ namespace UnityAnimationGraph.Editor {
         private const string MonoScriptGuidPropertyName = "_monoScriptGuid";
         /// <summary>TargetBinding の target フィールド名</summary>
         private const string TargetPropertyName = "_target";
+        /// <summary>TargetBinding の target collection フィールド名</summary>
+        private const string TargetsPropertyName = "_targets";
+        /// <summary>TargetBinding の multiplicity フィールド名</summary>
+        private const string MultiplicityPropertyName = "_multiplicity";
         /// <summary>AnimationGraphAsset の asset GUID フィールド名</summary>
         private const string AssetGuidPropertyName = "_assetGuid";
         /// <summary>binding 行の key 領域の最小幅</summary>
@@ -115,6 +120,7 @@ namespace UnityAnimationGraph.Editor {
 
         private static void SetBindingProperties(SerializedProperty bindingsProperty, AnimationGraphAsset graphAsset) {
             var previousTargetsByKey = CreatePreviousTargetsByKey(bindingsProperty);
+            var previousTargetCollectionsByKey = CreatePreviousTargetCollectionsByKey(bindingsProperty);
             var definitions = graphAsset?.TargetDefinitions;
             var definitionCount = definitions?.Count ?? 0;
             bindingsProperty.arraySize = definitionCount;
@@ -126,10 +132,17 @@ namespace UnityAnimationGraph.Editor {
                 var bindingProperty = bindingsProperty.GetArrayElementAtIndex(i);
                 bindingProperty.FindPropertyRelative(KeyPropertyName).stringValue = key;
                 bindingProperty.FindPropertyRelative(MonoScriptGuidPropertyName).stringValue = monoScriptGuid;
+                bindingProperty.FindPropertyRelative(MultiplicityPropertyName).enumValueIndex = (int)definition.Multiplicity;
                 var targetComponent = previousTargetsByKey.TryGetValue(key, out var previousTarget) && AnimationGraphTargetScriptUtility.IsTargetAssignable(previousTarget, monoScriptGuid)
                     ? previousTarget
                     : null;
                 bindingProperty.FindPropertyRelative(TargetPropertyName).objectReferenceValue = targetComponent;
+                var targetsProperty = bindingProperty.FindPropertyRelative(TargetsPropertyName);
+                var previousTargets = previousTargetCollectionsByKey.TryGetValue(key, out var collection) ? collection : System.Array.Empty<Object>();
+                targetsProperty.arraySize = previousTargets.Count;
+                for (var targetIndex = 0; targetIndex < previousTargets.Count; targetIndex++) {
+                    targetsProperty.GetArrayElementAtIndex(targetIndex).objectReferenceValue = previousTargets[targetIndex];
+                }
             }
         }
 
@@ -143,6 +156,27 @@ namespace UnityAnimationGraph.Editor {
                 }
 
                 targetsByKey[key] = bindingProperty.FindPropertyRelative(TargetPropertyName).objectReferenceValue;
+            }
+
+            return targetsByKey;
+        }
+
+        private static Dictionary<string, IReadOnlyList<Object>> CreatePreviousTargetCollectionsByKey(SerializedProperty bindingsProperty) {
+            var targetsByKey = new Dictionary<string, IReadOnlyList<Object>>();
+            for (var i = 0; i < bindingsProperty.arraySize; i++) {
+                var bindingProperty = bindingsProperty.GetArrayElementAtIndex(i);
+                var key = bindingProperty.FindPropertyRelative(KeyPropertyName).stringValue;
+                if (string.IsNullOrEmpty(key)) {
+                    continue;
+                }
+
+                var targetsProperty = bindingProperty.FindPropertyRelative(TargetsPropertyName);
+                var targets = new Object[targetsProperty.arraySize];
+                for (var targetIndex = 0; targetIndex < targets.Length; targetIndex++) {
+                    targets[targetIndex] = targetsProperty.GetArrayElementAtIndex(targetIndex).objectReferenceValue;
+                }
+
+                targetsByKey[key] = targets;
             }
 
             return targetsByKey;
@@ -163,6 +197,10 @@ namespace UnityAnimationGraph.Editor {
                 }
 
                 if (bindingProperty.FindPropertyRelative(MonoScriptGuidPropertyName).stringValue != definition.MonoScriptGuid) {
+                    return false;
+                }
+
+                if (bindingProperty.FindPropertyRelative(MultiplicityPropertyName).enumValueIndex != (int)definition.Multiplicity) {
                     return false;
                 }
             }
@@ -328,6 +366,12 @@ namespace UnityAnimationGraph.Editor {
         }
 
         private void DrawBinding(SerializedProperty bindingProperty) {
+            var multiplicity = (TargetMultiplicity)bindingProperty.FindPropertyRelative(MultiplicityPropertyName).enumValueIndex;
+            if (multiplicity == TargetMultiplicity.Collection) {
+                DrawCollectionBinding(bindingProperty);
+                return;
+            }
+
             var rect = EditorGUILayout.GetControlRect(true, EditorGUIUtility.singleLineHeight);
             var keyRect = GetKeyRect(rect);
             var targetRect = GetTargetRect(rect, keyRect);
@@ -349,6 +393,31 @@ namespace UnityAnimationGraph.Editor {
             var targetObject = EditorGUI.ObjectField(targetFieldRect, targetComponentProperty.objectReferenceValue, targetType, true);
             targetComponentProperty.objectReferenceValue = AnimationGraphTargetScriptUtility.IsTargetAssignable(targetObject, monoScriptGuidProperty.stringValue) ? targetObject : null;
             DrawComponentMenuButton(componentMenuRect, targetComponentProperty, targetComponentProperty.objectReferenceValue as Component, targetType);
+        }
+
+        private void DrawCollectionBinding(SerializedProperty bindingProperty) {
+            var key = bindingProperty.FindPropertyRelative(KeyPropertyName).stringValue;
+            var monoScriptGuid = bindingProperty.FindPropertyRelative(MonoScriptGuidPropertyName).stringValue;
+            var targetType = AnimationGraphTargetScriptUtility.GetObjectFieldType(monoScriptGuid);
+            var targetsProperty = bindingProperty.FindPropertyRelative(TargetsPropertyName);
+            var label = new GUIContent($"{key} ({ObjectNames.NicifyVariableName(targetType.Name)}[])");
+            var targetsList = new ReorderableList(serializedObject, targetsProperty, true, true, true, true) {
+                drawHeaderCallback = rect => EditorGUI.LabelField(rect, label),
+                drawElementCallback = (rect, index, isActive, isFocused) => DrawCollectionElement(rect, targetsProperty, index, monoScriptGuid, targetType),
+                elementHeight = EditorGUIUtility.singleLineHeight,
+            };
+            targetsList.DoLayoutList();
+        }
+
+        private static void DrawCollectionElement(Rect rect, SerializedProperty targetsProperty, int index, string monoScriptGuid, System.Type targetType) {
+            var elementProperty = targetsProperty.GetArrayElementAtIndex(index);
+            var currentTarget = AnimationGraphTargetScriptUtility.IsTargetAssignable(elementProperty.objectReferenceValue, monoScriptGuid)
+                ? elementProperty.objectReferenceValue
+                : null;
+            var target = EditorGUI.ObjectField(rect, $"Element {index}", currentTarget, targetType, true);
+            elementProperty.objectReferenceValue = AnimationGraphTargetScriptUtility.IsTargetAssignable(target, monoScriptGuid)
+                ? target
+                : null;
         }
 
         private void DrawComponentMenuButton(Rect rect, SerializedProperty targetComponentProperty, Component targetComponent, System.Type targetType) {

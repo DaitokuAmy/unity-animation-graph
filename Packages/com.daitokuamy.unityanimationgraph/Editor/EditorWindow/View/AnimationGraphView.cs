@@ -46,7 +46,7 @@ namespace UnityAnimationGraph.Editor {
         /// <summary>削除要求</summary>
         public event Action DeleteRequested;
         /// <summary>ActionNode target key change request</summary>
-        public event Action<NodeEditorModel, string> ActionTargetKeyChanged;
+        public event Action<NodeEditorModel, TargetReference> ActionTargetReferenceChanged;
         /// <summary>Node detail string field change request</summary>
         public event Action<NodeEditorModel, NodeDetailField, string> DetailStringChanged;
         /// <summary>Node detail bool field change request</summary>
@@ -61,6 +61,12 @@ namespace UnityAnimationGraph.Editor {
         public event Action<NodeEditorModel, JoinType> JoinTypeChanged;
         /// <summary>LoopNode loop count change request</summary>
         public event Action<LoopNodeEditorModel, int> LoopCountChanged;
+        /// <summary>LoopNode count source change request</summary>
+        public event Action<LoopNodeEditorModel, LoopCountSource> LoopCountSourceChanged;
+        /// <summary>LoopNode start index change request</summary>
+        public event Action<LoopNodeEditorModel, int> LoopStartIndexChanged;
+        /// <summary>LoopNode count target key change request</summary>
+        public event Action<LoopNodeEditorModel, string> LoopCountTargetKeyChanged;
 
         /// <summary>
         /// AnimationGraphView を作成
@@ -498,9 +504,9 @@ namespace UnityAnimationGraph.Editor {
         }
 
         private void AddNodeView(NodeEditorModel nodeModel) {
-            var nodeView = new AnimationGraphNodeView(nodeModel, GetTargetDefinitions, GetBlackboardDefinitions);
+            var nodeView = new AnimationGraphNodeView(nodeModel, GetTargetDefinitions, GetTargetReferences, GetBlackboardDefinitions);
             nodeView.SelectionChanged += OnNodeViewSelectionChanged;
-            nodeView.ActionTargetKeyChanged += OnNodeViewActionTargetKeyChanged;
+            nodeView.ActionTargetReferenceChanged += OnNodeViewActionTargetReferenceChanged;
             nodeView.DetailStringChanged += OnNodeViewDetailStringChanged;
             nodeView.DetailBoolChanged += OnNodeViewDetailBoolChanged;
             nodeView.DetailIntChanged += OnNodeViewDetailIntChanged;
@@ -508,6 +514,9 @@ namespace UnityAnimationGraph.Editor {
             nodeView.DelayChanged += OnNodeViewDelayChanged;
             nodeView.JoinTypeChanged += OnNodeViewJoinTypeChanged;
             nodeView.LoopCountChanged += OnNodeViewLoopCountChanged;
+            nodeView.LoopCountSourceChanged += OnNodeViewLoopCountSourceChanged;
+            nodeView.LoopStartIndexChanged += OnNodeViewLoopStartIndexChanged;
+            nodeView.LoopCountTargetKeyChanged += OnNodeViewLoopCountTargetKeyChanged;
             _nodeViewsById.Add(nodeModel.NodeId, nodeView);
             AddElement(nodeView);
         }
@@ -531,8 +540,8 @@ namespace UnityAnimationGraph.Editor {
                 }
             }
 
-            if (sourceNodeModel is LoopNodeEditorModel loopNodeModel) {
-                AddEdgeViews(sourceNodeView, AnimationGraphOutputPortKind.Loop, loopNodeModel.LoopNodeIds);
+            if (sourceNodeModel is ScopedControlNodeEditorModel scopedNodeModel) {
+                AddEdgeViews(sourceNodeView, AnimationGraphOutputPortKind.Loop, scopedNodeModel.BodyNodeIds);
             }
         }
 
@@ -588,7 +597,7 @@ namespace UnityAnimationGraph.Editor {
             foreach (var graphElement in graphElements) {
                 if (graphElement is AnimationGraphNodeView nodeView) {
                     nodeView.SelectionChanged -= OnNodeViewSelectionChanged;
-                    nodeView.ActionTargetKeyChanged -= OnNodeViewActionTargetKeyChanged;
+                    nodeView.ActionTargetReferenceChanged -= OnNodeViewActionTargetReferenceChanged;
                     nodeView.DetailStringChanged -= OnNodeViewDetailStringChanged;
                     nodeView.DetailBoolChanged -= OnNodeViewDetailBoolChanged;
                     nodeView.DetailIntChanged -= OnNodeViewDetailIntChanged;
@@ -596,6 +605,9 @@ namespace UnityAnimationGraph.Editor {
                     nodeView.DelayChanged -= OnNodeViewDelayChanged;
                     nodeView.JoinTypeChanged -= OnNodeViewJoinTypeChanged;
                     nodeView.LoopCountChanged -= OnNodeViewLoopCountChanged;
+                    nodeView.LoopCountSourceChanged -= OnNodeViewLoopCountSourceChanged;
+                    nodeView.LoopStartIndexChanged -= OnNodeViewLoopStartIndexChanged;
+                    nodeView.LoopCountTargetKeyChanged -= OnNodeViewLoopCountTargetKeyChanged;
                     elementsToRemove.Add(nodeView);
                     continue;
                 }
@@ -627,12 +639,12 @@ namespace UnityAnimationGraph.Editor {
             SelectionChanged?.Invoke();
         }
 
-        private void OnNodeViewActionTargetKeyChanged(NodeEditorModel nodeModel, string targetKey) {
+        private void OnNodeViewActionTargetReferenceChanged(NodeEditorModel nodeModel, TargetReference targetReference) {
             if (_isReadOnly) {
                 return;
             }
 
-            ActionTargetKeyChanged?.Invoke(nodeModel, targetKey);
+            ActionTargetReferenceChanged?.Invoke(nodeModel, targetReference);
         }
 
         private void OnNodeViewDetailStringChanged(NodeEditorModel nodeModel, NodeDetailField field, string value) {
@@ -689,6 +701,30 @@ namespace UnityAnimationGraph.Editor {
             }
 
             LoopCountChanged?.Invoke(nodeModel, loopCount);
+        }
+
+        private void OnNodeViewLoopCountSourceChanged(LoopNodeEditorModel nodeModel, LoopCountSource countSource) {
+            if (_isRebuilding || _isReadOnly) {
+                return;
+            }
+
+            LoopCountSourceChanged?.Invoke(nodeModel, countSource);
+        }
+
+        private void OnNodeViewLoopStartIndexChanged(LoopNodeEditorModel nodeModel, int startIndex) {
+            if (_isRebuilding || _isReadOnly) {
+                return;
+            }
+
+            LoopStartIndexChanged?.Invoke(nodeModel, startIndex);
+        }
+
+        private void OnNodeViewLoopCountTargetKeyChanged(LoopNodeEditorModel nodeModel, string targetKey) {
+            if (_isRebuilding || _isReadOnly) {
+                return;
+            }
+
+            LoopCountTargetKeyChanged?.Invoke(nodeModel, targetKey);
         }
 
         private void OnKeyDown(KeyDownEvent evt) {
@@ -831,6 +867,10 @@ namespace UnityAnimationGraph.Editor {
 
         private IReadOnlyList<TargetDefinition> GetTargetDefinitions() {
             return _assetModel?.TargetDefinitions ?? Array.Empty<TargetDefinition>();
+        }
+
+        private IReadOnlyList<TargetReference> GetTargetReferences(NodeEditorModel nodeModel) {
+            return _assetModel?.GetTargetReferences(nodeModel) ?? Array.Empty<TargetReference>();
         }
 
         private IReadOnlyList<BlackboardDefinition> GetBlackboardDefinitions() {

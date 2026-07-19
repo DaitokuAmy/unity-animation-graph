@@ -162,7 +162,8 @@ namespace UnityAnimationGraph {
             EnsureSchedule();
             foreach (var scheduledNode in _schedule.Nodes) {
                 var executor = (INodeExecutor)scheduledNode.Node;
-                foreach (var previewProperty in executor.GetPreviewProperties(_context)) {
+                var context = scheduledNode.Context ?? _context;
+                foreach (var previewProperty in executor.GetPreviewProperties(context)) {
                     yield return previewProperty;
                 }
             }
@@ -498,7 +499,7 @@ namespace UnityAnimationGraph {
         private void CancelActiveNodes() {
             for (var i = 0; i < _activeScheduledNodes.Count; i++) {
                 var scheduledNode = _activeScheduledNodes[i];
-                ((INodeExecutor)scheduledNode.Node).Cancel(scheduledNode.Seed, _context);
+                ((INodeExecutor)scheduledNode.Node).Cancel(scheduledNode.Seed, scheduledNode.Context ?? _context);
             }
 
             ClearActiveNodes();
@@ -714,12 +715,13 @@ namespace UnityAnimationGraph {
         /// <param name="localTime">評価に使用する local time</param>
         private void EvaluateScheduledNode(ScheduledNode scheduledNode, float localTime) {
             var executor = (INodeExecutor)scheduledNode.Node;
+            var context = scheduledNode.Context ?? _context;
             if (scheduledNode.Node is ITweenNodeExecutor tweenExecutor) {
-                tweenExecutor.Evaluate(scheduledNode.StableOrder, scheduledNode.Seed, localTime, scheduledNode.Duration, _context, _tweenBaseValues);
+                tweenExecutor.Evaluate(scheduledNode.StableOrder, scheduledNode.Seed, localTime, scheduledNode.Duration, context, _tweenBaseValues);
                 return;
             }
 
-            executor.Evaluate(scheduledNode.Seed, localTime, scheduledNode.Duration, _context);
+            executor.Evaluate(scheduledNode.Seed, localTime, scheduledNode.Duration, context);
         }
 
         /// <summary>
@@ -728,15 +730,16 @@ namespace UnityAnimationGraph {
         /// <param name="scheduledNode">開始する scheduled node</param>
         /// <param name="dispatchSignals">Signal を通知する場合は true</param>
         private void EnterScheduledNode(ScheduledNode scheduledNode, bool dispatchSignals) {
+            var context = scheduledNode.Context ?? _context;
             if (dispatchSignals) {
                 DispatchSignals(scheduledNode.Node.EnterSignals, scheduledNode.Seed);
             }
 
             if (scheduledNode.Node is ITweenNodeExecutor tweenExecutor) {
-                tweenExecutor.CaptureBaseValue(scheduledNode.StableOrder, scheduledNode.Seed, _context, _tweenBaseValues);
+                tweenExecutor.CaptureBaseValue(scheduledNode.StableOrder, scheduledNode.Seed, context, _tweenBaseValues);
             }
 
-            ((INodeExecutor)scheduledNode.Node).Enter(scheduledNode.Seed, _context);
+            ((INodeExecutor)scheduledNode.Node).Enter(scheduledNode.Seed, context);
         }
 
         /// <summary>
@@ -745,7 +748,8 @@ namespace UnityAnimationGraph {
         /// <param name="scheduledNode">終了する scheduled node</param>
         /// <param name="dispatchSignals">Signal を通知する場合は true</param>
         private void ExitScheduledNode(ScheduledNode scheduledNode, bool dispatchSignals) {
-            ((INodeExecutor)scheduledNode.Node).Exit(scheduledNode.Seed, _context);
+            var context = scheduledNode.Context ?? _context;
+            ((INodeExecutor)scheduledNode.Node).Exit(scheduledNode.Seed, context);
             if (dispatchSignals) {
                 DispatchSignals(scheduledNode.Node.ExitSignals, scheduledNode.Seed);
             }

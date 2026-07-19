@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using NUnit.Framework;
 using UnityEngine;
 
@@ -507,6 +508,42 @@ namespace UnityAnimationGraph.Tests {
             }
             finally {
                 Object.DestroyImmediate(gameObject);
+            }
+        }
+
+        /// <summary>
+        /// collection binding は script から追加、削除、clear できる
+        /// </summary>
+        [Test]
+        public void TargetCollection_CanMutateFromScript() {
+            using var builder = new AnimationGraphTestBuilder();
+            var startNode = builder.CreateStartNode("start");
+            var graphAsset = builder.CreateGraph("start", startNode);
+            builder.SetTargetDefinitions(graphAsset, new TargetDefinition("targets", string.Empty, TargetMultiplicity.Collection));
+            var runnerObject = new GameObject("AnimationGraphRunnerTest");
+            var firstTargetObject = new GameObject("FirstTarget");
+            var secondTargetObject = new GameObject("SecondTarget");
+
+            try {
+                var runner = runnerObject.AddComponent<AnimationGraphRunner>();
+                runner.GraphAsset = graphAsset;
+
+                Assert.IsTrue(runner.AddTarget("targets", firstTargetObject.transform));
+                Assert.IsTrue(runner.AddTarget("targets", null));
+                Assert.IsTrue(runner.AddTarget("targets", secondTargetObject.transform));
+                Assert.IsTrue(runner.TryGetTargets("targets", out IReadOnlyList<Transform> targets));
+                Assert.That(targets, Is.EqualTo(new Transform[] { firstTargetObject.transform, null, secondTargetObject.transform }));
+
+                Assert.IsTrue(runner.RemoveTarget("targets", firstTargetObject.transform));
+                Assert.IsTrue(runner.ClearTargets("targets"));
+                Assert.IsTrue(runner.TryGetTargets("targets", out targets));
+                Assert.That(targets, Is.Empty);
+                Assert.IsFalse(runner.SetTarget("targets", firstTargetObject.transform));
+            }
+            finally {
+                Object.DestroyImmediate(runnerObject);
+                Object.DestroyImmediate(firstTargetObject);
+                Object.DestroyImmediate(secondTargetObject);
             }
         }
     }

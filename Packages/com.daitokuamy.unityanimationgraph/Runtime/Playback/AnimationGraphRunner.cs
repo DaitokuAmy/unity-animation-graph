@@ -174,6 +174,49 @@ namespace UnityAnimationGraph {
         }
 
         /// <summary>
+        /// target collection を設定
+        /// </summary>
+        /// <param name="key">target key</param>
+        /// <param name="targets">設定する Component 一覧</param>
+        /// <returns>設定できた場合は true</returns>
+        public bool SetTargets(string key, IReadOnlyList<Component> targets) {
+            var group = GetCurrentTargetBindingGroup();
+            return group != null && group.SetTargets(key, targets);
+        }
+
+        /// <summary>
+        /// target collection に Component を追加
+        /// </summary>
+        /// <param name="key">target key</param>
+        /// <param name="target">追加する Component</param>
+        /// <returns>追加できた場合は true</returns>
+        public bool AddTarget(string key, Component target) {
+            var group = GetCurrentTargetBindingGroup();
+            return group != null && group.AddTarget(key, target);
+        }
+
+        /// <summary>
+        /// target collection から最初に一致する Component を削除
+        /// </summary>
+        /// <param name="key">target key</param>
+        /// <param name="target">削除する Component</param>
+        /// <returns>削除できた場合は true</returns>
+        public bool RemoveTarget(string key, Component target) {
+            var group = GetCurrentTargetBindingGroup();
+            return group != null && group.RemoveTarget(key, target);
+        }
+
+        /// <summary>
+        /// target collection を空にする
+        /// </summary>
+        /// <param name="key">target key</param>
+        /// <returns>空にできた場合は true</returns>
+        public bool ClearTargets(string key) {
+            var group = GetCurrentTargetBindingGroup();
+            return group != null && group.ClearTargets(key);
+        }
+
+        /// <summary>
         /// 指定した key に対応する target Component を取得
         /// </summary>
         /// <param name="key">target key</param>
@@ -234,6 +277,23 @@ namespace UnityAnimationGraph {
             }
 
             target = null;
+            return false;
+        }
+
+        /// <summary>
+        /// 指定した key に対応する target collection の取得を試行
+        /// </summary>
+        /// <param name="key">target key</param>
+        /// <param name="targets">取得した Component 一覧</param>
+        /// <typeparam name="T">取得する Component 型</typeparam>
+        /// <returns>取得できた場合は true</returns>
+        public bool TryGetTargets<T>(string key, out IReadOnlyList<T> targets) where T : Component {
+            var group = GetCurrentTargetBindingGroup();
+            if (group != null && group.TryGetTargets(key, out targets)) {
+                return true;
+            }
+
+            targets = Array.Empty<T>();
             return false;
         }
 
@@ -445,6 +505,11 @@ namespace UnityAnimationGraph {
         /// <inheritdoc/>
         bool IAnimationGraphContext.TryGetTarget<T>(string key, out T target) {
             return TryGetTarget(key, out target);
+        }
+
+        /// <inheritdoc/>
+        bool IAnimationGraphContext.TryGetTargets<T>(string key, out IReadOnlyList<T> targets) {
+            return TryGetTargets(key, out targets);
         }
 
         /// <inheritdoc/>

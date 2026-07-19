@@ -203,12 +203,12 @@ namespace UnityAnimationGraph.Editor {
         /// Sets the target key when this model wraps an ActionNode.
         /// </summary>
         /// <param name="targetKey">Target key to set</param>
-        internal void SetActionTargetKey(string targetKey) {
+        internal void SetActionTargetReference(TargetReference targetReference) {
             if (_node is not ActionNode actionNode) {
                 return;
             }
 
-            AnimationGraphAssetUtility.SetActionNodeTargetKey(actionNode, targetKey);
+            AnimationGraphAssetUtility.SetActionNodeTargetReference(actionNode, targetReference);
         }
 
         /// <summary>

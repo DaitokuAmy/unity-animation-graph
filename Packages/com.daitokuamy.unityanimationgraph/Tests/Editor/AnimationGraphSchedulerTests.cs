@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using NUnit.Framework;
+using UnityEditor;
+using UnityEngine;
 
 namespace UnityAnimationGraph.Tests {
     /// <summary>
@@ -266,12 +268,95 @@ namespace UnityAnimationGraph.Tests {
         }
 
         /// <summary>
+        /// Collection Loop は collection snapshot の各要素に body を展開して null を任意にスキップする
+        /// </summary>
+        [Test]
+        public void BuildSchedule_CollectionLoopExpandsSnapshotAndOptionallySkipsNull() {
+            using var builder = new AnimationGraphTestBuilder();
+            var startNode = builder.CreateStartNode("start", "loop");
+            var loopNode = builder.CreateNode<LoopNode>("loop", "after");
+            var bodyNode = builder.CreateActionNode("body", 1.0f);
+            var afterNode = builder.CreateActionNode("after", 1.0f);
+            var graphAsset = builder.CreateGraph("start", startNode, loopNode, bodyNode, afterNode);
+            builder.SetTargetDefinitions(graphAsset, new TargetDefinition("targets", string.Empty, TargetMultiplicity.Collection));
+            builder.SetLoop(loopNode, 99, bodyNode.NodeId);
+            var serializedNode = new SerializedObject(loopNode);
+            serializedNode.FindProperty("_loopCountSource").enumValueIndex = (int)LoopCountSource.Collection;
+            serializedNode.FindProperty("_loopCountTargetKey").stringValue = "targets";
+            serializedNode.ApplyModifiedPropertiesWithoutUndo();
+            var firstTarget = new GameObject("FirstTarget");
+            var secondTarget = new GameObject("SecondTarget");
+
+            try {
+                var context = new TestAnimationGraphContext();
+                context.SetTargets("targets", firstTarget.transform, null, secondTarget.transform);
+                var schedule = new AnimationGraphScheduler().Build(graphAsset, context);
+                var bodyScheduledNodes = FindScheduledNodes(schedule, bodyNode);
+
+                Assert.That(bodyScheduledNodes.Count, Is.EqualTo(3));
+                Assert.That(bodyScheduledNodes[0].StartTime, Is.EqualTo(0.0f).Within(0.0001f));
+                Assert.That(bodyScheduledNodes[1].StartTime, Is.EqualTo(1.0f).Within(0.0001f));
+                Assert.That(bodyScheduledNodes[2].StartTime, Is.EqualTo(2.0f).Within(0.0001f));
+                AssertScheduledNode(schedule, afterNode, 3.0f, 1.0f);
+
+                serializedNode.Update();
+                serializedNode.FindProperty("_skipNullItems").boolValue = true;
+                serializedNode.ApplyModifiedPropertiesWithoutUndo();
+                var skipNullSchedule = new AnimationGraphScheduler().Build(graphAsset, context);
+                Assert.That(FindScheduledNodes(skipNullSchedule, bodyNode).Count, Is.EqualTo(2));
+                AssertScheduledNode(skipNullSchedule, afterNode, 2.0f, 1.0f);
+            }
+            finally {
+                UnityEngine.Object.DestroyImmediate(firstTarget);
+                UnityEngine.Object.DestroyImmediate(secondTarget);
+            }
+        }
+
+        /// <summary>
+        /// LoopNode は StartIndex から collection 末尾まで body を展開する
+        /// </summary>
+        [Test]
+        public void BuildSchedule_LoopUsesRemainingCollectionLengthFromStartIndex() {
+            using var builder = new AnimationGraphTestBuilder();
+            var startNode = builder.CreateStartNode("start", "loop");
+            var loopNode = builder.CreateNode<LoopNode>("loop", "after");
+            var bodyNode = builder.CreateActionNode("body", 1.0f);
+            var afterNode = builder.CreateActionNode("after", 1.0f);
+            var graphAsset = builder.CreateGraph("start", startNode, loopNode, bodyNode, afterNode);
+            builder.SetTargetDefinitions(graphAsset, new TargetDefinition("targets", string.Empty, TargetMultiplicity.Collection));
+            builder.SetLoop(loopNode, 99, bodyNode.NodeId);
+            var serializedLoop = new SerializedObject(loopNode);
+            serializedLoop.FindProperty("_loopCountSource").enumValueIndex = (int)LoopCountSource.Collection;
+            serializedLoop.FindProperty("_startIndex").intValue = 1;
+            serializedLoop.FindProperty("_loopCountTargetKey").stringValue = "targets";
+            serializedLoop.ApplyModifiedPropertiesWithoutUndo();
+            var firstTarget = new GameObject("FirstTarget");
+            var secondTarget = new GameObject("SecondTarget");
+            var thirdTarget = new GameObject("ThirdTarget");
+
+            try {
+                var context = new TestAnimationGraphContext();
+                context.SetTargets("targets", firstTarget.transform, secondTarget.transform, thirdTarget.transform);
+                var schedule = new AnimationGraphScheduler().Build(graphAsset, context);
+
+                Assert.That(FindScheduledNodes(schedule, bodyNode).Count, Is.EqualTo(2));
+                AssertScheduledNode(schedule, afterNode, 2.0f, 1.0f);
+            }
+            finally {
+                UnityEngine.Object.DestroyImmediate(firstTarget);
+                UnityEngine.Object.DestroyImmediate(secondTarget);
+                UnityEngine.Object.DestroyImmediate(thirdTarget);
+            }
+        }
+
+        /// <summary>
         /// 指定ノードの schedule 結果を検証
         /// </summary>
         /// <param name="schedule">検証対象 schedule</param>
         /// <param name="node">検証対象ノード</param>
         /// <param name="expectedStartTime">期待開始時刻</param>
         /// <param name="expectedDuration">期待実行時間</param>
+
         private void AssertScheduledNode(AnimationGraphSchedule schedule, Node node, float expectedStartTime, float expectedDuration) {
             var scheduledNode = FindSingleScheduledNode(schedule, node);
             Assert.That(scheduledNode.StartTime, Is.EqualTo(expectedStartTime).Within(0.0001f));

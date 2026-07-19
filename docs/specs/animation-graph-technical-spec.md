@@ -725,6 +725,58 @@ Editor 側は次を確認する。
 9. Loop / Branch の UI
 10. PlayableDirector など component action node
 
+## Target Collection and Iteration Scope
+
+### Target multiplicity
+
+- `TargetDefinition` は `Single` または `Collection` の multiplicity を持つ
+- `Single` binding は従来どおり 1 件の `Component` を保持する
+- `Collection` binding は順序付きの `Component` 一覧を保持し、重複と null を許可する
+- Runtime API は Collection に対する `SetTargets`、`AddTarget`、`RemoveTarget`、`ClearTargets`、`TryGetTargets` を提供する
+- `RemoveTarget` は最初に一致した要素だけを削除する
+
+### Collection scheduling
+
+- Collection の反復は専用の ForEachNode を持たず、`LoopNode` の Collection count source で表現する
+- Collection は schedule build、すなわち再生開始時に snapshot する
+- 再生中の Collection 変更は現在の schedule に反映せず、次回の schedule build から反映する
+- 空 Collection の body は 0 回実行する
+- null 要素は既定で通常の反復として扱う
+- `Skip Null Items` が有効な場合だけ count target の null 要素をスキップする
+- ActionNode は既定で null target の処理をスキップする
+- null target を必要とする特殊な ActionNode だけ基底クラスの opt-in を有効にする
+
+### Scoped target reference
+
+- ActionNode は文字列 key ではなく `TargetReference` を保持する
+- 通常 binding は `Binding/<TargetKey>` と表示する
+- 反復中の Collection 要素は `CollectionItem/<CollectionTargetKey>` と表示する
+- Collection item 参照は Collection key に加えて、提供元の反復ノードの `ScopeNodeId` を保持する
+- ActionNode は最も内側だけでなく、任意の祖先反復 scope を参照できる
+- 同名 Collection がネストする場合、Editor は `Nearest`、`Outer 1` の補足を表示する
+- schedule node は不変の反復 scope chain を共有し、内側 scope から親 scope を探索して反復 index を解決する
+- Collection 要素が null、または反復 index が Collection の範囲外の場合は、既定で ActionNode の処理をスキップする
+- 保存済み `ScopeNodeId` が削除済み、反復 scope provider 以外、または ActionNode の祖先でない場合、その参照は無効とする
+- Graph 構成変更時に無効参照を別の祖先 scope へ自動的に付け替えない
+- Editor は無効参照を `Missing Scope` と表示し、Scheduler は schedule build 前の検証で拒否する
+
+### Loop scheduling with collection
+
+- `LoopNode` は `Fixed` または `Collection` の count source を持つ
+- `StartIndex` は 0 以上とし、各反復の Collection item index は `StartIndex + iteration` とする
+- `Fixed` は `StartIndex` から `LoopCount` 回実行し、Collection の範囲外でも反復自体は継続する
+- `Collection` は指定 Collection の `max(0, Count - StartIndex)` 回実行する
+- `Collection` の Collection target が未 binding の場合は schedule build error とする
+- `Skip Null Items` で反復を省略しても index は詰めず、別 Collection との index 対応を維持する
+- Collection snapshot は schedule build 内で共有し、参照結果を一貫させる
+
+### Scoped control extension
+
+- body scope を所有する制御ノードは `ScopedControlNode` を継承する
+- body scope に反復 index を公開するノードは `IIterationScopeProvider` を実装する
+- body の接続、隔離検証、複製処理は `ScopedControlNode` の仕組みを使用する
+- 反復回数や要素選択方法など、各ノード固有の schedule 展開方法は個別に実装する
+
 ## Open Questions
 
 - ノードの永続化を完全に managed reference にするか、ScriptableObject sub asset にするか

@@ -2,6 +2,8 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using NUnit.Framework;
+using UnityEditor;
+using UnityEngine;
 
 namespace UnityAnimationGraph.Tests {
     /// <summary>
@@ -661,10 +663,124 @@ namespace UnityAnimationGraph.Tests {
         }
 
         /// <summary>
+        /// CollectionItem target reference は Loop の反復 index で要素を解決し範囲外の ActionNode をスキップする
+        /// </summary>
+        [Test]
+        public void CollectionItem_ResolvesLoopIndexAndSkipsActionWhenOutOfRange() {
+            using var builder = new AnimationGraphTestBuilder();
+            var startNode = builder.CreateStartNode("start", "loop");
+            var loopNode = builder.CreateNode<LoopNode>("loop");
+            var resolvedTargets = new List<Transform>();
+            var actionNode = builder.CreateNode<TestTargetActionNode>("action");
+            actionNode.Configure(resolvedTargets);
+            var graphAsset = builder.CreateGraph("start", startNode, loopNode, actionNode);
+            builder.SetTargetDefinitions(graphAsset, new TargetDefinition("targets", string.Empty, TargetMultiplicity.Collection));
+            builder.SetLoop(loopNode, 3, actionNode.NodeId);
+            var serializedLoop = new SerializedObject(loopNode);
+            serializedLoop.FindProperty("_startIndex").intValue = 1;
+            serializedLoop.ApplyModifiedPropertiesWithoutUndo();
+            var serializedAction = new SerializedObject(actionNode);
+            var targetReferenceProperty = serializedAction.FindProperty("_targetReference");
+            targetReferenceProperty.FindPropertyRelative("_kind").enumValueIndex = (int)TargetReferenceKind.CollectionItem;
+            targetReferenceProperty.FindPropertyRelative("_targetKey").stringValue = "targets";
+            targetReferenceProperty.FindPropertyRelative("_scopeNodeId").stringValue = loopNode.NodeId;
+            serializedAction.ApplyModifiedPropertiesWithoutUndo();
+            var firstTarget = new GameObject("FirstTarget");
+            var secondTarget = new GameObject("SecondTarget");
+
+            try {
+                var context = new TestAnimationGraphContext();
+                context.SetTargets("targets", firstTarget.transform, secondTarget.transform);
+                var player = new AnimationGraphPlayer();
+                player.SetGraph(graphAsset);
+                player.SetContext(context);
+                player.Seek(3.0f);
+
+                Assert.That(resolvedTargets, Is.EqualTo(new[] { secondTarget.transform }));
+            }
+            finally {
+                Object.DestroyImmediate(firstTarget);
+                Object.DestroyImmediate(secondTarget);
+            }
+        }
+
+        /// <summary>
+        /// Tween node は CollectionItem が null の場合に評価をスキップする
+        /// </summary>
+        [Test]
+        public void TweenNode_SkipsNullCollectionItem() {
+            using var builder = new AnimationGraphTestBuilder();
+            var startNode = builder.CreateStartNode("start", "loop");
+            var loopNode = builder.CreateNode<LoopNode>("loop");
+            var tweenNode = builder.CreateNode<TweenGraphicColorNode>("tween");
+            var graphAsset = builder.CreateGraph("start", startNode, loopNode, tweenNode);
+            builder.SetTargetDefinitions(graphAsset, new TargetDefinition("targets", string.Empty, TargetMultiplicity.Collection));
+            builder.SetLoop(loopNode, 1, tweenNode.NodeId);
+            var serializedTween = new SerializedObject(tweenNode);
+            var targetReferenceProperty = serializedTween.FindProperty("_targetReference");
+            targetReferenceProperty.FindPropertyRelative("_kind").enumValueIndex = (int)TargetReferenceKind.CollectionItem;
+            targetReferenceProperty.FindPropertyRelative("_targetKey").stringValue = "targets";
+            targetReferenceProperty.FindPropertyRelative("_scopeNodeId").stringValue = loopNode.NodeId;
+            serializedTween.ApplyModifiedPropertiesWithoutUndo();
+            var context = new TestAnimationGraphContext();
+            context.SetTargets("targets", new Component[] { null });
+            var player = new AnimationGraphPlayer();
+            player.SetGraph(graphAsset);
+            player.SetContext(context);
+
+            Assert.DoesNotThrow(() => player.Seek(1.0f));
+        }
+
+        /// <summary>
+        /// Preview property は各 Loop 反復の CollectionItem target を使用する
+        /// </summary>
+        [Test]
+        public void GetPreviewProperties_UsesCollectionItemContextForEachLoopIteration() {
+            using var builder = new AnimationGraphTestBuilder();
+            var startNode = builder.CreateStartNode("start", "loop");
+            var loopNode = builder.CreateNode<LoopNode>("loop");
+            var tweenNode = builder.CreateNode<TweenGraphicColorNode>("tween");
+            var graphAsset = builder.CreateGraph("start", startNode, loopNode, tweenNode);
+            builder.SetTargetDefinitions(graphAsset, new TargetDefinition("targets", string.Empty, TargetMultiplicity.Collection));
+            builder.SetLoop(loopNode, 2, tweenNode.NodeId);
+            var serializedTween = new SerializedObject(tweenNode);
+            var targetReferenceProperty = serializedTween.FindProperty("_targetReference");
+            targetReferenceProperty.FindPropertyRelative("_kind").enumValueIndex = (int)TargetReferenceKind.CollectionItem;
+            targetReferenceProperty.FindPropertyRelative("_targetKey").stringValue = "targets";
+            targetReferenceProperty.FindPropertyRelative("_scopeNodeId").stringValue = loopNode.NodeId;
+            serializedTween.ApplyModifiedPropertiesWithoutUndo();
+            var firstTarget = new GameObject("FirstTarget", typeof(RectTransform), typeof(CanvasRenderer), typeof(UnityEngine.UI.Image));
+            var secondTarget = new GameObject("SecondTarget", typeof(RectTransform), typeof(CanvasRenderer), typeof(UnityEngine.UI.Image));
+
+            try {
+                var firstImage = firstTarget.GetComponent<UnityEngine.UI.Image>();
+                var secondImage = secondTarget.GetComponent<UnityEngine.UI.Image>();
+                var context = new TestAnimationGraphContext();
+                context.SetTargets("targets", firstImage, secondImage);
+                var player = new AnimationGraphPlayer();
+                player.SetGraph(graphAsset);
+                player.SetContext(context);
+
+                var previewTargets = new HashSet<Object>();
+                foreach (var previewProperty in player.GetPreviewProperties()) {
+                    previewTargets.Add(previewProperty.Target);
+                }
+
+                Assert.That(previewTargets, Does.Contain(firstImage));
+                Assert.That(previewTargets, Does.Contain(secondImage));
+            }
+            finally {
+                Object.DestroyImmediate(firstTarget);
+                Object.DestroyImmediate(secondTarget);
+            }
+        }
+
+        /// <summary>
         /// AnimationGraphPlayer を生成
         /// </summary>
         /// <param name="graphAsset">設定する graph asset</param>
         /// <returns>生成した player</returns>
+
         private AnimationGraphPlayer CreatePlayer(AnimationGraphAsset graphAsset) {
             var player = new AnimationGraphPlayer();
             player.SetGraph(graphAsset);
