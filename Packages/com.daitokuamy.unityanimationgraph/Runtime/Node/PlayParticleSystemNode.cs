@@ -7,6 +7,11 @@ namespace UnityAnimationGraph {
     /// </summary>
     [NodeInfo("Play Particle System", "Built-in/Play Particle System")]
     public sealed class PlayParticleSystemNode : ActionNode<ParticleSystem> {
+        [SerializeField, Tooltip("ParticleSystem の duration を実行時間として使用するか")]
+        private bool _autoDuration = true;
+        [SerializeField, Min(0.0f), Tooltip("Auto Duration が無効な場合の実行時間")]
+        private float _duration = 1.0f;
+
         /// <inheritdoc/>
         protected override IEnumerable<string> GetPreviewProperties(ParticleSystem particleSystem) {
             yield return "autoRandomSeed";
@@ -15,6 +20,10 @@ namespace UnityAnimationGraph {
 
         /// <inheritdoc/>
         protected override float CalculateDuration(int seed, ParticleSystem particleSystem, IAnimationGraphBlackboard blackboard) {
+            if (!_autoDuration) {
+                return Mathf.Max(0.0f, _duration);
+            }
+
             var main = particleSystem.main;
             return Mathf.Max(0.0f, main.duration);
         }

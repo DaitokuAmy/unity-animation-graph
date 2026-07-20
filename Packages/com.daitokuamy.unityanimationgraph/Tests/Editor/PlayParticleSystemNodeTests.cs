@@ -10,6 +10,8 @@ namespace UnityAnimationGraph.Tests {
     public sealed class PlayParticleSystemNodeTests {
         private const string TargetKey = "particle";
         private const string ActionTargetKeyPropertyName = "_targetKey";
+        private const string AutoDurationPropertyName = "_autoDuration";
+        private const string DurationPropertyName = "_duration";
 
         private PlayParticleSystemNode _node;
         private GameObject _gameObject;
@@ -42,12 +44,37 @@ namespace UnityAnimationGraph.Tests {
         /// ParticleSystem の duration を実行時間として使用する
         /// </summary>
         [Test]
-        public void CalculateDuration_UsesParticleSystemDuration() {
+        public void CalculateDuration_UsesParticleSystemDurationWhenAutoDurationIsEnabled() {
             SetParticleSystemDuration(_particleSystem, 3.75f);
 
             var duration = ((INodeExecutor)_node).CalculateDuration(0, _context);
 
             Assert.That(duration, Is.EqualTo(3.75f).Within(0.0001f));
+        }
+
+        /// <summary>
+        /// Auto Duration が無効な場合は指定した duration を実行時間として使用する
+        /// </summary>
+        [Test]
+        public void CalculateDuration_UsesCustomDurationWhenAutoDurationIsDisabled() {
+            SetParticleSystemDuration(_particleSystem, 3.75f);
+            SetDurationProperties(_node, false, 1.25f);
+
+            var duration = ((INodeExecutor)_node).CalculateDuration(0, _context);
+
+            Assert.That(duration, Is.EqualTo(1.25f).Within(0.0001f));
+        }
+
+        /// <summary>
+        /// 指定した duration が負の場合は 0 に丸める
+        /// </summary>
+        [Test]
+        public void CalculateDuration_ClampsNegativeCustomDurationToZero() {
+            SetDurationProperties(_node, false, -1.0f);
+
+            var duration = ((INodeExecutor)_node).CalculateDuration(0, _context);
+
+            Assert.That(duration, Is.EqualTo(0.0f).Within(0.0001f));
         }
 
         /// <summary>
@@ -131,6 +158,19 @@ namespace UnityAnimationGraph.Tests {
         private static void SetNodeProperties(PlayParticleSystemNode node, string targetKey) {
             var serializedNode = new SerializedObject(node);
             serializedNode.FindProperty(ActionTargetKeyPropertyName).stringValue = targetKey;
+            serializedNode.ApplyModifiedPropertiesWithoutUndo();
+        }
+
+        /// <summary>
+        /// PlayParticleSystemNode の duration 設定を変更
+        /// </summary>
+        /// <param name="node">設定対象ノード</param>
+        /// <param name="autoDuration">ParticleSystem の duration を使用する場合は true</param>
+        /// <param name="duration">Auto Duration が無効な場合の実行時間</param>
+        private static void SetDurationProperties(PlayParticleSystemNode node, bool autoDuration, float duration) {
+            var serializedNode = new SerializedObject(node);
+            serializedNode.FindProperty(AutoDurationPropertyName).boolValue = autoDuration;
+            serializedNode.FindProperty(DurationPropertyName).floatValue = duration;
             serializedNode.ApplyModifiedPropertiesWithoutUndo();
         }
 

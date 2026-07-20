@@ -725,8 +725,8 @@ namespace UnityAnimationGraph.Editor {
                 if (player != null && IsPreviewAnimationModeActive()) {
                     AnimationMode.BeginSampling();
                     try {
-                        player.Stop();
                         RegisterEditorPreviewPropertyModifications(player);
+                        player.Stop();
                     }
                     finally {
                         AnimationMode.EndSampling();
@@ -1196,9 +1196,9 @@ namespace UnityAnimationGraph.Editor {
             EnsureAnimationMode();
             AnimationMode.BeginSampling();
             try {
+                RegisterEditorPreviewPropertyModifications();
                 _editorPreviewPlayer.Seek(time);
                 _editorPreviewPlayer.InterruptPlayWithoutCancelingActiveNodes();
-                RegisterEditorPreviewPropertyModifications();
             }
             finally {
                 AnimationMode.EndSampling();
@@ -1226,8 +1226,8 @@ namespace UnityAnimationGraph.Editor {
             EnsureAnimationMode();
             AnimationMode.BeginSampling();
             try {
-                _editorPreviewPlayer.Tick(deltaTime);
                 RegisterEditorPreviewPropertyModifications();
+                _editorPreviewPlayer.Tick(deltaTime);
             }
             finally {
                 AnimationMode.EndSampling();
@@ -1237,14 +1237,14 @@ namespace UnityAnimationGraph.Editor {
         }
 
         /// <summary>
-        /// Editor Preview で変更される Property を AnimationMode の復元対象として登録
+        /// Editor Preview で変更される Property の現在値を変更前に AnimationMode の復元対象として登録
         /// </summary>
         private void RegisterEditorPreviewPropertyModifications() {
             RegisterEditorPreviewPropertyModifications(_editorPreviewPlayer);
         }
 
         /// <summary>
-        /// 指定 player で変更される Property を AnimationMode の復元対象として登録
+        /// 指定 player で変更される Property の現在値を変更前に AnimationMode の復元対象として登録
         /// </summary>
         /// <param name="player">登録対象 Property を取得する player</param>
         private void RegisterEditorPreviewPropertyModifications(AnimationGraphPlayer player) {

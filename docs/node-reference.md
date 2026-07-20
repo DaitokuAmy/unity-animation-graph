@@ -172,7 +172,12 @@ Target: `PlayableDirector`
 Target: `ParticleSystem`  
 作成メニュー: `Action/Built-in/Play Particle System`
 
-ParticleSystemを手動シミュレーションします。NodeのDurationにはParticleSystem Main Moduleの`duration`が使われます。
+ParticleSystemを手動シミュレーションします。Auto Durationが有効な場合、NodeのDurationにはParticleSystem Main Moduleの`duration`が使われます。
+
+| 設定 | 説明 |
+| --- | --- |
+| `Auto Duration` | ParticleSystem Main Moduleの`duration`を実行時間として使用します |
+| `Duration` | Auto Durationが無効な場合の実行時間を秒で指定します |
 
 開始時にParticleSystemをクリアし、Graphのseedから固定random seedを設定します。これにより、同じseedと時刻では再現可能なPreviewになります。停止またはキャンセル時はParticleSystemを停止してParticleをクリアします。
 
