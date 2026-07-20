@@ -428,6 +428,25 @@ namespace UnityAnimationGraph.Tests {
         }
 
         /// <summary>
+        /// CollectionItem の scope 未設定 ActionNode を Loop body に接続すると所有 Loop を scope に設定する
+        /// </summary>
+        [Test]
+        public void Connect_AssignsLoopScopeToCollectionItemWithoutScope() {
+            var graphAsset = CreateSavedGraphAsset();
+            var model = new AnimationGraphAssetEditorModel();
+            model.SetGraphAsset(graphAsset);
+            model.InitializeGraph(Vector2.zero);
+            var loopNodeModel = model.AddNode<LoopNode>(Vector2.right);
+            var bodyNodeModel = model.AddNode<TestActionNode>(Vector2.right * 2.0f);
+            bodyNodeModel.SetActionTargetReference(new TargetReference(TargetReferenceKind.CollectionItem, "targets"));
+
+            Assert.IsTrue(model.Connect(AnimationGraphOutputPortKind.Loop, loopNodeModel, bodyNodeModel, out var errorMessage));
+
+            Assert.That(errorMessage, Is.EqualTo(string.Empty));
+            Assert.That(((ActionNode)bodyNodeModel.Node).TargetReference.ScopeNodeId, Is.EqualTo(loopNodeModel.NodeId));
+        }
+
+        /// <summary>
         /// LoopNode に取り込んだノードの後続は Loop body として扱う
         /// </summary>
         [Test]

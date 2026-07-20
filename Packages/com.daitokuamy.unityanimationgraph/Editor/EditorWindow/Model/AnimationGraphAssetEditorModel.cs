@@ -732,6 +732,7 @@ namespace UnityAnimationGraph.Editor {
                 targetNodeModel.NodeId,
             };
             SetConnectedNodeIds(sourceNodeModel, outputPortKind, nodeIds);
+            AssignMissingIterationScopeNodeIds();
             return true;
         }
 
@@ -1222,6 +1223,30 @@ namespace UnityAnimationGraph.Editor {
             }
 
             return references;
+        }
+
+        /// <summary>
+        /// Loop body 内にある scope 未設定の CollectionItem 参照へ所有 scope node ID を設定
+        /// </summary>
+        private void AssignMissingIterationScopeNodeIds() {
+            for (var i = 0; i < _nodes.Count; i++) {
+                var nodeModel = _nodes[i];
+                if (nodeModel.Node is not ActionNode actionNode
+                    || actionNode.TargetReference.Kind != TargetReferenceKind.CollectionItem
+                    || !string.IsNullOrEmpty(actionNode.TargetReference.ScopeNodeId)) {
+                    continue;
+                }
+
+                var owner = FindLoopOwner(nodeModel.NodeId);
+                if (owner?.Node is not IIterationScopeProvider) {
+                    continue;
+                }
+
+                nodeModel.SetActionTargetReference(new TargetReference(
+                    TargetReferenceKind.CollectionItem,
+                    actionNode.TargetReference.TargetKey,
+                    owner.NodeId));
+            }
         }
 
         private void AddLoopValidationMessages(ScopedControlNodeEditorModel loopNodeModel, Dictionary<string, string> messagesByNodeId) {

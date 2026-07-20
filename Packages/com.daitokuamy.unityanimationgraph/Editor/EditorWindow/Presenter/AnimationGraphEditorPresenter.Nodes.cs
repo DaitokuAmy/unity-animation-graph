@@ -271,6 +271,8 @@ namespace UnityAnimationGraph.Editor {
                 return false;
             }
 
+            RefreshNodeDetails();
+            RefreshInspectorSelection();
             if (RefreshPreviewAfterGraphChanged()) {
                 SetFooterMessage($"{sourceNodeModel.DisplayName}.{GetOutputPortName(outputPortKind, sourceNodeModel)} -> {targetNodeModel.DisplayName}");
             }

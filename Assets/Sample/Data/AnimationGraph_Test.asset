@@ -1,0 +1,217 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &-6873528442564266532
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a970fc496a6142f0930913dd2ca5df07, type: 3}
+  m_Name: TweenTransformPositionNode
+  m_EditorClassIdentifier: UnityAnimationGraph::UnityAnimationGraph.TweenTransformPositionNode
+  _displayName: 
+  _signalPorts:
+    _enterEnabled: 0
+    _exitEnabled: 0
+  _nodeId: fa1b03e32ba44829b8e0906730b132e9
+  _graphPosition: {x: 101, y: 289}
+  _nextNodeIds: []
+  _enableEnterSignalPort: 0
+  _enableExitSignalPort: 0
+  _signalPortSettingsVersion: 1
+  _enterSignals: []
+  _exitSignals: []
+  _targetReference:
+    _kind: 1
+    _targetKey: Targets
+    _scopeNodeId: 839d9d66c07b407e895d204a6a3ac69c
+  _targetKey: 
+  _duration: 0.2
+  _delay: 0
+  _tween:
+    _ease:
+      _mode: 0
+      _easeType: 1
+      _animationCurve:
+        serializedVersion: 2
+        m_Curve: []
+        m_PreInfinity: 2
+        m_PostInfinity: 2
+        m_RotationOrder: 4
+    _before:
+      _source: 0
+      _blackboardKey: 
+      _value: {x: 0, y: 3, z: 0}
+      _relative: 0
+    _after:
+      _source: 0
+      _blackboardKey: 
+      _value: {x: 0, y: 0, z: 0}
+      _relative: 0
+    _ignoreMask: 5
+  _space: 1
+--- !u!114 &-5951645899684657384
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 77d53bd8241749c198ae94c756bf6078, type: 3}
+  m_Name: DelayNode
+  m_EditorClassIdentifier: UnityAnimationGraph::UnityAnimationGraph.DelayNode
+  _displayName: 
+  _signalPorts:
+    _enterEnabled: 0
+    _exitEnabled: 0
+  _nodeId: 8fe3f4600c434024a5412c494de93b38
+  _graphPosition: {x: 101, y: 146}
+  _nextNodeIds:
+  - e5310853ebee411eb4a58497c579b327
+  _enableEnterSignalPort: 0
+  _enableExitSignalPort: 0
+  _signalPortSettingsVersion: 1
+  _enterSignals: []
+  _exitSignals: []
+  _delay: 0.2
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e49422abb6b0482ca342bbb1150a696f, type: 3}
+  m_Name: AnimationGraph_Test
+  m_EditorClassIdentifier: UnityAnimationGraph::UnityAnimationGraph.AnimationGraphAsset
+  _assetGuid: 7398b1404e4d14d02a49c1498e5c9217
+  _graphSeed: 895744971
+  _randomSeed: 0
+  _startNodeId: 5ea37df4778a44a2ba9fb00c9ce4852b
+  _nodes:
+  - {fileID: 832963955223547466}
+  - {fileID: 4786523117737912807}
+  - {fileID: -6873528442564266532}
+  - {fileID: 1821354063307688559}
+  - {fileID: -5951645899684657384}
+  _targetDefinitions:
+  - _key: Targets
+    _monoScriptGuid: 00000000000000000000000000000001
+    _multiplicity: 1
+  - _key: Effect
+    _monoScriptGuid: 00000000000000000000000000000011
+    _multiplicity: 0
+  _blackboardDefinitions:
+  - _key: TargetPos1
+    _valueType: 5
+    _defaultBoolValue: 0
+    _defaultIntValue: 0
+    _defaultFloatValue: 0
+    _defaultStringValue: 
+    _defaultVector2Value: {x: 0, y: 0}
+    _defaultVector3Value: {x: 0, y: 10, z: 0}
+    _defaultColorValue: {r: 0, g: 0, b: 0, a: 0}
+    _defaultVector4Value: {x: 0, y: 0, z: 0, w: 0}
+  - _key: TargetColor1
+    _valueType: 6
+    _defaultBoolValue: 0
+    _defaultIntValue: 0
+    _defaultFloatValue: 0
+    _defaultStringValue: 
+    _defaultVector2Value: {x: 0, y: 0}
+    _defaultVector3Value: {x: 0, y: 0, z: 0}
+    _defaultColorValue: {r: 1, g: 0, b: 0, a: 1}
+    _defaultVector4Value: {x: 0, y: 0, z: 0, w: 0}
+--- !u!114 &832963955223547466
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ed21bb646d224f8c8c4ee218e1871c53, type: 3}
+  m_Name: StartNode
+  m_EditorClassIdentifier: UnityAnimationGraph::UnityAnimationGraph.StartNode
+  _displayName: 
+  _signalPorts:
+    _enterEnabled: 0
+    _exitEnabled: 0
+  _nodeId: 5ea37df4778a44a2ba9fb00c9ce4852b
+  _graphPosition: {x: -358, y: 178}
+  _nextNodeIds:
+  - 839d9d66c07b407e895d204a6a3ac69c
+  _enableEnterSignalPort: 0
+  _enableExitSignalPort: 0
+  _signalPortSettingsVersion: 1
+  _enterSignals: []
+  _exitSignals: []
+--- !u!114 &1821354063307688559
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 195884df96784b38a11a216b5129d5c6, type: 3}
+  m_Name: PlayParticleSystemNode
+  m_EditorClassIdentifier: UnityAnimationGraph::UnityAnimationGraph.PlayParticleSystemNode
+  _displayName: 
+  _signalPorts:
+    _enterEnabled: 0
+    _exitEnabled: 0
+  _nodeId: e5310853ebee411eb4a58497c579b327
+  _graphPosition: {x: 319, y: 144}
+  _nextNodeIds: []
+  _enableEnterSignalPort: 0
+  _enableExitSignalPort: 0
+  _signalPortSettingsVersion: 1
+  _enterSignals: []
+  _exitSignals: []
+  _targetReference:
+    _kind: 0
+    _targetKey: Effect
+    _scopeNodeId: 
+  _targetKey: 
+--- !u!114 &4786523117737912807
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b68686c4982f4097bc199f470217aab8, type: 3}
+  m_Name: LoopNode
+  m_EditorClassIdentifier: UnityAnimationGraph::UnityAnimationGraph.LoopNode
+  _displayName: 
+  _signalPorts:
+    _enterEnabled: 0
+    _exitEnabled: 0
+  _nodeId: 839d9d66c07b407e895d204a6a3ac69c
+  _graphPosition: {x: -202, y: 78}
+  _nextNodeIds:
+  - 8fe3f4600c434024a5412c494de93b38
+  _enableEnterSignalPort: 0
+  _enableExitSignalPort: 0
+  _signalPortSettingsVersion: 1
+  _enterSignals: []
+  _exitSignals: []
+  _loopCountSource: 1
+  _startIndex: 0
+  _loopCount: 1
+  _loopCountTargetKey: Targets
+  _skipNullItems: 0
+  _loopNodeIds:
+  - fa1b03e32ba44829b8e0906730b132e9
