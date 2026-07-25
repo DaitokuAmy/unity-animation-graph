@@ -11,6 +11,32 @@ namespace UnityAnimationGraph.Tests {
     /// </summary>
     public sealed class AnimationGraphPlayerTests {
         /// <summary>
+        /// テスト用 Signal handler
+        /// </summary>
+        private sealed class TestSignalHandler : ISignalHandler<TestSignal> {
+            /// <summary>受信した Signal context 一覧</summary>
+            public List<SignalContext<TestSignal>> ReceivedContexts { get; } = new();
+
+            /// <inheritdoc/>
+            public void Handle(SignalContext<TestSignal> context) {
+                ReceivedContexts.Add(context);
+            }
+        }
+
+        /// <summary>
+        /// テスト用 AnySignal handler
+        /// </summary>
+        private sealed class TestAnySignalHandler : ISignalHandler {
+            /// <summary>受信した Signal context 一覧</summary>
+            public List<SignalContext> ReceivedContexts { get; } = new();
+
+            /// <inheritdoc/>
+            public void Handle(SignalContext context) {
+                ReceivedContexts.Add(context);
+            }
+        }
+
+        /// <summary>
         /// Tick は現在時刻で active なノードと終了時刻を通過したノードを評価する
         /// </summary>
         [Test]
@@ -295,6 +321,80 @@ namespace UnityAnimationGraph.Tests {
         }
 
         /// <summary>
+        /// Signal 発火時に型指定 handler を呼び出す
+        /// </summary>
+        [Test]
+        public void Tick_NotifiesSignalHandler() {
+            using var builder = new AnimationGraphTestBuilder();
+            var startNode = builder.CreateStartNode("start", "action");
+            var actionNode = builder.CreateActionNode("action", 1.0f);
+            var enterSignal = builder.CreateSignal("enter");
+            builder.SetEnterSignals(actionNode, enterSignal);
+            var graphAsset = builder.CreateGraph("start", startNode, actionNode);
+            var player = CreatePlayer(graphAsset);
+            var handler = new TestSignalHandler();
+            player.SubscribeSignal(handler);
+
+            player.Play();
+            player.Tick(0.5f);
+
+            Assert.That(handler.ReceivedContexts.Count, Is.EqualTo(1));
+            Assert.That(handler.ReceivedContexts[0].Signal, Is.SameAs(enterSignal));
+            Assert.That(handler.ReceivedContexts[0].AnimationGraphContext, Is.SameAs(player.Context));
+        }
+
+        /// <summary>
+        /// Signal 発火時に AnySignal 購読者を型指定購読者より後に呼び出す
+        /// </summary>
+        [Test]
+        public void Tick_NotifiesAnySignalSubscribersAfterTypedSubscribers() {
+            using var builder = new AnimationGraphTestBuilder();
+            var events = new List<string>();
+            var startNode = builder.CreateStartNode("start", "action");
+            var actionNode = builder.CreateActionNode("action", 1.0f);
+            var enterSignal = builder.CreateSignal("enter", "signal", events);
+            builder.SetEnterSignals(actionNode, enterSignal);
+            var graphAsset = builder.CreateGraph("start", startNode, actionNode);
+            var player = CreatePlayer(graphAsset);
+            SignalContext receivedContext = default;
+            player.SubscribeSignal<TestSignal>(_ => events.Add("typed"));
+            player.SubscribeAnySignal(context => {
+                events.Add("any");
+                receivedContext = context;
+            });
+
+            player.Play();
+            player.Tick(0.5f);
+
+            CollectionAssert.AreEqual(new[] { "signal", "typed", "any" }, events);
+            Assert.That(receivedContext.Signal, Is.SameAs(enterSignal));
+            Assert.That(receivedContext.AnimationGraphContext, Is.SameAs(player.Context));
+        }
+
+        /// <summary>
+        /// Signal 発火時に AnySignal handler を呼び出す
+        /// </summary>
+        [Test]
+        public void Tick_NotifiesAnySignalHandler() {
+            using var builder = new AnimationGraphTestBuilder();
+            var startNode = builder.CreateStartNode("start", "action");
+            var actionNode = builder.CreateActionNode("action", 1.0f);
+            var enterSignal = builder.CreateSignal("enter");
+            builder.SetEnterSignals(actionNode, enterSignal);
+            var graphAsset = builder.CreateGraph("start", startNode, actionNode);
+            var player = CreatePlayer(graphAsset);
+            var handler = new TestAnySignalHandler();
+            player.SubscribeAnySignal(handler);
+
+            player.Play();
+            player.Tick(0.5f);
+
+            Assert.That(handler.ReceivedContexts.Count, Is.EqualTo(1));
+            Assert.That(handler.ReceivedContexts[0].Signal, Is.SameAs(enterSignal));
+            Assert.That(handler.ReceivedContexts[0].AnimationGraphContext, Is.SameAs(player.Context));
+        }
+
+        /// <summary>
         /// Dispose は Signal 発火通知の購読を解除する
         /// </summary>
         [Test]
@@ -317,6 +417,28 @@ namespace UnityAnimationGraph.Tests {
         }
 
         /// <summary>
+        /// Dispose は AnySignal 発火通知の購読を解除する
+        /// </summary>
+        [Test]
+        public void AnySignalSubscriptionDispose_RemovesSignalSubscriber() {
+            using var builder = new AnimationGraphTestBuilder();
+            var startNode = builder.CreateStartNode("start", "action");
+            var actionNode = builder.CreateActionNode("action", 1.0f);
+            var enterSignal = builder.CreateSignal("enter");
+            builder.SetEnterSignals(actionNode, enterSignal);
+            var graphAsset = builder.CreateGraph("start", startNode, actionNode);
+            var player = CreatePlayer(graphAsset);
+            var receivedSignalCount = 0;
+            var subscription = player.SubscribeAnySignal(_ => receivedSignalCount++);
+            subscription.Dispose();
+
+            player.Play();
+            player.Tick(0.5f);
+
+            Assert.That(receivedSignalCount, Is.EqualTo(0));
+        }
+
+        /// <summary>
         /// ClearSignalSubscriptions は Signal 発火通知の購読をすべて解除する
         /// </summary>
         [Test]
@@ -330,7 +452,7 @@ namespace UnityAnimationGraph.Tests {
             var player = CreatePlayer(graphAsset);
             var receivedSignalCount = 0;
             player.SubscribeSignal<TestSignal>(_ => receivedSignalCount++);
-            player.SubscribeSignal<TestSignal>(_ => receivedSignalCount++);
+            player.SubscribeAnySignal(_ => receivedSignalCount++);
             player.ClearSignalSubscriptions();
 
             player.Play();

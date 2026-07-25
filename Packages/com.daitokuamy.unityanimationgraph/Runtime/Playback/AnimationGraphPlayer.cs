@@ -78,6 +78,7 @@ namespace UnityAnimationGraph {
 
         private readonly AnimationGraphScheduler _scheduler = new();
         private readonly Dictionary<Type, List<SignalSubscription>> _signalSubscriptionsByType = new();
+        private readonly List<SignalSubscription> _anySignalSubscriptions = new();
         private readonly TweenBaseValueStore _tweenBaseValues = new();
 
         private List<ScheduledNode> _activeScheduledNodes = new();
@@ -195,6 +196,51 @@ namespace UnityAnimationGraph {
         }
 
         /// <summary>
+        /// 指定した Signal 型の発火通知をハンドラーで購読
+        /// </summary>
+        /// <param name="handler">Signal 発火通知を処理するハンドラー</param>
+        /// <typeparam name="TSignal">購読対象の Signal 型</typeparam>
+        /// <returns>購読解除に使用する disposable</returns>
+        public IDisposable SubscribeSignal<TSignal>(ISignalHandler<TSignal> handler) where TSignal : Signal {
+            if (handler == null) {
+                throw new ArgumentNullException(nameof(handler));
+            }
+
+            return SubscribeSignal<TSignal>(handler.Handle);
+        }
+
+        /// <summary>
+        /// すべての Signal 型の発火通知を購読
+        /// </summary>
+        /// <param name="callback">Signal 発火時に呼び出す callback</param>
+        /// <returns>購読解除に使用する disposable</returns>
+        public IDisposable SubscribeAnySignal(Action<SignalContext> callback) {
+            if (callback == null) {
+                throw new ArgumentNullException(nameof(callback));
+            }
+
+            var subscription = new SignalSubscription(
+                this,
+                null,
+                (signal, context) => callback(new SignalContext(signal, context)));
+            _anySignalSubscriptions.Add(subscription);
+            return subscription;
+        }
+
+        /// <summary>
+        /// すべての Signal 型の発火通知をハンドラーで購読
+        /// </summary>
+        /// <param name="handler">Signal 発火通知を処理するハンドラー</param>
+        /// <returns>購読解除に使用する disposable</returns>
+        public IDisposable SubscribeAnySignal(ISignalHandler handler) {
+            if (handler == null) {
+                throw new ArgumentNullException(nameof(handler));
+            }
+
+            return SubscribeAnySignal(handler.Handle);
+        }
+
+        /// <summary>
         /// Signal 発火通知の購読をすべて解除
         /// </summary>
         public void ClearSignalSubscriptions() {
@@ -205,6 +251,11 @@ namespace UnityAnimationGraph {
             }
 
             _signalSubscriptionsByType.Clear();
+            for (var i = 0; i < _anySignalSubscriptions.Count; i++) {
+                _anySignalSubscriptions[i].Deactivate();
+            }
+
+            _anySignalSubscriptions.Clear();
         }
 
         /// <summary>
@@ -769,6 +820,7 @@ namespace UnityAnimationGraph {
 
                 ((ISignalExecutor)signal).Dispatch(seed, _context);
                 NotifySignalSubscribers(signal);
+                NotifyAnySignalSubscribers(signal);
             }
         }
 
@@ -788,11 +840,27 @@ namespace UnityAnimationGraph {
         }
 
         /// <summary>
+        /// すべての Signal 型の購読者へ通知
+        /// </summary>
+        /// <param name="signal">通知する Signal</param>
+        private void NotifyAnySignalSubscribers(Signal signal) {
+            var callbackSnapshot = _anySignalSubscriptions.ToArray();
+            for (var i = 0; i < callbackSnapshot.Length; i++) {
+                callbackSnapshot[i].Invoke(signal, _context);
+            }
+        }
+
+        /// <summary>
         /// Signal 購読を解除
         /// </summary>
         /// <param name="signalType">購読対象 Signal 型</param>
         /// <param name="subscription">解除する subscription</param>
         private void RemoveSignalSubscription(Type signalType, SignalSubscription subscription) {
+            if (signalType == null) {
+                _anySignalSubscriptions.Remove(subscription);
+                return;
+            }
+
             if (!_signalSubscriptionsByType.TryGetValue(signalType, out var callbacks)) {
                 return;
             }

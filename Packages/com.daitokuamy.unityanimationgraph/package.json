@@ -1,7 +1,7 @@
 {
     "name": "com.daitokuamy.unityanimationgraph",
     "displayName": "Unity Animation Graph",
-    "version": "0.9.3",
+    "version": "0.9.4",
     "unity": "6000.2",
     "license" : "MIT",
     "dependencies": {

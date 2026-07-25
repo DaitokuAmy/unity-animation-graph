@@ -460,6 +460,34 @@ namespace UnityAnimationGraph {
         }
 
         /// <summary>
+        /// 指定した Signal 型の発火通知をハンドラーで購読
+        /// </summary>
+        /// <param name="handler">Signal 発火通知を処理するハンドラー</param>
+        /// <typeparam name="TSignal">購読対象の Signal 型</typeparam>
+        /// <returns>購読解除に使用する disposable</returns>
+        public IDisposable SubscribeSignal<TSignal>(ISignalHandler<TSignal> handler) where TSignal : Signal {
+            return _player.SubscribeSignal(handler);
+        }
+
+        /// <summary>
+        /// すべての Signal 型の発火通知を購読
+        /// </summary>
+        /// <param name="callback">Signal 発火時に呼び出す callback</param>
+        /// <returns>購読解除に使用する disposable</returns>
+        public IDisposable SubscribeAnySignal(Action<SignalContext> callback) {
+            return _player.SubscribeAnySignal(callback);
+        }
+
+        /// <summary>
+        /// すべての Signal 型の発火通知をハンドラーで購読
+        /// </summary>
+        /// <param name="handler">Signal 発火通知を処理するハンドラー</param>
+        /// <returns>購読解除に使用する disposable</returns>
+        public IDisposable SubscribeAnySignal(ISignalHandler handler) {
+            return _player.SubscribeAnySignal(handler);
+        }
+
+        /// <summary>
         /// Signal 発火通知の購読をすべて解除
         /// </summary>
         public void ClearSignalSubscriptions() {
