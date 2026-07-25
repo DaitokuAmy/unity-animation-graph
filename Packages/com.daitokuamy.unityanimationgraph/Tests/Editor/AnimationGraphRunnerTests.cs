@@ -261,46 +261,38 @@ namespace UnityAnimationGraph.Tests {
         }
 
         /// <summary>
-        /// target binding は GraphAsset GUID ごとに保持される
+        /// 同じ target schema の GraphAsset は Runner の binding を共有する
         /// </summary>
         [Test]
-        public void SetGraph_KeepsTargetBindingsPerGraphAssetGuid() {
+        public void SetGraph_KeepsTargetBindingsAcrossGraphsWithSameSchema() {
             using var builder = new AnimationGraphTestBuilder();
             var firstStartNode = builder.CreateStartNode("firstStart");
             var firstGraphAsset = builder.CreateGraph("firstStart", firstStartNode);
             var secondStartNode = builder.CreateStartNode("secondStart");
             var secondGraphAsset = builder.CreateGraph("secondStart", secondStartNode);
-            builder.SetTargetDefinitions(firstGraphAsset, "actor");
-            builder.SetTargetDefinitions(secondGraphAsset, "actor");
+            var targetSchema = builder.CreateTargetSchema(new TargetDefinition("actor"));
+            builder.SetTargetSchema(firstGraphAsset, targetSchema);
+            builder.SetTargetSchema(secondGraphAsset, targetSchema);
             var runnerObject = new GameObject("AnimationGraphRunnerTest");
-            var firstTargetObject = new GameObject("FirstTarget");
-            var secondTargetObject = new GameObject("SecondTarget");
+            var targetObject = new GameObject("Target");
 
             try {
                 var runner = runnerObject.AddComponent<AnimationGraphRunner>();
+                runner.TargetSchema = targetSchema;
                 runner.GraphAsset = firstGraphAsset;
-                Assert.IsTrue(runner.SetTarget("actor", firstTargetObject.transform));
+                Assert.IsTrue(runner.SetTarget("actor", targetObject.transform));
 
                 runner.GraphAsset = secondGraphAsset;
-                Assert.IsTrue(runner.SetTarget("actor", secondTargetObject.transform));
-
-                runner.GraphAsset = firstGraphAsset;
-                Assert.IsTrue(runner.Context.TryGetTarget<Transform>("actor", out var firstTarget));
-                Assert.That(firstTarget, Is.EqualTo(firstTargetObject.transform));
-
-                runner.GraphAsset = secondGraphAsset;
-                Assert.IsTrue(runner.Context.TryGetTarget<Transform>("actor", out var secondTarget));
-                Assert.That(secondTarget, Is.EqualTo(secondTargetObject.transform));
+                Assert.That(runner.GetTarget<Transform>("actor"), Is.EqualTo(targetObject.transform));
             }
             finally {
                 Object.DestroyImmediate(runnerObject);
-                Object.DestroyImmediate(firstTargetObject);
-                Object.DestroyImmediate(secondTargetObject);
+                Object.DestroyImmediate(targetObject);
             }
         }
 
         /// <summary>
-        /// RebuildSchedule は GraphAsset の Target と Blackboard 定義を Runner 状態へ同期する
+        /// RebuildSchedule は Target Schema と Blackboard 定義を Runner 状態へ同期する
         /// </summary>
         [Test]
         public void RebuildSchedule_RefreshesGraphDerivedRunnerState() {
@@ -308,12 +300,14 @@ namespace UnityAnimationGraph.Tests {
             var startNode = builder.CreateStartNode("start");
             var graphAsset = builder.CreateGraph("start", startNode);
             builder.SetBlackboardDefinitions(graphAsset, new BlackboardDefinition("speed", 1.5f));
-            builder.SetTargetDefinitions(graphAsset, "actor");
+            var targetSchema = builder.CreateTargetSchema(new TargetDefinition("actor"));
+            builder.SetTargetSchema(graphAsset, targetSchema);
             var runnerObject = new GameObject("AnimationGraphRunnerTest");
             var actorObject = new GameObject("Actor");
 
             try {
                 var runner = runnerObject.AddComponent<AnimationGraphRunner>();
+                runner.TargetSchema = targetSchema;
                 runner.GraphAsset = graphAsset;
                 Assert.IsTrue(runner.SetBlackboardValue("speed", 9.0f));
                 Assert.IsTrue(runner.SetTarget("actor", actorObject.transform));
@@ -322,7 +316,9 @@ namespace UnityAnimationGraph.Tests {
                     graphAsset,
                     new BlackboardDefinition("speed", 2.5f),
                     new BlackboardDefinition("enabled", true));
-                builder.SetTargetDefinitions(graphAsset, "actor", "camera");
+                UnityAnimationGraph.Editor.AnimationGraphAssetUtility.SetTargetDefinitions(
+                    targetSchema,
+                    new[] { new TargetDefinition("actor"), new TargetDefinition("camera") });
                 runner.RebuildSchedule();
 
                 Assert.IsTrue(runner.Context.TryGetBlackboardValue("speed", out float speedValue));
@@ -340,19 +336,21 @@ namespace UnityAnimationGraph.Tests {
         }
 
         /// <summary>
-        /// public GetTarget は現在の GraphAsset に対応する target binding から Component を取得する
+        /// public GetTarget は target schema に対応する binding から Component を取得する
         /// </summary>
         [Test]
         public void GetTarget_ReturnsCurrentTargetBinding() {
             using var builder = new AnimationGraphTestBuilder();
             var startNode = builder.CreateStartNode("start");
             var graphAsset = builder.CreateGraph("start", startNode);
-            builder.SetTargetDefinitions(graphAsset, "actor");
+            var targetSchema = builder.CreateTargetSchema(new TargetDefinition("actor"));
+            builder.SetTargetSchema(graphAsset, targetSchema);
             var runnerObject = new GameObject("AnimationGraphRunnerTest");
             var targetObject = new GameObject("Target");
 
             try {
                 var runner = runnerObject.AddComponent<AnimationGraphRunner>();
+                runner.TargetSchema = targetSchema;
                 runner.GraphAsset = graphAsset;
                 Assert.IsTrue(runner.SetTarget("actor", targetObject.transform));
 
@@ -369,120 +367,27 @@ namespace UnityAnimationGraph.Tests {
         }
 
         /// <summary>
-        /// GraphAsset 指定の SetTarget は現在の GraphAsset を切り替えずに target binding を更新する
+        /// 異なる target schema の GraphAsset は設定できない
         /// </summary>
         [Test]
-        public void SetTarget_WithGraphAsset_UpdatesBindingWithoutChangingCurrentGraphAsset() {
+        public void SetGraph_ThrowsWhenTargetSchemaDoesNotMatch() {
             using var builder = new AnimationGraphTestBuilder();
-            var firstStartNode = builder.CreateStartNode("firstStart");
-            var firstGraphAsset = builder.CreateGraph("firstStart", firstStartNode);
-            var secondStartNode = builder.CreateStartNode("secondStart");
-            var secondGraphAsset = builder.CreateGraph("secondStart", secondStartNode);
-            builder.SetTargetDefinitions(firstGraphAsset, "actor");
-            builder.SetTargetDefinitions(secondGraphAsset, "actor");
+            var startNode = builder.CreateStartNode("start");
+            var graphAsset = builder.CreateGraph("start", startNode);
+            var graphSchema = builder.CreateTargetSchema(new TargetDefinition("actor"));
+            var runnerSchema = builder.CreateTargetSchema(new TargetDefinition("actor"));
+            builder.SetTargetSchema(graphAsset, graphSchema);
             var runnerObject = new GameObject("AnimationGraphRunnerTest");
-            var firstTargetObject = new GameObject("FirstTarget");
-            var secondTargetObject = new GameObject("SecondTarget");
 
             try {
                 var runner = runnerObject.AddComponent<AnimationGraphRunner>();
-                runner.GraphAsset = firstGraphAsset;
+                runner.TargetSchema = runnerSchema;
 
-                Assert.IsTrue(runner.SetTarget(firstGraphAsset, "actor", firstTargetObject.transform));
-                Assert.IsTrue(runner.SetTarget(secondGraphAsset, "actor", secondTargetObject.transform));
-                Assert.That(runner.GraphAsset, Is.EqualTo(firstGraphAsset));
-                Assert.That(runner.GetTarget<Transform>("actor"), Is.EqualTo(firstTargetObject.transform));
-
-                runner.GraphAsset = secondGraphAsset;
-                Assert.That(runner.GetTarget<Transform>("actor"), Is.EqualTo(secondTargetObject.transform));
-                Assert.IsFalse(runner.SetTarget(secondGraphAsset, "missing", secondTargetObject.transform));
-                Assert.IsFalse(runner.SetTarget(null, "actor", secondTargetObject.transform));
+                Assert.IsFalse(runner.IsTargetSchemaCompatible(graphAsset));
+                Assert.Throws<System.InvalidOperationException>(() => runner.GraphAsset = graphAsset);
             }
             finally {
                 Object.DestroyImmediate(runnerObject);
-                Object.DestroyImmediate(firstTargetObject);
-                Object.DestroyImmediate(secondTargetObject);
-            }
-        }
-
-        /// <summary>
-        /// GraphAsset 指定の GetTarget は現在の GraphAsset を切り替えずに target binding から Component を取得する
-        /// </summary>
-        [Test]
-        public void GetTarget_WithGraphAsset_ReturnsBindingWithoutChangingCurrentGraphAsset() {
-            using var builder = new AnimationGraphTestBuilder();
-            var firstStartNode = builder.CreateStartNode("firstStart");
-            var firstGraphAsset = builder.CreateGraph("firstStart", firstStartNode);
-            var secondStartNode = builder.CreateStartNode("secondStart");
-            var secondGraphAsset = builder.CreateGraph("secondStart", secondStartNode);
-            builder.SetTargetDefinitions(firstGraphAsset, "actor");
-            builder.SetTargetDefinitions(secondGraphAsset, "actor");
-            var runnerObject = new GameObject("AnimationGraphRunnerTest");
-            var firstTargetObject = new GameObject("FirstTarget");
-            var secondTargetObject = new GameObject("SecondTarget");
-
-            try {
-                var runner = runnerObject.AddComponent<AnimationGraphRunner>();
-                runner.GraphAsset = firstGraphAsset;
-
-                Assert.IsTrue(runner.SetTarget(firstGraphAsset, "actor", firstTargetObject.transform));
-                Assert.IsTrue(runner.SetTarget(secondGraphAsset, "actor", secondTargetObject.transform));
-
-                var secondTarget = runner.GetTarget<Transform>(secondGraphAsset, "actor");
-                Assert.That(secondTarget, Is.EqualTo(secondTargetObject.transform));
-                Assert.That(runner.GraphAsset, Is.EqualTo(firstGraphAsset));
-                Assert.That(runner.GetTarget<Transform>("actor"), Is.EqualTo(firstTargetObject.transform));
-                Assert.IsTrue(runner.TryGetTarget(secondGraphAsset, "actor", out Transform tryTarget));
-                Assert.That(tryTarget, Is.EqualTo(secondTargetObject.transform));
-                Assert.IsFalse(runner.TryGetTarget(secondGraphAsset, "missing", out Transform _));
-                Assert.IsFalse(runner.TryGetTarget(null, "actor", out Transform _));
-                Assert.Throws<System.InvalidOperationException>(() => runner.GetTarget<Camera>(secondGraphAsset, "actor"));
-            }
-            finally {
-                Object.DestroyImmediate(runnerObject);
-                Object.DestroyImmediate(firstTargetObject);
-                Object.DestroyImmediate(secondTargetObject);
-            }
-        }
-
-        /// <summary>
-        /// 指定した GraphAsset GUID の target binding は現在の GraphAsset に関係なく取得できる
-        /// </summary>
-        [Test]
-        public void GetTargetBindingsByGraphAssetGuid_ReturnsStoredBindingsForSpecifiedGraphAsset() {
-            using var builder = new AnimationGraphTestBuilder();
-            var firstStartNode = builder.CreateStartNode("firstStart");
-            var firstGraphAsset = builder.CreateGraph("firstStart", firstStartNode);
-            var secondStartNode = builder.CreateStartNode("secondStart");
-            var secondGraphAsset = builder.CreateGraph("secondStart", secondStartNode);
-            builder.SetTargetDefinitions(firstGraphAsset, "actor");
-            builder.SetTargetDefinitions(secondGraphAsset, "actor");
-            var runnerObject = new GameObject("AnimationGraphRunnerTest");
-            var firstTargetObject = new GameObject("FirstTarget");
-            var secondTargetObject = new GameObject("SecondTarget");
-
-            try {
-                var runner = runnerObject.AddComponent<AnimationGraphRunner>();
-                runner.GraphAsset = firstGraphAsset;
-                Assert.IsTrue(runner.SetTarget("actor", firstTargetObject.transform));
-
-                runner.GraphAsset = secondGraphAsset;
-                Assert.IsTrue(runner.SetTarget("actor", secondTargetObject.transform));
-
-                var firstBindings = runner.GetTargetBindingsByGraphAssetGuid(firstGraphAsset.AssetGuid);
-                var secondBindings = runner.GetTargetBindingsByGraphAssetGuid(secondGraphAsset.AssetGuid);
-                var missingBindings = runner.GetTargetBindingsByGraphAssetGuid("missing");
-
-                Assert.That(firstBindings.Count, Is.EqualTo(1));
-                Assert.That(firstBindings[0].Target, Is.EqualTo(firstTargetObject.transform));
-                Assert.That(secondBindings.Count, Is.EqualTo(1));
-                Assert.That(secondBindings[0].Target, Is.EqualTo(secondTargetObject.transform));
-                Assert.That(missingBindings.Count, Is.EqualTo(0));
-            }
-            finally {
-                Object.DestroyImmediate(runnerObject);
-                Object.DestroyImmediate(firstTargetObject);
-                Object.DestroyImmediate(secondTargetObject);
             }
         }
 
@@ -495,11 +400,13 @@ namespace UnityAnimationGraph.Tests {
             var startNode = builder.CreateStartNode("start");
             var graphAsset = builder.CreateGraph("start", startNode);
             var monoScriptGuid = "11111111111111111111111111111111";
-            builder.SetTargetDefinitions(graphAsset, new TargetDefinition("actor", monoScriptGuid));
+            var targetSchema = builder.CreateTargetSchema(new TargetDefinition("actor", monoScriptGuid));
+            builder.SetTargetSchema(graphAsset, targetSchema);
             var gameObject = new GameObject("AnimationGraphRunnerTest");
 
             try {
                 var runner = gameObject.AddComponent<AnimationGraphRunner>();
+                runner.TargetSchema = targetSchema;
                 runner.GraphAsset = graphAsset;
 
                 Assert.That(runner.TargetBindings.Count, Is.EqualTo(1));
@@ -519,13 +426,15 @@ namespace UnityAnimationGraph.Tests {
             using var builder = new AnimationGraphTestBuilder();
             var startNode = builder.CreateStartNode("start");
             var graphAsset = builder.CreateGraph("start", startNode);
-            builder.SetTargetDefinitions(graphAsset, new TargetDefinition("targets", string.Empty, TargetMultiplicity.Collection));
+            var targetSchema = builder.CreateTargetSchema(new TargetDefinition("targets", string.Empty, TargetMultiplicity.Collection));
+            builder.SetTargetSchema(graphAsset, targetSchema);
             var runnerObject = new GameObject("AnimationGraphRunnerTest");
             var firstTargetObject = new GameObject("FirstTarget");
             var secondTargetObject = new GameObject("SecondTarget");
 
             try {
                 var runner = runnerObject.AddComponent<AnimationGraphRunner>();
+                runner.TargetSchema = targetSchema;
                 runner.GraphAsset = graphAsset;
 
                 Assert.IsTrue(runner.AddTarget("targets", firstTargetObject.transform));

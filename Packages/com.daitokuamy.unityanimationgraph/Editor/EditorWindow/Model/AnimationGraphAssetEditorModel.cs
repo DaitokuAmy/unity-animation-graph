@@ -107,6 +107,8 @@ namespace UnityAnimationGraph.Editor {
         public IReadOnlyList<SignalEditorModel> Signals => _signals;
         /// <summary>GraphAsset が要求する target key 定義一覧</summary>
         public IReadOnlyList<TargetDefinition> TargetDefinitions => _graphAsset?.TargetDefinitions ?? Array.Empty<TargetDefinition>();
+        /// <summary>GraphAsset が要求する target schema</summary>
+        public AnimationGraphTargetSchema TargetSchema => _graphAsset?.TargetSchema;
         /// <summary>GraphAsset が要求する Blackboard key 定義一覧</summary>
         public IReadOnlyList<BlackboardDefinition> BlackboardDefinitions => _graphAsset?.BlackboardDefinitions ?? Array.Empty<BlackboardDefinition>();
 
@@ -487,19 +489,11 @@ namespace UnityAnimationGraph.Editor {
         }
 
         /// <summary>
-        /// 操作対象の AnimationGraphAsset の target 定義を設定
+        /// 操作対象の AnimationGraphAsset の target schema を設定
         /// </summary>
-        /// <param name="definitions">設定する target 定義一覧</param>
-        public void SetTargetDefinitions(params TargetDefinition[] definitions) {
-            SetTargetDefinitions((IReadOnlyList<TargetDefinition>)definitions);
-        }
-
-        /// <summary>
-        /// 操作対象の AnimationGraphAsset の target 定義を設定
-        /// </summary>
-        /// <param name="definitions">設定する target 定義一覧</param>
-        public void SetTargetDefinitions(IReadOnlyList<TargetDefinition> definitions) {
-            AnimationGraphAssetUtility.SetTargetDefinitions(RequireGraphAsset(), definitions);
+        /// <param name="targetSchema">設定する target schema</param>
+        public void SetTargetSchema(AnimationGraphTargetSchema targetSchema) {
+            AnimationGraphAssetUtility.SetTargetSchema(RequireGraphAsset(), targetSchema);
         }
 
         /// <summary>

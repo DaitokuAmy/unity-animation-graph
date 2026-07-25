@@ -9,119 +9,61 @@ namespace UnityAnimationGraph.Editor {
     /// </summary>
     [CustomEditor(typeof(AnimationGraphRunner))]
     internal sealed class AnimationGraphRunnerEditor : UnityEditor.Editor {
-        /// <summary>AnimationGraphRunner の graph asset フィールド名</summary>
         private const string GraphAssetPropertyName = "_graphAsset";
-        /// <summary>AnimationGraphRunner の play on enabled フィールド名</summary>
         private const string PlayOnEnabledPropertyName = "_playOnEnabled";
-        /// <summary>AnimationGraphRunner の update type フィールド名</summary>
         private const string UpdateTypePropertyName = "_updateType";
-        /// <summary>AnimationGraphRunner の target binding group 配列フィールド名</summary>
-        private const string TargetBindingGroupsPropertyName = "_targetBindingGroups";
-        /// <summary>TargetBindingGroup の graph asset GUID フィールド名</summary>
-        private const string GraphAssetGuidPropertyName = "_graphAssetGuid";
-        /// <summary>TargetBindingGroup の binding 配列フィールド名</summary>
-        private const string BindingsPropertyName = "_bindings";
-        /// <summary>TargetBinding の key フィールド名</summary>
+        private const string TargetSchemaPropertyName = "_targetSchema";
+        private const string TargetBindingsPropertyName = "_targetBindings";
         private const string KeyPropertyName = "_key";
-        /// <summary>TargetBinding の MonoScript GUID フィールド名</summary>
         private const string MonoScriptGuidPropertyName = "_monoScriptGuid";
-        /// <summary>TargetBinding の target フィールド名</summary>
         private const string TargetPropertyName = "_target";
-        /// <summary>TargetBinding の target collection フィールド名</summary>
         private const string TargetsPropertyName = "_targets";
-        /// <summary>TargetBinding の multiplicity フィールド名</summary>
         private const string MultiplicityPropertyName = "_multiplicity";
-        /// <summary>AnimationGraphAsset の asset GUID フィールド名</summary>
-        private const string AssetGuidPropertyName = "_assetGuid";
-        /// <summary>binding 行の key 領域の最小幅</summary>
         private const float KeyMinWidth = 90.0f;
-        /// <summary>binding 行の key 領域の幅比率</summary>
         private const float KeyWidthRatio = 0.42f;
-        /// <summary>binding 行の列間隔</summary>
         private const float ColumnSpacing = 6.0f;
-        /// <summary>target component 選択ボタンの幅</summary>
         private const float ComponentMenuButtonWidth = 22.0f;
-        /// <summary>target binding group 削除ボタンの幅</summary>
-        private const float DeleteButtonWidth = 22.0f;
 
-        private static readonly GUIContent TargetBindingGroupsLabel = new("Target Binding Groups");
-        private static readonly GUIContent GraphAssetLabel = new("Graph Asset");
+        private static readonly GUIContent TargetBindingsLabel = new("Target Bindings");
         private static readonly GUIContent KeyLabel = new("Key");
         private static readonly GUIContent TargetLabel = new("Target");
         private static readonly GUIContent ComponentMenuLabel = new(string.Empty, "Select Component");
-        private static readonly GUIContent DeleteLabel = new("x", "Remove Target Binding Group");
-        private static readonly GUIContent ShowOtherTargetBindingGroupsLabel = new("Show Other Target Binding Groups");
 
         private SerializedProperty _graphAssetProperty;
         private SerializedProperty _playOnEnabledProperty;
         private SerializedProperty _updateTypeProperty;
-        private SerializedProperty _targetBindingGroupsProperty;
-        private bool _showOtherTargetBindingGroups = true;
+        private SerializedProperty _targetSchemaProperty;
+        private SerializedProperty _targetBindingsProperty;
 
         private void OnEnable() {
             _graphAssetProperty = serializedObject.FindProperty(GraphAssetPropertyName);
             _playOnEnabledProperty = serializedObject.FindProperty(PlayOnEnabledPropertyName);
             _updateTypeProperty = serializedObject.FindProperty(UpdateTypePropertyName);
-            _targetBindingGroupsProperty = serializedObject.FindProperty(TargetBindingGroupsPropertyName);
+            _targetSchemaProperty = serializedObject.FindProperty(TargetSchemaPropertyName);
+            _targetBindingsProperty = serializedObject.FindProperty(TargetBindingsPropertyName);
         }
 
         /// <inheritdoc/>
         public override void OnInspectorGUI() {
             serializedObject.Update();
 
-            DrawGraphAssetProperty();
+            EditorGUILayout.PropertyField(_graphAssetProperty);
+            EditorGUILayout.PropertyField(_targetSchemaProperty);
             EditorGUILayout.PropertyField(_playOnEnabledProperty);
             EditorGUILayout.PropertyField(_updateTypeProperty);
 
-            EnsureCurrentGraphAssetBindingGroup();
+            EnsureTargetBindings();
+            DrawTargetSchemaCompatibilityMessage();
             EditorGUILayout.Space();
-            DrawTargetBindingGroups();
+            DrawTargetBindings();
 
             serializedObject.ApplyModifiedProperties();
         }
 
-        private static AnimationGraphAsset GetGraphAsset(SerializedProperty groupProperty) {
-            var graphAssetGuid = groupProperty.FindPropertyRelative(GraphAssetGuidPropertyName).stringValue;
-            if (string.IsNullOrEmpty(graphAssetGuid)) {
-                return null;
-            }
-
-            var assetPath = AssetDatabase.GUIDToAssetPath(graphAssetGuid);
-            return string.IsNullOrEmpty(assetPath) ? null : AssetDatabase.LoadAssetAtPath<AnimationGraphAsset>(assetPath);
-        }
-
-        private static string EnsureGraphAssetGuid(AnimationGraphAsset graphAsset) {
-            if (graphAsset == null) {
-                return string.Empty;
-            }
-
-            var assetPath = AssetDatabase.GetAssetPath(graphAsset);
-            if (string.IsNullOrEmpty(assetPath)) {
-                return graphAsset.AssetGuid;
-            }
-
-            var assetGuid = AssetDatabase.AssetPathToGUID(assetPath);
-            if (graphAsset.AssetGuid == assetGuid) {
-                return assetGuid;
-            }
-
-            var serializedGraph = new SerializedObject(graphAsset);
-            serializedGraph.FindProperty(AssetGuidPropertyName).stringValue = assetGuid;
-            serializedGraph.ApplyModifiedPropertiesWithoutUndo();
-            EditorUtility.SetDirty(graphAsset);
-            return assetGuid;
-        }
-
-        private static void SetGroupGraphAsset(SerializedProperty groupProperty, AnimationGraphAsset graphAsset) {
-            var graphAssetGuid = EnsureGraphAssetGuid(graphAsset);
-            groupProperty.FindPropertyRelative(GraphAssetGuidPropertyName).stringValue = graphAssetGuid;
-            SetBindingProperties(groupProperty.FindPropertyRelative(BindingsPropertyName), graphAsset);
-        }
-
-        private static void SetBindingProperties(SerializedProperty bindingsProperty, AnimationGraphAsset graphAsset) {
+        private static void SetBindingProperties(SerializedProperty bindingsProperty, AnimationGraphTargetSchema targetSchema) {
             var previousTargetsByKey = CreatePreviousTargetsByKey(bindingsProperty);
             var previousTargetCollectionsByKey = CreatePreviousTargetCollectionsByKey(bindingsProperty);
-            var definitions = graphAsset?.TargetDefinitions;
+            var definitions = targetSchema?.Definitions;
             var definitionCount = definitions?.Count ?? 0;
             bindingsProperty.arraySize = definitionCount;
 
@@ -133,7 +75,8 @@ namespace UnityAnimationGraph.Editor {
                 bindingProperty.FindPropertyRelative(KeyPropertyName).stringValue = key;
                 bindingProperty.FindPropertyRelative(MonoScriptGuidPropertyName).stringValue = monoScriptGuid;
                 bindingProperty.FindPropertyRelative(MultiplicityPropertyName).enumValueIndex = (int)definition.Multiplicity;
-                var targetComponent = previousTargetsByKey.TryGetValue(key, out var previousTarget) && AnimationGraphTargetScriptUtility.IsTargetAssignable(previousTarget, monoScriptGuid)
+                var targetComponent = previousTargetsByKey.TryGetValue(key, out var previousTarget)
+                    && AnimationGraphTargetScriptUtility.IsTargetAssignable(previousTarget, monoScriptGuid)
                     ? previousTarget
                     : null;
                 bindingProperty.FindPropertyRelative(TargetPropertyName).objectReferenceValue = targetComponent;
@@ -141,7 +84,11 @@ namespace UnityAnimationGraph.Editor {
                 var previousTargets = previousTargetCollectionsByKey.TryGetValue(key, out var collection) ? collection : System.Array.Empty<Object>();
                 targetsProperty.arraySize = previousTargets.Count;
                 for (var targetIndex = 0; targetIndex < previousTargets.Count; targetIndex++) {
-                    targetsProperty.GetArrayElementAtIndex(targetIndex).objectReferenceValue = previousTargets[targetIndex];
+                    var previousCollectionTarget = previousTargets[targetIndex];
+                    targetsProperty.GetArrayElementAtIndex(targetIndex).objectReferenceValue =
+                        AnimationGraphTargetScriptUtility.IsTargetAssignable(previousCollectionTarget, monoScriptGuid)
+                            ? previousCollectionTarget
+                            : null;
                 }
             }
         }
@@ -151,11 +98,9 @@ namespace UnityAnimationGraph.Editor {
             for (var i = 0; i < bindingsProperty.arraySize; i++) {
                 var bindingProperty = bindingsProperty.GetArrayElementAtIndex(i);
                 var key = bindingProperty.FindPropertyRelative(KeyPropertyName).stringValue;
-                if (string.IsNullOrEmpty(key)) {
-                    continue;
+                if (!string.IsNullOrEmpty(key)) {
+                    targetsByKey[key] = bindingProperty.FindPropertyRelative(TargetPropertyName).objectReferenceValue;
                 }
-
-                targetsByKey[key] = bindingProperty.FindPropertyRelative(TargetPropertyName).objectReferenceValue;
             }
 
             return targetsByKey;
@@ -182,8 +127,8 @@ namespace UnityAnimationGraph.Editor {
             return targetsByKey;
         }
 
-        private static bool IsBindingStructureValid(SerializedProperty bindingsProperty, AnimationGraphAsset graphAsset) {
-            var definitions = graphAsset?.TargetDefinitions;
+        private static bool IsBindingStructureValid(SerializedProperty bindingsProperty, AnimationGraphTargetSchema targetSchema) {
+            var definitions = targetSchema?.Definitions;
             var definitionCount = definitions?.Count ?? 0;
             if (bindingsProperty.arraySize != definitionCount) {
                 return false;
@@ -192,15 +137,9 @@ namespace UnityAnimationGraph.Editor {
             for (var i = 0; i < definitionCount; i++) {
                 var definition = definitions[i];
                 var bindingProperty = bindingsProperty.GetArrayElementAtIndex(i);
-                if (bindingProperty.FindPropertyRelative(KeyPropertyName).stringValue != definition.Key) {
-                    return false;
-                }
-
-                if (bindingProperty.FindPropertyRelative(MonoScriptGuidPropertyName).stringValue != definition.MonoScriptGuid) {
-                    return false;
-                }
-
-                if (bindingProperty.FindPropertyRelative(MultiplicityPropertyName).enumValueIndex != (int)definition.Multiplicity) {
+                if (bindingProperty.FindPropertyRelative(KeyPropertyName).stringValue != definition.Key
+                    || bindingProperty.FindPropertyRelative(MonoScriptGuidPropertyName).stringValue != definition.MonoScriptGuid
+                    || bindingProperty.FindPropertyRelative(MultiplicityPropertyName).enumValueIndex != (int)definition.Multiplicity) {
                     return false;
                 }
             }
@@ -208,153 +147,32 @@ namespace UnityAnimationGraph.Editor {
             return true;
         }
 
-        private void DrawGraphAssetProperty() {
-            EditorGUI.BeginChangeCheck();
-            EditorGUILayout.PropertyField(_graphAssetProperty);
-            if (!EditorGUI.EndChangeCheck()) {
-                return;
+        private void EnsureTargetBindings() {
+            var targetSchema = _targetSchemaProperty.objectReferenceValue as AnimationGraphTargetSchema;
+            if (!IsBindingStructureValid(_targetBindingsProperty, targetSchema)) {
+                SetBindingProperties(_targetBindingsProperty, targetSchema);
             }
-
-            serializedObject.ApplyModifiedProperties();
-            serializedObject.Update();
         }
 
-        private void EnsureCurrentGraphAssetBindingGroup() {
+        private void DrawTargetSchemaCompatibilityMessage() {
             var graphAsset = _graphAssetProperty.objectReferenceValue as AnimationGraphAsset;
-            if (graphAsset == null) {
+            var targetSchema = _targetSchemaProperty.objectReferenceValue as AnimationGraphTargetSchema;
+            if (graphAsset != null && graphAsset.TargetSchema != targetSchema) {
+                EditorGUILayout.HelpBox("Graph Asset and Runner must use the same Target Schema.", MessageType.Error);
+            }
+        }
+
+        private void DrawTargetBindings() {
+            EditorGUILayout.LabelField(TargetBindingsLabel, EditorStyles.boldLabel);
+            if (_targetBindingsProperty.arraySize == 0) {
+                EditorGUILayout.HelpBox("Target Schema has no target definitions.", MessageType.Info);
                 return;
             }
 
-            var graphAssetGuid = EnsureGraphAssetGuid(graphAsset);
-            if (string.IsNullOrEmpty(graphAssetGuid)) {
-                return;
+            DrawBindingHeader();
+            for (var i = 0; i < _targetBindingsProperty.arraySize; i++) {
+                DrawBinding(_targetBindingsProperty.GetArrayElementAtIndex(i));
             }
-
-            var groupIndex = FindTargetBindingGroupIndex(graphAssetGuid);
-            var groupCreated = false;
-            if (groupIndex < 0) {
-                groupIndex = _targetBindingGroupsProperty.arraySize;
-                _targetBindingGroupsProperty.arraySize++;
-                groupCreated = true;
-            }
-
-            var groupProperty = _targetBindingGroupsProperty.GetArrayElementAtIndex(groupIndex);
-            if (groupCreated) {
-                groupProperty.FindPropertyRelative(BindingsPropertyName).arraySize = 0;
-                SetGroupGraphAsset(groupProperty, graphAsset);
-                return;
-            }
-
-            if (groupProperty.FindPropertyRelative(GraphAssetGuidPropertyName).stringValue != graphAssetGuid) {
-                groupProperty.FindPropertyRelative(GraphAssetGuidPropertyName).stringValue = graphAssetGuid;
-            }
-
-            var bindingsProperty = groupProperty.FindPropertyRelative(BindingsPropertyName);
-            if (!IsBindingStructureValid(bindingsProperty, graphAsset)) {
-                SetBindingProperties(bindingsProperty, graphAsset);
-            }
-        }
-
-        private int FindTargetBindingGroupIndex(string graphAssetGuid) {
-            for (var i = 0; i < _targetBindingGroupsProperty.arraySize; i++) {
-                var groupProperty = _targetBindingGroupsProperty.GetArrayElementAtIndex(i);
-                if (groupProperty.FindPropertyRelative(GraphAssetGuidPropertyName).stringValue == graphAssetGuid) {
-                    return i;
-                }
-            }
-
-            return -1;
-        }
-
-        private void DrawTargetBindingGroups() {
-            EditorGUILayout.LabelField(TargetBindingGroupsLabel, EditorStyles.boldLabel);
-            var currentGroupIndex = FindCurrentTargetBindingGroupIndex();
-            if (currentGroupIndex >= 0) {
-                var currentGroupProperty = _targetBindingGroupsProperty.GetArrayElementAtIndex(currentGroupIndex);
-                DrawTargetBindingGroup(currentGroupProperty, false);
-                if (HasOtherTargetBindingGroups(currentGroupIndex)) {
-                    _showOtherTargetBindingGroups = EditorGUILayout.ToggleLeft(ShowOtherTargetBindingGroupsLabel, _showOtherTargetBindingGroups);
-                    if (!_showOtherTargetBindingGroups) {
-                        return;
-                    }
-                }
-            }
-
-            for (var i = 0; i < _targetBindingGroupsProperty.arraySize; i++) {
-                if (i == currentGroupIndex) {
-                    continue;
-                }
-
-                var groupProperty = _targetBindingGroupsProperty.GetArrayElementAtIndex(i);
-                if (!DrawTargetBindingGroup(groupProperty, true)) {
-                    continue;
-                }
-
-                _targetBindingGroupsProperty.DeleteArrayElementAtIndex(i);
-                if (i < currentGroupIndex) {
-                    currentGroupIndex--;
-                }
-
-                i--;
-            }
-        }
-
-        private int FindCurrentTargetBindingGroupIndex() {
-            var graphAsset = _graphAssetProperty.objectReferenceValue as AnimationGraphAsset;
-            if (graphAsset == null) {
-                return -1;
-            }
-
-            var graphAssetGuid = EnsureGraphAssetGuid(graphAsset);
-            return string.IsNullOrEmpty(graphAssetGuid) ? -1 : FindTargetBindingGroupIndex(graphAssetGuid);
-        }
-
-        private bool HasOtherTargetBindingGroups(int currentGroupIndex) {
-            for (var i = 0; i < _targetBindingGroupsProperty.arraySize; i++) {
-                if (i != currentGroupIndex) {
-                    return true;
-                }
-            }
-
-            return false;
-        }
-
-        private bool DrawTargetBindingGroup(SerializedProperty groupProperty, bool canDelete) {
-            using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox)) {
-                var graphAsset = GetGraphAsset(groupProperty);
-                if (DrawTargetBindingGroupHeader(graphAsset, canDelete)) {
-                    return true;
-                }
-
-                var bindingsProperty = groupProperty.FindPropertyRelative(BindingsPropertyName);
-                if (graphAsset != null && !IsBindingStructureValid(bindingsProperty, graphAsset)) {
-                    SetBindingProperties(bindingsProperty, graphAsset);
-                }
-
-                DrawBindingHeader();
-                for (var i = 0; i < bindingsProperty.arraySize; i++) {
-                    DrawBinding(bindingsProperty.GetArrayElementAtIndex(i));
-                }
-            }
-
-            return false;
-        }
-
-        private bool DrawTargetBindingGroupHeader(AnimationGraphAsset graphAsset, bool canDelete) {
-            var rect = EditorGUILayout.GetControlRect(true, EditorGUIUtility.singleLineHeight);
-            var graphAssetRect = rect;
-            var deleteRect = Rect.zero;
-            if (canDelete) {
-                deleteRect = new Rect(rect.xMax - DeleteButtonWidth, rect.y, DeleteButtonWidth, rect.height);
-                var graphAssetWidth = Mathf.Max(0.0f, deleteRect.xMin - rect.x - ColumnSpacing);
-                graphAssetRect = new Rect(rect.x, rect.y, graphAssetWidth, rect.height);
-            }
-
-            using (new EditorGUI.DisabledScope(true)) {
-                EditorGUI.ObjectField(graphAssetRect, GraphAssetLabel, graphAsset, typeof(AnimationGraphAsset), false);
-            }
-
-            return canDelete && GUI.Button(deleteRect, DeleteLabel, EditorStyles.miniButton);
         }
 
         private void DrawBindingHeader() {
@@ -403,7 +221,7 @@ namespace UnityAnimationGraph.Editor {
             var label = new GUIContent($"{key} ({ObjectNames.NicifyVariableName(targetType.Name)}[])");
             var targetsList = new ReorderableList(serializedObject, targetsProperty, true, true, true, true) {
                 drawHeaderCallback = rect => EditorGUI.LabelField(rect, label),
-                drawElementCallback = (rect, index, isActive, isFocused) => DrawCollectionElement(rect, targetsProperty, index, monoScriptGuid, targetType),
+                drawElementCallback = (rect, index, _, _) => DrawCollectionElement(rect, targetsProperty, index, monoScriptGuid, targetType),
                 elementHeight = EditorGUIUtility.singleLineHeight,
             };
             targetsList.DoLayoutList();
@@ -444,11 +262,7 @@ namespace UnityAnimationGraph.Editor {
             var hasItem = false;
             for (var i = 0; i < components.Length; i++) {
                 var component = components[i];
-                if (component == null) {
-                    continue;
-                }
-
-                if (!CanUseComponent(component, targetType)) {
+                if (component == null || !CanUseComponent(component, targetType)) {
                     continue;
                 }
 

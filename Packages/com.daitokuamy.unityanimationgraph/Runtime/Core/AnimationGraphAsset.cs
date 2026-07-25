@@ -18,8 +18,8 @@ namespace UnityAnimationGraph {
         private string _startNodeId = string.Empty;
         [SerializeField, Tooltip("グラフに含まれるノード一覧"), HideInInspector]
         private Node[] _nodes = Array.Empty<Node>();
-        [SerializeField, Tooltip("Runner がバインドする target key 定義一覧"), HideInInspector]
-        private TargetDefinition[] _targetDefinitions = Array.Empty<TargetDefinition>();
+        [SerializeField, Tooltip("グラフが要求する target schema"), HideInInspector]
+        private AnimationGraphTargetSchema _targetSchema;
         [SerializeField, Tooltip("Blackboard key と初期値の定義一覧"), HideInInspector]
         private BlackboardDefinition[] _blackboardDefinitions = Array.Empty<BlackboardDefinition>();
 
@@ -33,8 +33,10 @@ namespace UnityAnimationGraph {
         public string StartNodeId => _startNodeId;
         /// <summary>グラフに含まれるノード一覧</summary>
         public IReadOnlyList<Node> Nodes => _nodes ?? Array.Empty<Node>();
+        /// <summary>グラフが要求する target schema</summary>
+        public AnimationGraphTargetSchema TargetSchema => _targetSchema;
         /// <summary>グラフが要求する target key 定義一覧</summary>
-        public IReadOnlyList<TargetDefinition> TargetDefinitions => _targetDefinitions ?? Array.Empty<TargetDefinition>();
+        public IReadOnlyList<TargetDefinition> TargetDefinitions => _targetSchema != null ? _targetSchema.Definitions : Array.Empty<TargetDefinition>();
         /// <summary>グラフが要求する Blackboard key 定義一覧</summary>
         public IReadOnlyList<BlackboardDefinition> BlackboardDefinitions => _blackboardDefinitions ?? Array.Empty<BlackboardDefinition>();
 
@@ -81,14 +83,7 @@ namespace UnityAnimationGraph {
                 return false;
             }
 
-            var definitions = _targetDefinitions ?? Array.Empty<TargetDefinition>();
-            for (var i = 0; i < definitions.Length; i++) {
-                var current = definitions[i];
-                if (current.Key != key) {
-                    continue;
-                }
-
-                definition = current;
+            if (_targetSchema != null && _targetSchema.TryGetDefinition(key, out definition)) {
                 return true;
             }
 

@@ -577,6 +577,7 @@ public sealed class AnimationGraphRunner : MonoBehaviour, IAnimationGraphContext
     }
 
     public AnimationGraphAsset GraphAsset { get; set; }
+    public AnimationGraphTargetSchema TargetSchema { get; set; }
     public UpdateType UpdateMode { get; set; }
     public IReadOnlyList<TargetBinding> TargetBindings { get; }
     public IReadOnlyList<BlackboardValue> BlackboardValues { get; }
@@ -586,12 +587,11 @@ public sealed class AnimationGraphRunner : MonoBehaviour, IAnimationGraphContext
     public void Stop();
     public void ManualUpdate(float deltaTime);
     public void SetGraph(AnimationGraphAsset graphAsset);
+    public void SetTargetSchema(AnimationGraphTargetSchema targetSchema);
+    public bool IsTargetSchemaCompatible(AnimationGraphAsset graphAsset);
     public bool SetTarget(string key, Component target);
-    public bool SetTarget(AnimationGraphAsset graphAsset, string key, Component target);
     public T GetTarget<T>(string key) where T : Component;
-    public T GetTarget<T>(AnimationGraphAsset graphAsset, string key) where T : Component;
     public bool TryGetTarget<T>(string key, out T target) where T : Component;
-    public bool TryGetTarget<T>(AnimationGraphAsset graphAsset, string key, out T target) where T : Component;
     public bool SetBlackboardValue(string key, bool value);
     public bool SetBlackboardValue(string key, int value);
     public bool SetBlackboardValue(string key, float value);
@@ -603,9 +603,9 @@ public sealed class AnimationGraphRunner : MonoBehaviour, IAnimationGraphContext
 }
 ```
 
-`SetTarget(string key, Component target)` は現在の `GraphAsset` に対応する `TargetBindingGroup` を更新する。
-`SetTarget(AnimationGraphAsset graphAsset, string key, Component target)` は現在の `GraphAsset` を切り替えず、指定した graph の `TargetBindingGroup` を作成または更新する。
-`GetTarget<T>(AnimationGraphAsset graphAsset, string key)` と `TryGetTarget<T>(AnimationGraphAsset graphAsset, string key, out T target)` は、現在の `GraphAsset` を切り替えずに指定した graph の `TargetBindingGroup` から Component を取得する。
+`AnimationGraphRunner` は1つの `AnimationGraphTargetSchema` と、それに対応する `TargetBinding` 一覧を保持する。
+`AnimationGraphAsset` とRunnerの `TargetSchema` は同じアセット参照でなければならない。
+同じSchemaを参照するGraphへ切り替えた場合、RunnerのTarget Bindingは維持される。
 
 再生中は現在時刻にアクティブな scheduled node を評価する。
 

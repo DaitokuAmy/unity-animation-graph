@@ -13,7 +13,8 @@ namespace UnityAnimationGraph.Editor {
     internal sealed class AnimationGraphSchemaView : VisualElement, IDisposable {
         private const string GraphSeedPropertyName = "_graphSeed";
         private const string RandomSeedPropertyName = "_randomSeed";
-        private const string TargetDefinitionsPropertyName = "_targetDefinitions";
+        private const string TargetSchemaPropertyName = "_targetSchema";
+        private const string TargetDefinitionsPropertyName = "_definitions";
         private const string BlackboardDefinitionsPropertyName = "_blackboardDefinitions";
         private const string KeyPropertyName = "_key";
         private const string MonoScriptGuidPropertyName = "_monoScriptGuid";
@@ -103,6 +104,7 @@ namespace UnityAnimationGraph.Editor {
 
         private AnimationGraphAsset _graphAsset;
         private SerializedObject _serializedGraph;
+        private SerializedObject _serializedTargetSchema;
         private ReorderableList _targetDefinitionsList;
         private ReorderableList _blackboardDefinitionsList;
         private TargetComponentSearchProvider _targetComponentSearchProvider;
@@ -167,7 +169,9 @@ namespace UnityAnimationGraph.Editor {
             if (_graphAsset == null) {
                 ClearSerializedState();
             }
-            else if (_serializedGraph == null || _serializedGraph.targetObject != _graphAsset) {
+            else if (_serializedGraph == null
+                || _serializedGraph.targetObject != _graphAsset
+                || _serializedTargetSchema?.targetObject != _graphAsset.TargetSchema) {
                 RebuildLists();
             }
 
@@ -288,14 +292,14 @@ namespace UnityAnimationGraph.Editor {
         }
 
         private void SetTargetDefinitionMonoScriptGuid(string propertyPath, string monoScriptGuid) {
-            if (_isReadOnly || _serializedGraph == null) {
+            if (_isReadOnly || _serializedTargetSchema == null) {
                 return;
             }
 
-            _serializedGraph.Update();
-            _serializedGraph.FindProperty(propertyPath).stringValue = monoScriptGuid ?? string.Empty;
-            if (_serializedGraph.ApplyModifiedProperties()) {
-                EditorUtility.SetDirty(_graphAsset);
+            _serializedTargetSchema.Update();
+            _serializedTargetSchema.FindProperty(propertyPath).stringValue = monoScriptGuid ?? string.Empty;
+            if (_serializedTargetSchema.ApplyModifiedProperties()) {
+                EditorUtility.SetDirty(_serializedTargetSchema.targetObject);
                 SchemaChanged?.Invoke();
             }
 
@@ -348,24 +352,45 @@ namespace UnityAnimationGraph.Editor {
                 return;
             }
 
-            if (_serializedGraph == null || _targetDefinitionsList == null || _blackboardDefinitionsList == null) {
+            if (_serializedGraph == null || _blackboardDefinitionsList == null) {
                 RebuildLists();
             }
 
             _serializedGraph.Update();
+            _serializedTargetSchema?.Update();
             _scrollPosition = EditorGUILayout.BeginScrollView(_scrollPosition);
             using (new EditorGUI.DisabledScope(_isReadOnly)) {
                 DrawSeedField(_serializedGraph.FindProperty(RandomSeedPropertyName), _serializedGraph.FindProperty(GraphSeedPropertyName));
                 EditorGUILayout.Space(8.0f);
-                _targetDefinitionsList.DoLayoutList();
+                EditorGUI.BeginChangeCheck();
+                EditorGUILayout.PropertyField(_serializedGraph.FindProperty(TargetSchemaPropertyName), new GUIContent("Target Schema"));
+                var targetSchemaChanged = EditorGUI.EndChangeCheck();
+                if (_targetDefinitionsList != null) {
+                    _targetDefinitionsList.DoLayoutList();
+                }
+                else {
+                    EditorGUILayout.HelpBox("Target Schema is not set", MessageType.Info);
+                }
+
                 EditorGUILayout.Space(8.0f);
                 _blackboardDefinitionsList.DoLayoutList();
+                if (targetSchemaChanged) {
+                    _serializedGraph.ApplyModifiedProperties();
+                    EditorUtility.SetDirty(_graphAsset);
+                    RebuildLists();
+                    SchemaChanged?.Invoke();
+                }
             }
 
             EditorGUILayout.EndScrollView();
 
             if (!_isReadOnly && _serializedGraph.ApplyModifiedProperties()) {
                 EditorUtility.SetDirty(_graphAsset);
+                SchemaChanged?.Invoke();
+            }
+
+            if (!_isReadOnly && _serializedTargetSchema != null && _serializedTargetSchema.ApplyModifiedProperties()) {
+                EditorUtility.SetDirty(_serializedTargetSchema.targetObject);
                 SchemaChanged?.Invoke();
             }
         }
@@ -377,12 +402,16 @@ namespace UnityAnimationGraph.Editor {
             }
 
             _serializedGraph = new SerializedObject(_graphAsset);
-            _targetDefinitionsList = CreateTargetDefinitionsList(_serializedGraph.FindProperty(TargetDefinitionsPropertyName));
+            if (_graphAsset.TargetSchema != null) {
+                _serializedTargetSchema = new SerializedObject(_graphAsset.TargetSchema);
+                _targetDefinitionsList = CreateTargetDefinitionsList(_serializedTargetSchema.FindProperty(TargetDefinitionsPropertyName));
+            }
+
             _blackboardDefinitionsList = CreateBlackboardDefinitionsList(_serializedGraph.FindProperty(BlackboardDefinitionsPropertyName));
         }
 
         private ReorderableList CreateTargetDefinitionsList(SerializedProperty definitionsProperty) {
-            var list = new ReorderableList(_serializedGraph, definitionsProperty, true, true, true, true) {
+            var list = new ReorderableList(_serializedTargetSchema, definitionsProperty, true, true, true, true) {
                 drawHeaderCallback = rect => EditorGUI.LabelField(rect, "Target (Key / Component / Multiplicity)"),
                 elementHeight = EditorGUIUtility.singleLineHeight + 6.0f,
                 drawElementCallback = (rect, index, _, _) => DrawTargetDefinitionElement(rect, definitionsProperty.GetArrayElementAtIndex(index)),
@@ -411,12 +440,13 @@ namespace UnityAnimationGraph.Editor {
             property.arraySize++;
             resetElement(property.GetArrayElementAtIndex(index));
             property.serializedObject.ApplyModifiedProperties();
-            EditorUtility.SetDirty(_graphAsset);
+            EditorUtility.SetDirty(property.serializedObject.targetObject);
             SchemaChanged?.Invoke();
         }
 
         private void ClearSerializedState() {
             _serializedGraph = null;
+            _serializedTargetSchema = null;
             _targetDefinitionsList = null;
             _blackboardDefinitionsList = null;
         }

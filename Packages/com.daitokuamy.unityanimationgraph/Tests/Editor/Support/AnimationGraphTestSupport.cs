@@ -42,8 +42,10 @@ namespace UnityAnimationGraph.Tests {
         private const string StartNodeIdPropertyName = "_startNodeId";
         /// <summary>AnimationGraphAsset のノード配列フィールド名</summary>
         private const string NodesPropertyName = "_nodes";
-        /// <summary>AnimationGraphAsset の target 定義配列フィールド名</summary>
-        private const string TargetDefinitionsPropertyName = "_targetDefinitions";
+        /// <summary>AnimationGraphAsset の target schema フィールド名</summary>
+        private const string TargetSchemaPropertyName = "_targetSchema";
+        /// <summary>AnimationGraphTargetSchema の target 定義配列フィールド名</summary>
+        private const string TargetDefinitionsPropertyName = "_definitions";
         /// <summary>AnimationGraphAsset の Blackboard 定義配列フィールド名</summary>
         private const string BlackboardDefinitionsPropertyName = "_blackboardDefinitions";
         /// <summary>schema 定義の key フィールド名</summary>
@@ -127,31 +129,39 @@ namespace UnityAnimationGraph.Tests {
         }
 
         /// <summary>
-        /// AnimationGraphAsset の target 定義を設定
+        /// AnimationGraphAsset に生成した target schema を設定
         /// </summary>
         /// <param name="graphAsset">設定対象の AnimationGraphAsset</param>
         /// <param name="keys">設定する target key 一覧</param>
         public void SetTargetDefinitions(AnimationGraphAsset graphAsset, params string[] keys) {
-            var serializedGraph = new SerializedObject(graphAsset);
-            var definitionsProperty = serializedGraph.FindProperty(TargetDefinitionsPropertyName);
-            definitionsProperty.arraySize = keys.Length;
+            var definitions = new TargetDefinition[keys.Length];
             for (var i = 0; i < keys.Length; i++) {
-                var definitionProperty = definitionsProperty.GetArrayElementAtIndex(i);
-                definitionProperty.FindPropertyRelative(KeyPropertyName).stringValue = keys[i];
-                definitionProperty.FindPropertyRelative(MonoScriptGuidPropertyName).stringValue = string.Empty;
+                definitions[i] = new TargetDefinition(keys[i]);
             }
 
-            serializedGraph.ApplyModifiedPropertiesWithoutUndo();
+            SetTargetDefinitions(graphAsset, definitions);
         }
 
         /// <summary>
-        /// AnimationGraphAsset の target 定義を設定
+        /// AnimationGraphAsset に生成した target schema を設定
         /// </summary>
         /// <param name="graphAsset">設定対象の AnimationGraphAsset</param>
         /// <param name="definitions">設定する target 定義一覧</param>
         public void SetTargetDefinitions(AnimationGraphAsset graphAsset, params TargetDefinition[] definitions) {
-            var serializedGraph = new SerializedObject(graphAsset);
-            var definitionsProperty = serializedGraph.FindProperty(TargetDefinitionsPropertyName);
+            SetTargetSchema(graphAsset, CreateTargetSchema(definitions));
+        }
+
+        /// <summary>
+        /// AnimationGraphTargetSchema を生成
+        /// </summary>
+        /// <param name="definitions">設定する target 定義一覧</param>
+        /// <returns>生成した target schema</returns>
+        public AnimationGraphTargetSchema CreateTargetSchema(params TargetDefinition[] definitions) {
+            var targetSchema = ScriptableObject.CreateInstance<AnimationGraphTargetSchema>();
+            targetSchema.name = "TestAnimationGraphTargetSchema";
+            _objects.Add(targetSchema);
+            var serializedSchema = new SerializedObject(targetSchema);
+            var definitionsProperty = serializedSchema.FindProperty(TargetDefinitionsPropertyName);
             definitionsProperty.arraySize = definitions.Length;
             for (var i = 0; i < definitions.Length; i++) {
                 var definitionProperty = definitionsProperty.GetArrayElementAtIndex(i);
@@ -160,6 +170,18 @@ namespace UnityAnimationGraph.Tests {
                 definitionProperty.FindPropertyRelative(TargetMultiplicityPropertyName).enumValueIndex = (int)definitions[i].Multiplicity;
             }
 
+            serializedSchema.ApplyModifiedPropertiesWithoutUndo();
+            return targetSchema;
+        }
+
+        /// <summary>
+        /// AnimationGraphAsset の target schema を設定
+        /// </summary>
+        /// <param name="graphAsset">設定対象の AnimationGraphAsset</param>
+        /// <param name="targetSchema">設定する target schema</param>
+        public void SetTargetSchema(AnimationGraphAsset graphAsset, AnimationGraphTargetSchema targetSchema) {
+            var serializedGraph = new SerializedObject(graphAsset);
+            serializedGraph.FindProperty(TargetSchemaPropertyName).objectReferenceValue = targetSchema;
             serializedGraph.ApplyModifiedPropertiesWithoutUndo();
         }
 

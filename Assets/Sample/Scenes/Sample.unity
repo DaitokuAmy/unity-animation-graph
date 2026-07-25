@@ -435,57 +435,49 @@ MonoBehaviour:
   _graphAsset: {fileID: 11400000, guid: 23c7635f48f228f4cacc14632670ee21, type: 2}
   _playOnEnabled: 1
   _updateType: 1
-  _targetBindingGroups:
-  - _graphAssetGuid: 23c7635f48f228f4cacc14632670ee21
-    _bindings:
-    - _key: MoveTarget
-      _monoScriptGuid: 00000000000000000000000000000002
-      _target: {fileID: 80899957}
-      _targets: []
-      _multiplicity: 0
-    - _key: RotateTarget
-      _monoScriptGuid: 00000000000000000000000000000001
-      _target: {fileID: 80899957}
-      _targets: []
-      _multiplicity: 0
-    - _key: ColorTarget
-      _monoScriptGuid: 00000000000000000000000000000004
-      _target: {fileID: 80899958}
-      _targets: []
-      _multiplicity: 0
-    - _key: DirectorTarget
-      _monoScriptGuid: 00000000000000000000000000000010
-      _target: {fileID: 1312109963}
-      _targets: []
-      _multiplicity: 0
-    - _key: ParticleTarget
-      _monoScriptGuid: 00000000000000000000000000000011
-      _target: {fileID: 1769076842}
-      _targets: []
-      _multiplicity: 0
-    - _key: MoveTargets
-      _monoScriptGuid: 00000000000000000000000000000002
-      _target: {fileID: 0}
-      _targets:
-      - {fileID: 1810585732}
-      - {fileID: 976825988}
-      - {fileID: 134932079}
-      _multiplicity: 1
-    - _key: ColorTargets
-      _monoScriptGuid: 00000000000000000000000000000004
-      _target: {fileID: 0}
-      _targets:
-      - {fileID: 1810585733}
-      - {fileID: 976825989}
-      - {fileID: 134932080}
-      _multiplicity: 1
-  - _graphAssetGuid: 3c1b49f9e7e567a4f8e684d21f30d5ae
-    _bindings:
-    - _key: MoveTarget
-      _monoScriptGuid: 00000000000000000000000000000002
-      _target: {fileID: 80899957}
-      _targets: []
-      _multiplicity: 0
+  _targetSchema: {fileID: 11400000, guid: a0548e840ffbd534fb56dee03b4e7393, type: 2}
+  _targetBindings:
+  - _key: ParticleTarget
+    _monoScriptGuid: 00000000000000000000000000000011
+    _target: {fileID: 1769076842}
+    _targets: []
+    _multiplicity: 0
+  - _key: MoveTarget
+    _monoScriptGuid: 00000000000000000000000000000002
+    _target: {fileID: 80899957}
+    _targets: []
+    _multiplicity: 0
+  - _key: ColorTarget
+    _monoScriptGuid: 00000000000000000000000000000004
+    _target: {fileID: 1509152745}
+    _targets: []
+    _multiplicity: 0
+  - _key: DirectorTarget
+    _monoScriptGuid: 00000000000000000000000000000010
+    _target: {fileID: 1312109963}
+    _targets: []
+    _multiplicity: 0
+  - _key: RotateTarget
+    _monoScriptGuid: 00000000000000000000000000000002
+    _target: {fileID: 80899957}
+    _targets: []
+    _multiplicity: 0
+  - _key: MoveTargets
+    _monoScriptGuid: 00000000000000000000000000000002
+    _target: {fileID: 0}
+    _targets:
+    - {fileID: 1810585732}
+    - {fileID: 976825988}
+    - {fileID: 134932079}
+    _multiplicity: 1
+  - _key: ColorTargets
+    _monoScriptGuid: 00000000000000000000000000000004
+    _target: {fileID: 0}
+    _targets:
+    - {fileID: 1810585733}
+    - {fileID: 976825989}
+    - {fileID: 134932080}
+    _multiplicity: 1
 --- !u!1 &330585543
 GameObject:
   m_ObjectHideFlags: 0
@@ -1551,7 +1543,7 @@ ParticleSystem:
   moveWithTransform: 0
   moveWithCustomTransform: {fileID: 0}
   scalingMode: 1
-  randomSeed: 1621888997
+  randomSeed: -899106170
   InitialModule:
     serializedVersion: 3
     enabled: 1
@@ -6472,24 +6464,23 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: UnityAnimationGraph::UnityAnimationGraph.AnimationGraphRunner
   _graphAsset: {fileID: 11400000, guid: 7398b1404e4d14d02a49c1498e5c9217, type: 2}
-  _playOnEnabled: 0
+  _playOnEnabled: 1
   _updateType: 0
-  _targetBindingGroups:
-  - _graphAssetGuid: 7398b1404e4d14d02a49c1498e5c9217
-    _bindings:
-    - _key: Targets
-      _monoScriptGuid: 00000000000000000000000000000001
-      _target: {fileID: 0}
-      _targets:
-      - {fileID: 1812788000}
-      - {fileID: 765297898}
-      - {fileID: 105122317}
-      _multiplicity: 1
-    - _key: Effect
-      _monoScriptGuid: 00000000000000000000000000000011
-      _target: {fileID: 1966890156}
-      _targets: []
-      _multiplicity: 0
+  _targetSchema: {fileID: 11400000, guid: 5162a5e386fe510479b27fe43c590262, type: 2}
+  _targetBindings:
+  - _key: Targets
+    _monoScriptGuid: 00000000000000000000000000000001
+    _target: {fileID: 0}
+    _targets:
+    - {fileID: 1812788000}
+    - {fileID: 765297898}
+    - {fileID: 105122317}
+    _multiplicity: 1
+  - _key: Effect
+    _monoScriptGuid: 00000000000000000000000000000011
+    _target: {fileID: 1966890156}
+    _targets: []
+    _multiplicity: 0
 --- !u!4 &1832912072
 Transform:
   m_ObjectHideFlags: 0

@@ -575,31 +575,33 @@ namespace UnityAnimationGraph.Tests {
         }
 
         /// <summary>
-        /// GraphAsset の target 定義を serialized property 経由で更新できる
+        /// GraphAsset の target schema を serialized property 経由で更新できる
         /// </summary>
         [Test]
-        public void SetTargetDefinitions_UpdatesGraphAssetDefinitions() {
+        public void SetTargetSchema_UpdatesGraphAssetSchema() {
             var graphAsset = CreateSavedGraphAsset();
             var model = new AnimationGraphAssetEditorModel();
+            var targetSchema = CreateSavedTargetSchema();
             var actorScriptGuid = "11111111111111111111111111111111";
             var cameraScriptGuid = "22222222222222222222222222222222";
+            AnimationGraphAssetUtility.SetTargetDefinitions(
+                targetSchema,
+                new[] { new TargetDefinition("actor", actorScriptGuid), new TargetDefinition("camera", cameraScriptGuid) });
             model.SetGraphAsset(graphAsset);
 
-            model.SetTargetDefinitions(new TargetDefinition("actor", actorScriptGuid), new TargetDefinition("camera", cameraScriptGuid));
+            model.SetTargetSchema(targetSchema);
 
+            Assert.That(model.TargetSchema, Is.SameAs(targetSchema));
             Assert.That(model.TargetDefinitions.Count, Is.EqualTo(2));
             Assert.IsTrue(graphAsset.TryGetTargetDefinition("actor", out var actorDefinition));
-            Assert.That(actorDefinition.Key, Is.EqualTo("actor"));
             Assert.That(actorDefinition.MonoScriptGuid, Is.EqualTo(actorScriptGuid));
             Assert.IsTrue(graphAsset.TryGetTargetDefinition("camera", out var cameraDefinition));
-            Assert.That(cameraDefinition.Key, Is.EqualTo("camera"));
             Assert.That(cameraDefinition.MonoScriptGuid, Is.EqualTo(cameraScriptGuid));
 
-            model.SetTargetDefinitions(new TargetDefinition("camera"));
+            model.SetTargetSchema(null);
 
-            Assert.That(model.TargetDefinitions.Count, Is.EqualTo(1));
-            Assert.IsFalse(graphAsset.TryGetTargetDefinition("actor", out _));
-            Assert.IsTrue(graphAsset.TryGetTargetDefinition("camera", out _));
+            Assert.That(model.TargetSchema, Is.Null);
+            Assert.That(model.TargetDefinitions, Is.Empty);
         }
 
         /// <summary>
@@ -648,6 +650,19 @@ namespace UnityAnimationGraph.Tests {
             AssetDatabase.SaveAssets();
             _assetPaths.Add(assetPath);
             return graphAsset;
+        }
+
+        /// <summary>
+        /// 保存済み AnimationGraphTargetSchema を作成
+        /// </summary>
+        /// <returns>作成した target schema</returns>
+        private AnimationGraphTargetSchema CreateSavedTargetSchema() {
+            var targetSchema = ScriptableObject.CreateInstance<AnimationGraphTargetSchema>();
+            var assetPath = $"Assets/AnimationGraphTargetSchemaTests_{Guid.NewGuid():N}.asset";
+            AssetDatabase.CreateAsset(targetSchema, assetPath);
+            AssetDatabase.SaveAssets();
+            _assetPaths.Add(assetPath);
+            return targetSchema;
         }
 
         private static void SetLegacySignalPortFlags(Node node, bool enableEnterSignalPort, bool enableExitSignalPort) {

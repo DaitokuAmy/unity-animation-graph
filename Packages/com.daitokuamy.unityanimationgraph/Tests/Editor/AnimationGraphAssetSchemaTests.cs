@@ -7,8 +7,10 @@ namespace UnityAnimationGraph.Tests {
     /// AnimationGraphAsset の schema 定義テスト
     /// </summary>
     public sealed class AnimationGraphAssetSchemaTests {
-        /// <summary>AnimationGraphAsset の target 定義配列フィールド名</summary>
-        private const string TargetDefinitionsPropertyName = "_targetDefinitions";
+        /// <summary>AnimationGraphAsset の target schema フィールド名</summary>
+        private const string TargetSchemaPropertyName = "_targetSchema";
+        /// <summary>AnimationGraphTargetSchema の target 定義配列フィールド名</summary>
+        private const string TargetDefinitionsPropertyName = "_definitions";
         /// <summary>AnimationGraphAsset の Blackboard 定義配列フィールド名</summary>
         private const string BlackboardDefinitionsPropertyName = "_blackboardDefinitions";
         /// <summary>schema 定義の key フィールド名</summary>
@@ -40,9 +42,11 @@ namespace UnityAnimationGraph.Tests {
         [Test]
         public void TryGetTargetDefinition_ReturnsDefinitionByKey() {
             var graphAsset = ScriptableObject.CreateInstance<AnimationGraphAsset>();
+            var targetSchema = ScriptableObject.CreateInstance<AnimationGraphTargetSchema>();
 
             try {
-                SetTargetDefinitions(graphAsset, "actor", "camera");
+                SetTargetDefinitions(targetSchema, "actor", "camera");
+                SetTargetSchema(graphAsset, targetSchema);
 
                 var result = graphAsset.TryGetTargetDefinition("camera", out var definition);
 
@@ -53,6 +57,7 @@ namespace UnityAnimationGraph.Tests {
             }
             finally {
                 Object.DestroyImmediate(graphAsset);
+                Object.DestroyImmediate(targetSchema);
             }
         }
 
@@ -132,11 +137,11 @@ namespace UnityAnimationGraph.Tests {
         /// <summary>
         /// target 定義配列を設定
         /// </summary>
-        /// <param name="graphAsset">設定対象の AnimationGraphAsset</param>
+        /// <param name="targetSchema">設定対象の target schema</param>
         /// <param name="keys">設定する target key 一覧</param>
-        private void SetTargetDefinitions(AnimationGraphAsset graphAsset, params string[] keys) {
-            var serializedGraph = new SerializedObject(graphAsset);
-            var definitionsProperty = serializedGraph.FindProperty(TargetDefinitionsPropertyName);
+        private void SetTargetDefinitions(AnimationGraphTargetSchema targetSchema, params string[] keys) {
+            var serializedSchema = new SerializedObject(targetSchema);
+            var definitionsProperty = serializedSchema.FindProperty(TargetDefinitionsPropertyName);
             definitionsProperty.arraySize = keys.Length;
             for (var i = 0; i < keys.Length; i++) {
                 var definitionProperty = definitionsProperty.GetArrayElementAtIndex(i);
@@ -144,6 +149,17 @@ namespace UnityAnimationGraph.Tests {
                 definitionProperty.FindPropertyRelative(MonoScriptGuidPropertyName).stringValue = string.Empty;
             }
 
+            serializedSchema.ApplyModifiedPropertiesWithoutUndo();
+        }
+
+        /// <summary>
+        /// AnimationGraphAsset の target schema を設定
+        /// </summary>
+        /// <param name="graphAsset">設定対象の AnimationGraphAsset</param>
+        /// <param name="targetSchema">設定する target schema</param>
+        private void SetTargetSchema(AnimationGraphAsset graphAsset, AnimationGraphTargetSchema targetSchema) {
+            var serializedGraph = new SerializedObject(graphAsset);
+            serializedGraph.FindProperty(TargetSchemaPropertyName).objectReferenceValue = targetSchema;
             serializedGraph.ApplyModifiedPropertiesWithoutUndo();
         }
 

@@ -1770,7 +1770,7 @@ namespace UnityAnimationGraph.Editor {
         }
 
         /// <summary>
-        /// Runner に保存されている GraphAsset GUID 対応の Target binding を取得
+        /// Runner に保存されている Target binding を取得
         /// </summary>
         /// <param name="graphAsset">Preview 対象の GraphAsset</param>
         /// <param name="runner">Binding 取得元の Runner</param>
@@ -1780,27 +1780,9 @@ namespace UnityAnimationGraph.Editor {
                 return Array.Empty<TargetBinding>();
             }
 
-            var graphAssetGuid = GetGraphAssetGuid(graphAsset);
-            return string.IsNullOrEmpty(graphAssetGuid)
-                ? Array.Empty<TargetBinding>()
-                : runner.GetTargetBindingsByGraphAssetGuid(graphAssetGuid);
-        }
-
-        /// <summary>
-        /// AssetDatabase または GraphAsset 内部値から GraphAsset GUID を取得
-        /// </summary>
-        /// <param name="graphAsset">GUID を取得する GraphAsset</param>
-        /// <returns>GraphAsset GUID</returns>
-        private string GetGraphAssetGuid(AnimationGraphAsset graphAsset) {
-            var assetPath = AssetDatabase.GetAssetPath(graphAsset);
-            if (!string.IsNullOrEmpty(assetPath)) {
-                var assetGuid = AssetDatabase.AssetPathToGUID(assetPath);
-                if (!string.IsNullOrEmpty(assetGuid)) {
-                    return assetGuid;
-                }
-            }
-
-            return graphAsset.AssetGuid;
+            return runner.IsTargetSchemaCompatible(graphAsset)
+                ? runner.TargetBindings
+                : Array.Empty<TargetBinding>();
         }
     }
 }

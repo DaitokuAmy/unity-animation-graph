@@ -19,7 +19,7 @@ Tween、待機、分岐、合流、ループ、Timeline / ParticleSystem 再生�
 
 1. `AnimationGraphAsset` を作成する
 2. `Animation Graph` ウィンドウでアセットを開く
-3. `Target` と `Blackboard` を定義する
+3. `Target Schema` と `Blackboard` を定義する
 4. ノードを追加して、ポート同士を接続する
 5. ノードを選択して、`Target Key` や Tween 値を設定する
 6. シーン上の GameObject に `AnimationGraphRunner` を追加する
@@ -68,7 +68,7 @@ Project Window で `Create > Unity Animation Graph > Animation Graph` を選び�
 
 ### 2. `Target` を定義する
 
-右側下部の Schema 領域で、グラフが操作する対象を `Target` として定義します。
+Project の Create メニューから `Target Schema` を作成し、右側下部の Schema 領域でGraphへ設定します。`Target Schema` は複数の `AnimationGraphAsset` から共有できます。
 
 `Target` は `key` と Component 型の組です。たとえば Transform を動かすなら、次のような定義にします。
 
@@ -84,7 +84,7 @@ Action 系ノードは `Target Key` を使って対象 Component を解決しま
 
 ### 3. `Blackboard` を定義する
 
-同じ Schema 領域で、実行時に参照したい値を `Blackboard` として定義します。
+同じ Schema 領域で、Graph固有の実行時値を `Blackboard` として定義します。
 
 使える型:
 
@@ -166,16 +166,17 @@ Tween 系ノードでは、主に次を設定します。
 
 ### 7. `AnimationGraphRunner` でランタイム再生する
 
-シーン上の GameObject に `AnimationGraphRunner` を追加し、`Graph Asset` に作成した `AnimationGraphAsset` を設定します。
+シーン上の GameObject に `AnimationGraphRunner` を追加し、`Graph Asset` と、そのGraphが参照するものと同じ `Target Schema` を設定します。
 
-Inspector には、その GraphAsset の `Target` 定義に対応する `Target Binding Groups` が表示されます。各 key に対して、実際に操作したい Component を割り当てます。
+Inspector には、`Target Schema` の定義に対応する `Target Bindings` が表示されます。各 key に対して、実際に操作したい Component を割り当てます。同じSchemaを参照するGraphは、このBindingを維持したまま差し替えられます。
 
 主な設定:
 
 - `Graph Asset`: 再生する `AnimationGraphAsset`
+- `Target Schema`: RunnerがサポートするTarget契約
 - `Play On Enabled`: `OnEnable` 時に自動再生する
 - `Update Type`: `Update` / `LateUpdate` / `ManualUpdate`
-- `Target Binding Groups`: GraphAsset ごとの Target key と Component の対応表
+- `Target Bindings`: Target SchemaのkeyとComponentの対応表
 
 主なランタイム API:
 
@@ -183,10 +184,8 @@ Inspector には、その GraphAsset の `Target` 定義に対応する `Target 
 - `Pause()` / `Stop()`: 再生の一時停止、停止
 - `AnimationGraphPlayHandle.Pause()` / `Resume()` / `Stop()` / `Complete()`: 取得した handle に対応する再生を操作する
 - `ManualUpdate(deltaTime)`: `UpdateMode` が `AnimationGraphRunner.UpdateType.ManualUpdate` のときだけ手動で時間を進める
-- `SetTarget(key, component)`: 現在の GraphAsset に対応する Target Binding をコードから差し替える
-- `SetTarget(graphAsset, key, component)`: 指定した GraphAsset の Target Binding をコードから差し替える
-- `GetTarget<T>(key)` / `TryGetTarget<T>(key, out target)`: 現在の GraphAsset に対応する Target Binding から Component を取得する
-- `GetTarget<T>(graphAsset, key)` / `TryGetTarget<T>(graphAsset, key, out target)`: 指定した GraphAsset の Target Binding から Component を取得する
+- `SetTarget(key, component)`: Target Bindingをコードから差し替える
+- `GetTarget<T>(key)` / `TryGetTarget<T>(key, out target)`: Target BindingからComponentを取得する
 - `SetBlackboardValue(key, value)`: Blackboard の現在値を差し替える
 - `UpdateMode`: 自動 Tick の Unity 更新タイミングを切り替える
 - `TimeScale`: `Update` / `LateUpdate` / `ManualUpdate` で進む時間に倍率をかける
@@ -283,18 +282,13 @@ public sealed class AnimationGraphTargetExample : MonoBehaviour {
     [SerializeField]
     private AnimationGraphRunner _runner;
     [SerializeField]
-    private AnimationGraphAsset _openGraph;
-    [SerializeField]
-    private AnimationGraphAsset _closeGraph;
-    [SerializeField]
     private Transform _actor;
 
     private void Awake() {
-        _runner.SetTarget(_openGraph, "Actor", _actor);
-        _runner.SetTarget(_closeGraph, "Actor", _actor);
+        _runner.SetTarget("Actor", _actor);
 
-        var closeActor = _runner.GetTarget<Transform>(_closeGraph, "Actor");
-        Debug.Assert(closeActor == _actor);
+        var actor = _runner.GetTarget<Transform>("Actor");
+        Debug.Assert(actor == _actor);
     }
 }
 ```

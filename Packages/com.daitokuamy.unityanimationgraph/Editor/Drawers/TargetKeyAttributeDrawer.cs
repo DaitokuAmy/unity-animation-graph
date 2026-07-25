@@ -4,7 +4,7 @@ using UnityEngine;
 
 namespace UnityAnimationGraph.Editor {
     /// <summary>
-    /// target key を AnimationGraphAsset の target 定義から選択する Drawer
+    /// target key を AnimationGraphAsset の target schema から選択する Drawer
     /// </summary>
     [CustomPropertyDrawer(typeof(TargetKeyAttribute))]
     internal sealed class TargetKeyAttributeDrawer : PropertyDrawer {

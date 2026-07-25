@@ -199,6 +199,8 @@ MonoBehaviour:
     _targetKey: ParticleTarget
     _scopeNodeId: 
   _targetKey: 
+  _autoDuration: 1
+  _duration: 1
 --- !u!114 &-2080883825633891017
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -402,7 +404,7 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: e49422abb6b0482ca342bbb1150a696f, type: 3}
-  m_Name: AnimationGraph_01
+  m_Name: AnimationGraph_UISample
   m_EditorClassIdentifier: UnityAnimationGraph::UnityAnimationGraph.AnimationGraphAsset
   _assetGuid: 23c7635f48f228f4cacc14632670ee21
   _graphSeed: -1991515221
@@ -428,28 +430,7 @@ MonoBehaviour:
   - {fileID: 4290789998922606790}
   - {fileID: 6027381182163650960}
   - {fileID: -783443637684877910}
-  _targetDefinitions:
-  - _key: MoveTarget
-    _monoScriptGuid: 00000000000000000000000000000002
-    _multiplicity: 0
-  - _key: RotateTarget
-    _monoScriptGuid: 00000000000000000000000000000001
-    _multiplicity: 0
-  - _key: ColorTarget
-    _monoScriptGuid: 00000000000000000000000000000004
-    _multiplicity: 0
-  - _key: DirectorTarget
-    _monoScriptGuid: 00000000000000000000000000000010
-    _multiplicity: 0
-  - _key: ParticleTarget
-    _monoScriptGuid: 00000000000000000000000000000011
-    _multiplicity: 0
-  - _key: MoveTargets
-    _monoScriptGuid: 00000000000000000000000000000002
-    _multiplicity: 1
-  - _key: ColorTargets
-    _monoScriptGuid: 00000000000000000000000000000004
-    _multiplicity: 1
+  _targetSchema: {fileID: 11400000, guid: a0548e840ffbd534fb56dee03b4e7393, type: 2}
   _blackboardDefinitions:
   - _key: TargetAngle
     _valueType: 5
@@ -537,6 +518,8 @@ MonoBehaviour:
     _targetKey: 
     _scopeNodeId: 
   _targetKey: ParticleTarget
+  _autoDuration: 1
+  _duration: 1
 --- !u!114 &3267309385647311337
 MonoBehaviour:
   m_ObjectHideFlags: 0

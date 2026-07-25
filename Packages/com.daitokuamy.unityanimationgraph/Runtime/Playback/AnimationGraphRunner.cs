@@ -27,13 +27,14 @@ namespace UnityAnimationGraph {
         private bool _playOnEnabled;
         [SerializeField, Tooltip("自動 Tick の Unity 更新タイミング")]
         private UpdateType _updateType = UpdateType.Update;
-        [SerializeField, Tooltip("GraphAsset ごとに保持する target binding 一覧")]
-        private TargetBindingGroup[] _targetBindingGroups = Array.Empty<TargetBindingGroup>();
+        [SerializeField, Tooltip("Runner がサポートする target schema")]
+        private AnimationGraphTargetSchema _targetSchema;
+        [SerializeField, Tooltip("target schema に対応する target binding 一覧")]
+        private TargetBinding[] _targetBindings = Array.Empty<TargetBinding>();
 
         private readonly AnimationGraphPlayer _player = new();
 
         private BlackboardValue[] _blackboardValues = Array.Empty<BlackboardValue>();
-        private int _currentTargetBindingGroupIndex = -1;
         private bool _isGraphStatePrepared;
         private bool _isInitialized;
 
@@ -55,12 +56,18 @@ namespace UnityAnimationGraph {
             set => _updateType = value;
         }
 
+        /// <summary>Runner がサポートする target schema</summary>
+        public AnimationGraphTargetSchema TargetSchema {
+            get => _targetSchema;
+            set => SetTargetSchema(value);
+        }
+
         /// <summary>設定中の評価コンテキスト</summary>
         public IAnimationGraphContext Context => this;
         /// <summary>Runner が保持する Blackboard 現在値一覧</summary>
         public IReadOnlyList<BlackboardValue> BlackboardValues => _blackboardValues ?? Array.Empty<BlackboardValue>();
-        /// <summary>現在の GraphAsset に対応する target binding 一覧</summary>
-        public IReadOnlyList<TargetBinding> TargetBindings => GetCurrentTargetBindings();
+        /// <summary>target schema に対応する target binding 一覧</summary>
+        public IReadOnlyList<TargetBinding> TargetBindings => _targetBindings ?? Array.Empty<TargetBinding>();
         /// <summary>構築済みスケジュール</summary>
         public AnimationGraphSchedule Schedule => _player.Schedule;
         /// <summary>現在の再生状態</summary>
@@ -136,6 +143,7 @@ namespace UnityAnimationGraph {
         /// </summary>
         /// <param name="graphAsset">再生する AnimationGraphAsset。null の場合は設定を解除</param>
         public void SetGraph(AnimationGraphAsset graphAsset) {
+            EnsureTargetSchemaCompatibility(graphAsset);
             var continuation = default(Action);
             if (_isInitialized) {
                 continuation = _player.SetGraphDeferredContinuation(graphAsset);
@@ -147,30 +155,51 @@ namespace UnityAnimationGraph {
         }
 
         /// <summary>
+        /// Runner がサポートする target schema を設定
+        /// </summary>
+        /// <param name="targetSchema">設定する target schema</param>
+        public void SetTargetSchema(AnimationGraphTargetSchema targetSchema) {
+            if (_targetSchema == targetSchema) {
+                SynchronizeTargetBindings();
+                return;
+            }
+
+            if (_graphAsset != null && _graphAsset.TargetSchema != targetSchema) {
+                throw new InvalidOperationException("Target schema does not match the current AnimationGraphAsset");
+            }
+
+            _targetSchema = targetSchema;
+            SynchronizeTargetBindings();
+        }
+
+        /// <summary>
+        /// 指定した AnimationGraphAsset を再生できる target schema が設定されているか判定
+        /// </summary>
+        /// <param name="graphAsset">判定する AnimationGraphAsset</param>
+        /// <returns>再生可能な場合は true</returns>
+        public bool IsTargetSchemaCompatible(AnimationGraphAsset graphAsset) {
+            return graphAsset == null || graphAsset.TargetSchema == _targetSchema;
+        }
+
+        /// <summary>
         /// target Component を設定
         /// </summary>
         /// <param name="key">target key</param>
         /// <param name="target">設定する Component</param>
         /// <returns>設定できた場合は true</returns>
         public bool SetTarget(string key, Component target) {
-            var group = GetCurrentTargetBindingGroup();
-            return group != null && group.SetTarget(key, target);
-        }
-
-        /// <summary>
-        /// 指定した GraphAsset の target Component を設定
-        /// </summary>
-        /// <param name="graphAsset">設定対象の AnimationGraphAsset</param>
-        /// <param name="key">target key</param>
-        /// <param name="target">設定する Component</param>
-        /// <returns>設定できた場合は true</returns>
-        public bool SetTarget(AnimationGraphAsset graphAsset, string key, Component target) {
-            var groupIndex = EnsureTargetBindingGroupIndex(graphAsset);
-            if (groupIndex < 0) {
+            var bindingIndex = FindTargetBindingIndex(key);
+            if (bindingIndex < 0) {
                 return false;
             }
 
-            return _targetBindingGroups[groupIndex].SetTarget(key, target);
+            var binding = _targetBindings[bindingIndex];
+            if (binding.Multiplicity != TargetMultiplicity.Single) {
+                return false;
+            }
+
+            _targetBindings[bindingIndex] = new TargetBinding(key, target, binding.Targets, binding.MonoScriptGuid, binding.Multiplicity);
+            return true;
         }
 
         /// <summary>
@@ -180,8 +209,14 @@ namespace UnityAnimationGraph {
         /// <param name="targets">設定する Component 一覧</param>
         /// <returns>設定できた場合は true</returns>
         public bool SetTargets(string key, IReadOnlyList<Component> targets) {
-            var group = GetCurrentTargetBindingGroup();
-            return group != null && group.SetTargets(key, targets);
+            var bindingIndex = FindTargetBindingIndex(key);
+            if (bindingIndex < 0 || _targetBindings[bindingIndex].Multiplicity != TargetMultiplicity.Collection) {
+                return false;
+            }
+
+            var binding = _targetBindings[bindingIndex];
+            _targetBindings[bindingIndex] = new TargetBinding(key, binding.Target, targets, binding.MonoScriptGuid, binding.Multiplicity);
+            return true;
         }
 
         /// <summary>
@@ -191,8 +226,13 @@ namespace UnityAnimationGraph {
         /// <param name="target">追加する Component</param>
         /// <returns>追加できた場合は true</returns>
         public bool AddTarget(string key, Component target) {
-            var group = GetCurrentTargetBindingGroup();
-            return group != null && group.AddTarget(key, target);
+            if (!TryGetCollectionTargetBinding(key, out var bindingIndex, out var binding)) {
+                return false;
+            }
+
+            var targets = new List<Component>(binding.Targets) { target };
+            _targetBindings[bindingIndex] = new TargetBinding(key, binding.Target, targets, binding.MonoScriptGuid, binding.Multiplicity);
+            return true;
         }
 
         /// <summary>
@@ -202,8 +242,17 @@ namespace UnityAnimationGraph {
         /// <param name="target">削除する Component</param>
         /// <returns>削除できた場合は true</returns>
         public bool RemoveTarget(string key, Component target) {
-            var group = GetCurrentTargetBindingGroup();
-            return group != null && group.RemoveTarget(key, target);
+            if (!TryGetCollectionTargetBinding(key, out var bindingIndex, out var binding)) {
+                return false;
+            }
+
+            var targets = new List<Component>(binding.Targets);
+            if (!targets.Remove(target)) {
+                return false;
+            }
+
+            _targetBindings[bindingIndex] = new TargetBinding(key, binding.Target, targets, binding.MonoScriptGuid, binding.Multiplicity);
+            return true;
         }
 
         /// <summary>
@@ -212,8 +261,7 @@ namespace UnityAnimationGraph {
         /// <param name="key">target key</param>
         /// <returns>空にできた場合は true</returns>
         public bool ClearTargets(string key) {
-            var group = GetCurrentTargetBindingGroup();
-            return group != null && group.ClearTargets(key);
+            return SetTargets(key, Array.Empty<Component>());
         }
 
         /// <summary>
@@ -231,21 +279,6 @@ namespace UnityAnimationGraph {
         }
 
         /// <summary>
-        /// 指定した GraphAsset の key に対応する target Component を取得
-        /// </summary>
-        /// <param name="graphAsset">取得対象の AnimationGraphAsset</param>
-        /// <param name="key">target key</param>
-        /// <typeparam name="T">取得する Component 型</typeparam>
-        /// <returns>指定した GraphAsset と key に対応する target Component</returns>
-        public T GetTarget<T>(AnimationGraphAsset graphAsset, string key) where T : Component {
-            if (TryGetTarget(graphAsset, key, out T target)) {
-                return target;
-            }
-
-            throw new InvalidOperationException($"Target '{key}' is not registered or does not match {typeof(T).Name}");
-        }
-
-        /// <summary>
         /// 指定した key に対応する target Component の取得を試行
         /// </summary>
         /// <param name="key">target key</param>
@@ -253,26 +286,7 @@ namespace UnityAnimationGraph {
         /// <typeparam name="T">取得する Component 型</typeparam>
         /// <returns>取得できた場合は true</returns>
         public bool TryGetTarget<T>(string key, out T target) where T : Component {
-            var group = GetCurrentTargetBindingGroup();
-            if (group != null && group.TryGetTarget(key, out target)) {
-                return true;
-            }
-
-            target = null;
-            return false;
-        }
-
-        /// <summary>
-        /// 指定した GraphAsset の key に対応する target Component の取得を試行
-        /// </summary>
-        /// <param name="graphAsset">取得対象の AnimationGraphAsset</param>
-        /// <param name="key">target key</param>
-        /// <param name="target">取得した Component</param>
-        /// <typeparam name="T">取得する Component 型</typeparam>
-        /// <returns>取得できた場合は true</returns>
-        public bool TryGetTarget<T>(AnimationGraphAsset graphAsset, string key, out T target) where T : Component {
-            var group = GetTargetBindingGroup(graphAsset);
-            if (group != null && group.TryGetTarget(key, out target)) {
+            if (TryGetTargetBinding(key, out var binding) && binding.TryGetTarget(out target)) {
                 return true;
             }
 
@@ -288,8 +302,7 @@ namespace UnityAnimationGraph {
         /// <typeparam name="T">取得する Component 型</typeparam>
         /// <returns>取得できた場合は true</returns>
         public bool TryGetTargets<T>(string key, out IReadOnlyList<T> targets) where T : Component {
-            var group = GetCurrentTargetBindingGroup();
-            if (group != null && group.TryGetTargets(key, out targets)) {
+            if (TryGetTargetBinding(key, out var binding) && binding.TryGetTargets(out targets)) {
                 return true;
             }
 
@@ -515,16 +528,6 @@ namespace UnityAnimationGraph {
             _player.Seek(time);
         }
 
-        /// <summary>
-        /// 指定した GraphAsset GUID に対応する target binding 一覧を取得
-        /// </summary>
-        /// <param name="graphAssetGuid">GraphAsset の asset GUID</param>
-        /// <returns>指定した GraphAsset GUID に対応する target binding 一覧</returns>
-        internal IReadOnlyList<TargetBinding> GetTargetBindingsByGraphAssetGuid(string graphAssetGuid) {
-            var group = GetTargetBindingGroupByGraphAssetGuid(graphAssetGuid);
-            return group?.Bindings ?? Array.Empty<TargetBinding>();
-        }
-
         /// <inheritdoc/>
         T IAnimationGraphContext.GetTarget<T>(string key) {
             return GetTarget<T>(key);
@@ -727,6 +730,18 @@ namespace UnityAnimationGraph {
             if (_graphAsset == null) {
                 throw new InvalidOperationException("AnimationGraphAsset is not set");
             }
+
+            EnsureTargetSchemaCompatibility(_graphAsset);
+        }
+
+        /// <summary>
+        /// AnimationGraphAsset と Runner の target schema が一致することを検証
+        /// </summary>
+        /// <param name="graphAsset">検証する AnimationGraphAsset</param>
+        private void EnsureTargetSchemaCompatibility(AnimationGraphAsset graphAsset) {
+            if (!IsTargetSchemaCompatible(graphAsset)) {
+                throw new InvalidOperationException("AnimationGraphAsset target schema does not match AnimationGraphRunner target schema");
+            }
         }
 
         /// <summary>
@@ -742,7 +757,8 @@ namespace UnityAnimationGraph {
                 RefreshBlackboardValues(graphAsset);
             }
 
-            EnsureTargetBindingGroup(graphAsset);
+            EnsureTargetSchemaCompatibility(graphAsset);
+            SynchronizeTargetBindings();
             _isGraphStatePrepared = true;
         }
 
@@ -809,86 +825,99 @@ namespace UnityAnimationGraph {
         }
 
         /// <summary>
-        /// GraphAsset に対応する target binding group を保証
+        /// target schema 定義に合わせて binding 一覧を同期
         /// </summary>
-        /// <param name="graphAsset">参照する AnimationGraphAsset</param>
-        private void EnsureTargetBindingGroup(AnimationGraphAsset graphAsset) {
-            _currentTargetBindingGroupIndex = EnsureTargetBindingGroupIndex(graphAsset);
+        private void SynchronizeTargetBindings() {
+            var currentBindings = _targetBindings ?? Array.Empty<TargetBinding>();
+            var definitions = _targetSchema != null ? _targetSchema.Definitions : Array.Empty<TargetDefinition>();
+            if (IsTargetBindingStructureValid(currentBindings, definitions)) {
+                return;
+            }
+
+            var nextBindings = new TargetBinding[definitions.Count];
+            for (var i = 0; i < definitions.Count; i++) {
+                var definition = definitions[i];
+                TryGetTargetBinding(currentBindings, definition.Key, out var currentBinding);
+                nextBindings[i] = new TargetBinding(
+                    definition.Key,
+                    currentBinding.Target,
+                    currentBinding.Targets,
+                    definition.MonoScriptGuid,
+                    definition.Multiplicity);
+            }
+
+            _targetBindings = nextBindings;
         }
 
         /// <summary>
-        /// GraphAsset に対応する target binding group の index を保証
+        /// target binding 構造が schema 定義と一致するか判定
         /// </summary>
-        /// <param name="graphAsset">参照する AnimationGraphAsset</param>
-        /// <returns>GraphAsset に対応する target binding group の index。保証できない場合は -1</returns>
-        private int EnsureTargetBindingGroupIndex(AnimationGraphAsset graphAsset) {
-            if (graphAsset == null) {
-                return -1;
+        /// <param name="bindings">判定する binding 一覧</param>
+        /// <param name="definitions">比較する target 定義一覧</param>
+        /// <returns>一致する場合は true</returns>
+        private bool IsTargetBindingStructureValid(IReadOnlyList<TargetBinding> bindings, IReadOnlyList<TargetDefinition> definitions) {
+            if (bindings.Count != definitions.Count) {
+                return false;
             }
 
-            var graphAssetGuid = graphAsset.AssetGuid;
-            if (string.IsNullOrEmpty(graphAssetGuid)) {
-                Debug.LogWarning("AnimationGraphAsset の AssetGuid が空です。GraphAsset を初期化してから Runner に設定してください", graphAsset);
-                return -1;
+            for (var i = 0; i < definitions.Count; i++) {
+                var binding = bindings[i];
+                var definition = definitions[i];
+                if (binding.Key != definition.Key
+                    || binding.MonoScriptGuid != definition.MonoScriptGuid
+                    || binding.Multiplicity != definition.Multiplicity) {
+                    return false;
+                }
             }
 
-            var groupIndex = FindTargetBindingGroupIndex(graphAssetGuid);
-            if (groupIndex < 0) {
-                groupIndex = AddTargetBindingGroup(graphAssetGuid, graphAsset.TargetDefinitions);
-            }
-            else {
-                _targetBindingGroups[groupIndex].SetTargetDefinitions(graphAsset.TargetDefinitions);
-            }
-
-            return groupIndex;
+            return true;
         }
 
         /// <summary>
-        /// 現在の target binding group を取得
+        /// collection target binding の取得を試行
         /// </summary>
-        /// <returns>現在の target binding group</returns>
-        private TargetBindingGroup GetCurrentTargetBindingGroup() {
-            if (_currentTargetBindingGroupIndex < 0 || _targetBindingGroups == null || _currentTargetBindingGroupIndex >= _targetBindingGroups.Length) {
-                return null;
+        /// <param name="key">target key</param>
+        /// <param name="bindingIndex">取得した binding index</param>
+        /// <param name="binding">取得した binding</param>
+        /// <returns>取得できた場合は true</returns>
+        private bool TryGetCollectionTargetBinding(string key, out int bindingIndex, out TargetBinding binding) {
+            bindingIndex = FindTargetBindingIndex(key);
+            if (bindingIndex >= 0 && _targetBindings[bindingIndex].Multiplicity == TargetMultiplicity.Collection) {
+                binding = _targetBindings[bindingIndex];
+                return true;
             }
 
-            return _targetBindingGroups[_currentTargetBindingGroupIndex];
+            binding = default;
+            return false;
         }
 
         /// <summary>
-        /// 指定した GraphAsset GUID に対応する target binding group を取得
+        /// target binding の取得を試行
         /// </summary>
-        /// <param name="graphAssetGuid">GraphAsset の asset GUID</param>
-        /// <returns>指定した GraphAsset GUID に対応する target binding group</returns>
-        private TargetBindingGroup GetTargetBindingGroupByGraphAssetGuid(string graphAssetGuid) {
-            var groupIndex = FindTargetBindingGroupIndex(graphAssetGuid);
-            if (groupIndex < 0 || _targetBindingGroups == null || groupIndex >= _targetBindingGroups.Length) {
-                return null;
-            }
-
-            return _targetBindingGroups[groupIndex];
+        /// <param name="key">target key</param>
+        /// <param name="binding">取得した binding</param>
+        /// <returns>取得できた場合は true</returns>
+        private bool TryGetTargetBinding(string key, out TargetBinding binding) {
+            return TryGetTargetBinding(_targetBindings ?? Array.Empty<TargetBinding>(), key, out binding);
         }
 
         /// <summary>
-        /// 指定した GraphAsset に対応する target binding group を取得
+        /// target binding の取得を試行
         /// </summary>
-        /// <param name="graphAsset">参照する AnimationGraphAsset</param>
-        /// <returns>指定した GraphAsset に対応する target binding group</returns>
-        private TargetBindingGroup GetTargetBindingGroup(AnimationGraphAsset graphAsset) {
-            if (graphAsset == null) {
-                return null;
+        /// <param name="bindings">検索対象の binding 一覧</param>
+        /// <param name="key">target key</param>
+        /// <param name="binding">取得した binding</param>
+        /// <returns>取得できた場合は true</returns>
+        private bool TryGetTargetBinding(IReadOnlyList<TargetBinding> bindings, string key, out TargetBinding binding) {
+            for (var i = 0; i < bindings.Count; i++) {
+                if (bindings[i].Key == key) {
+                    binding = bindings[i];
+                    return true;
+                }
             }
 
-            return GetTargetBindingGroupByGraphAssetGuid(graphAsset.AssetGuid);
-        }
-
-        /// <summary>
-        /// 現在の target binding 一覧を取得
-        /// </summary>
-        /// <returns>現在の target binding 一覧</returns>
-        private IReadOnlyList<TargetBinding> GetCurrentTargetBindings() {
-            var group = GetCurrentTargetBindingGroup();
-            return group?.Bindings ?? Array.Empty<TargetBinding>();
+            binding = default;
+            return false;
         }
 
         /// <summary>
@@ -947,39 +976,23 @@ namespace UnityAnimationGraph {
         }
 
         /// <summary>
-        /// target binding group の index を検索
+        /// target binding の index を検索
         /// </summary>
-        /// <param name="graphAssetGuid">GraphAsset の asset GUID</param>
+        /// <param name="key">target key</param>
         /// <returns>見つかった index。見つからない場合は -1</returns>
-        private int FindTargetBindingGroupIndex(string graphAssetGuid) {
-            if (string.IsNullOrEmpty(graphAssetGuid)) {
+        private int FindTargetBindingIndex(string key) {
+            if (string.IsNullOrEmpty(key)) {
                 return -1;
             }
 
-            var groups = _targetBindingGroups ?? Array.Empty<TargetBindingGroup>();
-            for (var i = 0; i < groups.Length; i++) {
-                var group = groups[i];
-                if (group != null && group.GraphAssetGuid == graphAssetGuid) {
+            var bindings = _targetBindings ?? Array.Empty<TargetBinding>();
+            for (var i = 0; i < bindings.Length; i++) {
+                if (bindings[i].Key == key) {
                     return i;
                 }
             }
 
             return -1;
-        }
-
-        /// <summary>
-        /// target binding group を追加
-        /// </summary>
-        /// <param name="graphAssetGuid">GraphAsset の asset GUID</param>
-        /// <param name="targetDefinitions">target 定義一覧</param>
-        /// <returns>追加した group の index</returns>
-        private int AddTargetBindingGroup(string graphAssetGuid, IReadOnlyList<TargetDefinition> targetDefinitions) {
-            var groups = _targetBindingGroups ?? Array.Empty<TargetBindingGroup>();
-            var nextGroups = new TargetBindingGroup[groups.Length + 1];
-            Array.Copy(groups, nextGroups, groups.Length);
-            nextGroups[groups.Length] = new TargetBindingGroup(graphAssetGuid, targetDefinitions);
-            _targetBindingGroups = nextGroups;
-            return groups.Length;
         }
     }
 }

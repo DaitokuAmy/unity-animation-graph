@@ -89,7 +89,7 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: e49422abb6b0482ca342bbb1150a696f, type: 3}
-  m_Name: AnimationGraph_Test
+  m_Name: AnimationGraph_Sample
   m_EditorClassIdentifier: UnityAnimationGraph::UnityAnimationGraph.AnimationGraphAsset
   _assetGuid: 7398b1404e4d14d02a49c1498e5c9217
   _graphSeed: 895744971
@@ -101,13 +101,7 @@ MonoBehaviour:
   - {fileID: -6873528442564266532}
   - {fileID: 1821354063307688559}
   - {fileID: -5951645899684657384}
-  _targetDefinitions:
-  - _key: Targets
-    _monoScriptGuid: 00000000000000000000000000000001
-    _multiplicity: 1
-  - _key: Effect
-    _monoScriptGuid: 00000000000000000000000000000011
-    _multiplicity: 0
+  _targetSchema: {fileID: 11400000, guid: 5162a5e386fe510479b27fe43c590262, type: 2}
   _blackboardDefinitions:
   - _key: TargetPos1
     _valueType: 5
@@ -183,6 +177,8 @@ MonoBehaviour:
     _targetKey: Effect
     _scopeNodeId: 
   _targetKey: 
+  _autoDuration: 1
+  _duration: 1
 --- !u!114 &4786523117737912807
 MonoBehaviour:
   m_ObjectHideFlags: 0

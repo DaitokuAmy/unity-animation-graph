@@ -72,8 +72,10 @@ namespace UnityAnimationGraph.Editor {
         private const string StartNodeIdPropertyName = "_startNodeId";
         /// <summary>AnimationGraphAsset のノード配列フィールド名</summary>
         private const string NodesPropertyName = "_nodes";
-        /// <summary>AnimationGraphAsset の target 定義配列フィールド名</summary>
-        private const string TargetDefinitionsPropertyName = "_targetDefinitions";
+        /// <summary>AnimationGraphAsset の target schema フィールド名</summary>
+        private const string TargetSchemaPropertyName = "_targetSchema";
+        /// <summary>AnimationGraphTargetSchema の target 定義配列フィールド名</summary>
+        private const string TargetDefinitionsPropertyName = "_definitions";
         /// <summary>AnimationGraphAsset の Blackboard 定義配列フィールド名</summary>
         private const string BlackboardDefinitionsPropertyName = "_blackboardDefinitions";
         /// <summary>schema 定義の key フィールド名</summary>
@@ -866,24 +868,42 @@ namespace UnityAnimationGraph.Editor {
         }
 
         /// <summary>
-        /// AnimationGraphAsset の target 定義を設定
+        /// AnimationGraphAsset の target schema を設定
         /// </summary>
         /// <param name="graphAsset">設定対象の AnimationGraphAsset</param>
-        /// <param name="definitions">設定する target 定義一覧</param>
-        public static void SetTargetDefinitions(AnimationGraphAsset graphAsset, IReadOnlyList<TargetDefinition> definitions) {
+        /// <param name="targetSchema">設定する target schema</param>
+        public static void SetTargetSchema(AnimationGraphAsset graphAsset, AnimationGraphTargetSchema targetSchema) {
             if (graphAsset == null) {
                 throw new ArgumentNullException(nameof(graphAsset));
+            }
+
+            var undoName = "Set Animation Graph Target Schema";
+            Undo.RecordObject(graphAsset, undoName);
+            var serializedGraph = new SerializedObject(graphAsset);
+            serializedGraph.FindProperty(TargetSchemaPropertyName).objectReferenceValue = targetSchema;
+            serializedGraph.ApplyModifiedProperties();
+            EditorUtility.SetDirty(graphAsset);
+        }
+
+        /// <summary>
+        /// AnimationGraphTargetSchema の target 定義を設定
+        /// </summary>
+        /// <param name="targetSchema">設定対象の target schema</param>
+        /// <param name="definitions">設定する target 定義一覧</param>
+        public static void SetTargetDefinitions(AnimationGraphTargetSchema targetSchema, IReadOnlyList<TargetDefinition> definitions) {
+            if (targetSchema == null) {
+                throw new ArgumentNullException(nameof(targetSchema));
             }
 
             if (definitions == null) {
                 throw new ArgumentNullException(nameof(definitions));
             }
 
-            var undoName = "Set Animation Graph Target Definitions";
-            Undo.RecordObject(graphAsset, undoName);
+            var undoName = "Set Animation Graph Target Schema Definitions";
+            Undo.RecordObject(targetSchema, undoName);
 
-            var serializedGraph = new SerializedObject(graphAsset);
-            var definitionsProperty = serializedGraph.FindProperty(TargetDefinitionsPropertyName);
+            var serializedSchema = new SerializedObject(targetSchema);
+            var definitionsProperty = serializedSchema.FindProperty(TargetDefinitionsPropertyName);
             definitionsProperty.arraySize = definitions.Count;
             for (var i = 0; i < definitions.Count; i++) {
                 var definitionProperty = definitionsProperty.GetArrayElementAtIndex(i);
@@ -892,8 +912,8 @@ namespace UnityAnimationGraph.Editor {
                 definitionProperty.FindPropertyRelative(TargetMultiplicityPropertyName).enumValueIndex = (int)definitions[i].Multiplicity;
             }
 
-            serializedGraph.ApplyModifiedProperties();
-            EditorUtility.SetDirty(graphAsset);
+            serializedSchema.ApplyModifiedProperties();
+            EditorUtility.SetDirty(targetSchema);
         }
 
         /// <summary>
@@ -1111,7 +1131,7 @@ namespace UnityAnimationGraph.Editor {
             var serializedGraph = new SerializedObject(graphAsset);
             serializedGraph.FindProperty(StartNodeIdPropertyName).stringValue = string.Empty;
             serializedGraph.FindProperty(NodesPropertyName).arraySize = 0;
-            serializedGraph.FindProperty(TargetDefinitionsPropertyName).arraySize = 0;
+            serializedGraph.FindProperty(TargetSchemaPropertyName).objectReferenceValue = null;
             serializedGraph.FindProperty(BlackboardDefinitionsPropertyName).arraySize = 0;
             serializedGraph.ApplyModifiedProperties();
         }
