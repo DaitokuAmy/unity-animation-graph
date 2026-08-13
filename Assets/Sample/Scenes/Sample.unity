@@ -434,6 +434,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: UnityAnimationGraph::UnityAnimationGraph.AnimationGraphRunner
   _graphAsset: {fileID: 11400000, guid: 23c7635f48f228f4cacc14632670ee21, type: 2}
   _playOnEnabled: 1
+  _loop: 0
+  _loopDelay: 0
   _updateType: 1
   _targetSchema: {fileID: 11400000, guid: a0548e840ffbd534fb56dee03b4e7393, type: 2}
   _targetBindings:
@@ -6465,6 +6467,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: UnityAnimationGraph::UnityAnimationGraph.AnimationGraphRunner
   _graphAsset: {fileID: 11400000, guid: 7398b1404e4d14d02a49c1498e5c9217, type: 2}
   _playOnEnabled: 1
+  _loop: 0
+  _loopDelay: 1
   _updateType: 0
   _targetSchema: {fileID: 11400000, guid: 5162a5e386fe510479b27fe43c590262, type: 2}
   _targetBindings:

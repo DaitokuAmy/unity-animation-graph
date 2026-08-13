@@ -305,7 +305,7 @@ public enum JoinType {
 - `LoopNodeIds` はループ内容に所属するノード ID 一覧として扱う
 - LoopNode に到達したら `LoopNodeIds` の内容を指定回数実行する
 - loop iteration を seed に混ぜ、反復ごとの揺らぎを可能にする
-- 無限ループは扱わない
+- `LoopNode` 自体による無限ループは扱わない
 
 `LoopCount` は 1 以上にクランプする。
 1 の場合、ループ内容を 1 回実行してから LoopNode の後続へ進む。
@@ -534,6 +534,8 @@ public sealed class AnimationGraphPlayer {
     public bool IsPlaying { get; }
     public float CurrentTime { get; }
     public float Duration { get; }
+    public bool Loop { get; set; }
+    public float LoopDelay { get; set; }
     public void SetGraph(AnimationGraphAsset graphAsset);
     public void SetContext(IAnimationGraphContext context);
     public void RebuildSchedule(int? overrideSeed = null);
@@ -550,6 +552,13 @@ public sealed class AnimationGraphPlayer {
 Coroutine では `StartCoroutine(player.Play())` のように再生完了まで待機できる。
 また、取得した handle に対応する再生だけを `Pause` / `Resume` / `Stop` / `Complete` で操作できる。
 handle が古い、完了済み、または無効な場合、操作メソッドは `false` を返す。
+
+`Loop` が true の場合、自然完了後に同じ schedule を先頭から再評価する。
+`LoopDelay` は周回間の待機時間として扱い、最初の再生前には適用しない。
+Loop 中の handle は周回ごとには完了せず、`Stop`、graph / context の差し替え、または `Complete` まで待機を継続する。
+`LoopDelay` は `deltaTime * TimeScale` で消費し、`Duration` には含めない。
+再生中に `Loop` を変更した場合は現在の周回境界から適用し、待機中の `LoopDelay` は変更しない。
+`Complete` は Loop を継続せず、現在の再生を最終フレームで完了させる。
 
 ```csharp
 public readonly struct AnimationGraphPlayHandle : IEnumerator {
@@ -579,10 +588,12 @@ public sealed class AnimationGraphRunner : MonoBehaviour, IAnimationGraphContext
     public AnimationGraphAsset GraphAsset { get; set; }
     public AnimationGraphTargetSchema TargetSchema { get; set; }
     public UpdateType UpdateMode { get; set; }
+    public bool Loop { get; set; }
+    public float LoopDelay { get; set; }
     public IReadOnlyList<TargetBinding> TargetBindings { get; }
     public IReadOnlyList<BlackboardValue> BlackboardValues { get; }
     public AnimationGraphPlayHandle Play();
-    public AnimationGraphPlayHandle Play(AnimationGraphAsset graphAsset);
+    public AnimationGraphPlayHandle Play(AnimationGraphAsset graphAsset, bool loop = false, float loopDelay = 0.0f);
     public void Pause();
     public void Stop();
     public void ManualUpdate(float deltaTime);
@@ -602,6 +613,10 @@ public sealed class AnimationGraphRunner : MonoBehaviour, IAnimationGraphContext
     public bool SetBlackboardValue(string key, Vector4 value);
 }
 ```
+
+`Play()` は Runner に設定された Graph と Loop 設定を使用する。
+Graph を引数に取る `Play` は、`loop` と `loopDelay` を今回の再生にだけ適用する。
+引数を省略した場合は `loop = false`、`loopDelay = 0.0f` とする。
 
 `AnimationGraphRunner` は1つの `AnimationGraphTargetSchema` と、それに対応する `TargetBinding` 一覧を保持する。
 `AnimationGraphAsset` とRunnerの `TargetSchema` は同じアセット参照でなければならない。

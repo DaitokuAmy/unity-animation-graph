@@ -25,6 +25,10 @@ namespace UnityAnimationGraph {
         private AnimationGraphAsset _graphAsset;
         [SerializeField, Tooltip("OnEnable 時に自動再生する場合は有効")]
         private bool _playOnEnabled;
+        [SerializeField, Tooltip("再生完了後に先頭から繰り返す場合は有効")]
+        private bool _loop;
+        [SerializeField, Min(0.0f), Tooltip("Loop 間の待機時間")]
+        private float _loopDelay;
         [SerializeField, Tooltip("自動 Tick の Unity 更新タイミング")]
         private UpdateType _updateType = UpdateType.Update;
         [SerializeField, Tooltip("Runner がサポートする target schema")]
@@ -35,6 +39,9 @@ namespace UnityAnimationGraph {
         private readonly AnimationGraphPlayer _player = new();
 
         private BlackboardValue[] _blackboardValues = Array.Empty<BlackboardValue>();
+        private bool _hasPlaybackSettingsOverride;
+        private bool _playbackLoop;
+        private float _playbackLoopDelay;
         private bool _isGraphStatePrepared;
         private bool _isInitialized;
 
@@ -48,6 +55,18 @@ namespace UnityAnimationGraph {
         public bool PlayOnEnabled {
             get => _playOnEnabled;
             set => _playOnEnabled = value;
+        }
+
+        /// <summary>Play() / PlayOnEnabled で再生完了後に先頭から繰り返す場合は true</summary>
+        public bool Loop {
+            get => _loop;
+            set => _loop = value;
+        }
+
+        /// <summary>Play() / PlayOnEnabled で使用する Loop 間の待機時間</summary>
+        public float LoopDelay {
+            get => _loopDelay;
+            set => _loopDelay = Mathf.Max(0.0f, value);
         }
 
         /// <summary>自動 Tick の Unity 更新タイミング</summary>
@@ -89,19 +108,24 @@ namespace UnityAnimationGraph {
         /// </summary>
         /// <returns>再生完了を待機する handle</returns>
         public AnimationGraphPlayHandle Play() {
-            EnsureGraphAsset();
-            InitializePlayer();
-            return _player.Play();
+            if (_player.State == AnimationGraphPlayerState.Stopped) {
+                ClearPlaybackSettingsOverride();
+            }
+
+            return PlayCurrentGraph();
         }
 
         /// <summary>
-        /// AnimationGraphAsset を差し替えて再生
+        /// AnimationGraphAsset を差し替えて指定設定で再生
         /// </summary>
         /// <param name="graphAsset">再生する AnimationGraphAsset</param>
+        /// <param name="loop">再生完了後に先頭から繰り返す場合は true</param>
+        /// <param name="loopDelay">Loop 間の待機時間</param>
         /// <returns>再生完了を待機する handle</returns>
-        public AnimationGraphPlayHandle Play(AnimationGraphAsset graphAsset) {
+        public AnimationGraphPlayHandle Play(AnimationGraphAsset graphAsset, bool loop = false, float loopDelay = 0.0f) {
             SetGraph(graphAsset);
-            return Play();
+            SetPlaybackSettingsOverride(loop, loopDelay);
+            return PlayCurrentGraph();
         }
 
         /// <summary>
@@ -123,6 +147,7 @@ namespace UnityAnimationGraph {
                 return;
             }
 
+            ClearPlaybackSettingsOverride();
             _player.Stop();
         }
 
@@ -150,6 +175,7 @@ namespace UnityAnimationGraph {
             }
 
             _graphAsset = graphAsset;
+            ClearPlaybackSettingsOverride();
             PrepareGraphState(graphAsset, true);
             continuation?.Invoke();
         }
@@ -700,6 +726,7 @@ namespace UnityAnimationGraph {
                 return;
             }
 
+            ApplyPlaybackSettings();
             _player.Tick(deltaTime);
         }
 
@@ -716,11 +743,58 @@ namespace UnityAnimationGraph {
             }
 
             _player.SetContext(this);
+            ApplyPlaybackSettings();
             if (_graphAsset != null) {
                 _player.SetGraph(_graphAsset);
             }
 
             _isInitialized = true;
+        }
+
+        /// <summary>
+        /// Runner の再生設定を player へ反映
+        /// </summary>
+        private void ApplyPlaybackSettings() {
+            if (_hasPlaybackSettingsOverride) {
+                _player.Loop = _playbackLoop;
+                _player.LoopDelay = _playbackLoopDelay;
+                return;
+            }
+
+            _loopDelay = Mathf.Max(0.0f, _loopDelay);
+            _player.Loop = _loop;
+            _player.LoopDelay = _loopDelay;
+        }
+
+        /// <summary>
+        /// 現在設定中の Graph を再生
+        /// </summary>
+        /// <returns>再生完了を待機する handle</returns>
+        private AnimationGraphPlayHandle PlayCurrentGraph() {
+            EnsureGraphAsset();
+            InitializePlayer();
+            ApplyPlaybackSettings();
+            return _player.Play();
+        }
+
+        /// <summary>
+        /// 今回の再生に適用する設定を登録
+        /// </summary>
+        /// <param name="loop">再生完了後に先頭から繰り返す場合は true</param>
+        /// <param name="loopDelay">Loop 間の待機時間</param>
+        private void SetPlaybackSettingsOverride(bool loop, float loopDelay) {
+            _hasPlaybackSettingsOverride = true;
+            _playbackLoop = loop;
+            _playbackLoopDelay = Mathf.Max(0.0f, loopDelay);
+        }
+
+        /// <summary>
+        /// 今回の再生に適用する設定を解除
+        /// </summary>
+        private void ClearPlaybackSettingsOverride() {
+            _hasPlaybackSettingsOverride = false;
+            _playbackLoop = false;
+            _playbackLoopDelay = 0.0f;
         }
 
         /// <summary>

@@ -211,6 +211,124 @@ namespace UnityAnimationGraph.Tests {
         }
 
         /// <summary>
+        /// Loop 有効時は再生完了後に先頭から再生する
+        /// </summary>
+        [Test]
+        public void Tick_LoopsPlaybackWhenLoopEnabled() {
+            using var builder = new AnimationGraphTestBuilder();
+            var startNode = builder.CreateStartNode("start", "action");
+            var actionNode = builder.CreateActionNode("action", 1.0f);
+            var graphAsset = builder.CreateGraph("start", startNode, actionNode);
+            var player = CreatePlayer(graphAsset);
+            player.Loop = true;
+
+            var handle = player.Play();
+            player.Tick(1.0f);
+
+            Assert.That(actionNode.EvaluateCount, Is.EqualTo(1));
+            Assert.That(player.CurrentTime, Is.EqualTo(0.0f).Within(0.0001f));
+            Assert.That(player.State, Is.EqualTo(AnimationGraphPlayerState.Playing));
+            Assert.IsFalse(handle.IsDone);
+
+            player.Tick(1.0f);
+
+            Assert.That(actionNode.EvaluateCount, Is.EqualTo(2));
+            Assert.IsFalse(handle.IsDone);
+            Assert.IsTrue(handle.Stop());
+        }
+
+        /// <summary>
+        /// LoopDelay 中は次の Loop を評価しない
+        /// </summary>
+        [Test]
+        public void Tick_WaitsLoopDelayBeforeNextIteration() {
+            using var builder = new AnimationGraphTestBuilder();
+            var startNode = builder.CreateStartNode("start", "action");
+            var actionNode = builder.CreateActionNode("action", 1.0f);
+            var graphAsset = builder.CreateGraph("start", startNode, actionNode);
+            var player = CreatePlayer(graphAsset);
+            player.Loop = true;
+            player.LoopDelay = 0.5f;
+
+            player.Play();
+            player.Tick(1.0f);
+            player.Tick(0.25f);
+            player.Tick(0.25f);
+
+            Assert.That(actionNode.EvaluateCount, Is.EqualTo(1));
+            Assert.That(player.CurrentTime, Is.EqualTo(0.0f).Within(0.0001f));
+
+            player.Tick(0.1f);
+
+            Assert.That(actionNode.EvaluateCount, Is.EqualTo(2));
+        }
+
+        /// <summary>
+        /// LoopDelay 中の Stop は再生を中断する
+        /// </summary>
+        [Test]
+        public void PlayHandle_StopInterruptsDuringLoopDelay() {
+            using var builder = new AnimationGraphTestBuilder();
+            var startNode = builder.CreateStartNode("start", "action");
+            var actionNode = builder.CreateActionNode("action", 1.0f);
+            var graphAsset = builder.CreateGraph("start", startNode, actionNode);
+            var player = CreatePlayer(graphAsset);
+            player.Loop = true;
+            player.LoopDelay = 1.0f;
+
+            var handle = player.Play();
+            player.Tick(1.0f);
+
+            Assert.IsTrue(handle.Stop());
+            Assert.IsTrue(handle.IsInterrupted);
+            Assert.That(player.State, Is.EqualTo(AnimationGraphPlayerState.Stopped));
+        }
+
+        /// <summary>
+        /// LoopDelay 中に Loop を無効化すると現在の再生を完了する
+        /// </summary>
+        [Test]
+        public void Tick_CompletesWhenLoopIsDisabledDuringLoopDelay() {
+            using var builder = new AnimationGraphTestBuilder();
+            var startNode = builder.CreateStartNode("start", "action");
+            var actionNode = builder.CreateActionNode("action", 1.0f);
+            var graphAsset = builder.CreateGraph("start", startNode, actionNode);
+            var player = CreatePlayer(graphAsset);
+            player.Loop = true;
+            player.LoopDelay = 1.0f;
+
+            var handle = player.Play();
+            player.Tick(1.0f);
+            player.Loop = false;
+            player.Tick(0.1f);
+
+            Assert.IsTrue(handle.IsCompleted);
+            Assert.That(player.State, Is.EqualTo(AnimationGraphPlayerState.Stopped));
+            Assert.That(player.CurrentTime, Is.EqualTo(player.Duration).Within(0.0001f));
+        }
+
+        /// <summary>
+        /// Loop 中の Complete は次の Loop を開始せずに完了する
+        /// </summary>
+        [Test]
+        public void PlayHandle_CompleteFinishesLoopPlayback() {
+            using var builder = new AnimationGraphTestBuilder();
+            var startNode = builder.CreateStartNode("start", "action");
+            var actionNode = builder.CreateActionNode("action", 1.0f);
+            var graphAsset = builder.CreateGraph("start", startNode, actionNode);
+            var player = CreatePlayer(graphAsset);
+            player.Loop = true;
+
+            var handle = player.Play();
+            player.Tick(0.5f);
+
+            Assert.IsTrue(handle.Complete());
+            Assert.IsTrue(handle.IsCompleted);
+            Assert.That(player.State, Is.EqualTo(AnimationGraphPlayerState.Stopped));
+            Assert.That(player.CurrentTime, Is.EqualTo(player.Duration).Within(0.0001f));
+        }
+
+        /// <summary>
         /// Tick は node が active になったときに Enter を一度だけ呼ぶ
         /// </summary>
         [Test]

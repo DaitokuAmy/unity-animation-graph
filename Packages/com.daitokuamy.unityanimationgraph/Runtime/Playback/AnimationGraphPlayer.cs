@@ -90,6 +90,9 @@ namespace UnityAnimationGraph {
         private PlayStatus _playStatus;
         private AnimationGraphPlayerState _state;
         private float _currentTime;
+        private bool _loop;
+        private float _loopDelay;
+        private float _loopDelayRemaining;
         private int _playVersion;
 
         /// <summary>設定中の AnimationGraphAsset</summary>
@@ -108,6 +111,16 @@ namespace UnityAnimationGraph {
         public float Duration => _schedule?.Duration ?? 0.0f;
         /// <summary>Tick の deltaTime に乗算する再生速度</summary>
         public float TimeScale { get; set; } = 1.0f;
+        /// <summary>再生完了後に先頭から繰り返す場合は true</summary>
+        public bool Loop {
+            get => _loop;
+            set => _loop = value;
+        }
+        /// <summary>Loop 間の待機時間</summary>
+        public float LoopDelay {
+            get => _loopDelay;
+            set => _loopDelay = Mathf.Max(0.0f, value);
+        }
 
         /// <summary>
         /// 再生する AnimationGraphAsset を設定
@@ -131,6 +144,7 @@ namespace UnityAnimationGraph {
             _context = context;
             _schedule = null;
             _currentTime = 0.0f;
+            _loopDelayRemaining = 0.0f;
             _state = AnimationGraphPlayerState.Stopped;
             ClearActiveNodes();
             continuation?.Invoke();
@@ -273,6 +287,7 @@ namespace UnityAnimationGraph {
                 _playVersion++;
                 _playContinuation = null;
                 _playStatus = PlayStatus.Playing;
+                _loopDelayRemaining = 0.0f;
             }
 
             _state = AnimationGraphPlayerState.Playing;
@@ -296,6 +311,7 @@ namespace UnityAnimationGraph {
         public void Stop() {
             _state = AnimationGraphPlayerState.Stopped;
             _currentTime = 0.0f;
+            _loopDelayRemaining = 0.0f;
             if (_playStatus == PlayStatus.Playing) {
                 CompleteCurrentPlay(PlayStatus.Interrupted);
                 return;
@@ -333,6 +349,7 @@ namespace UnityAnimationGraph {
         /// <param name="resetEvaluatedNodes">現在の評価状態を 0 秒へ戻す場合は true</param>
         private void Seek(float time, bool resetEvaluatedNodes) {
             EnsureSchedule();
+            _loopDelayRemaining = 0.0f;
             if (resetEvaluatedNodes) {
                 ResetEvaluatedNodesToStart(_currentTime);
             }
@@ -357,13 +374,35 @@ namespace UnityAnimationGraph {
             }
 
             EnsureSchedule();
-            var previousTime = _currentTime;
             var scaledDeltaTime = Mathf.Max(0.0f, deltaTime * TimeScale);
+            if (_loopDelayRemaining > TimeComparisonEpsilon) {
+                if (!Loop) {
+                    CompleteAfterLoopDisabled();
+                    return;
+                }
+
+                _loopDelayRemaining -= scaledDeltaTime;
+                if (_loopDelayRemaining > TimeComparisonEpsilon) {
+                    return;
+                }
+
+                scaledDeltaTime = Mathf.Max(0.0f, -_loopDelayRemaining);
+                _loopDelayRemaining = 0.0f;
+                if (scaledDeltaTime <= TimeComparisonEpsilon) {
+                    return;
+                }
+            }
+
+            var previousTime = _currentTime;
             _currentTime = Mathf.Clamp(_currentTime + scaledDeltaTime, 0.0f, Duration);
             EvaluateCurrentTime(_currentTime, true, previousTime, true);
             if (IsEndTime(_currentTime)) {
-                _state = AnimationGraphPlayerState.Stopped;
-                CompleteCurrentPlay(PlayStatus.Completed);
+                if (Loop) {
+                    StartNextLoop();
+                    return;
+                }
+
+                CompleteCurrentPlayback();
             }
         }
 
@@ -405,11 +444,11 @@ namespace UnityAnimationGraph {
             }
 
             EnsureSchedule();
+            _loopDelayRemaining = 0.0f;
             var previousTime = _currentTime;
             _currentTime = Duration;
             EvaluateCurrentTime(_currentTime, true, previousTime, true);
-            _state = AnimationGraphPlayerState.Stopped;
-            CompleteCurrentPlay(PlayStatus.Completed);
+            CompleteCurrentPlayback();
             return true;
         }
 
@@ -469,9 +508,36 @@ namespace UnityAnimationGraph {
             _graphAsset = graphAsset;
             _schedule = null;
             _currentTime = 0.0f;
+            _loopDelayRemaining = 0.0f;
             _state = AnimationGraphPlayerState.Stopped;
             ClearActiveNodes();
             return continuation;
+        }
+
+        /// <summary>
+        /// 再生完了後に次の Loop を開始
+        /// </summary>
+        private void StartNextLoop() {
+            _currentTime = 0.0f;
+            _loopDelayRemaining = LoopDelay;
+            ClearActiveNodes();
+        }
+
+        /// <summary>
+        /// Loop を継続せず現在の再生を完了
+        /// </summary>
+        private void CompleteCurrentPlayback() {
+            _state = AnimationGraphPlayerState.Stopped;
+            CompleteCurrentPlay(PlayStatus.Completed);
+        }
+
+        /// <summary>
+        /// LoopDelay 中に Loop が無効化された場合の再生完了処理
+        /// </summary>
+        private void CompleteAfterLoopDisabled() {
+            _loopDelayRemaining = 0.0f;
+            _currentTime = Duration;
+            CompleteCurrentPlayback();
         }
 
         /// <summary>

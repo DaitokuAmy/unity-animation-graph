@@ -11,6 +11,8 @@ namespace UnityAnimationGraph.Editor {
     internal sealed class AnimationGraphRunnerEditor : UnityEditor.Editor {
         private const string GraphAssetPropertyName = "_graphAsset";
         private const string PlayOnEnabledPropertyName = "_playOnEnabled";
+        private const string LoopPropertyName = "_loop";
+        private const string LoopDelayPropertyName = "_loopDelay";
         private const string UpdateTypePropertyName = "_updateType";
         private const string TargetSchemaPropertyName = "_targetSchema";
         private const string TargetBindingsPropertyName = "_targetBindings";
@@ -31,6 +33,8 @@ namespace UnityAnimationGraph.Editor {
 
         private SerializedProperty _graphAssetProperty;
         private SerializedProperty _playOnEnabledProperty;
+        private SerializedProperty _loopProperty;
+        private SerializedProperty _loopDelayProperty;
         private SerializedProperty _updateTypeProperty;
         private SerializedProperty _targetSchemaProperty;
         private SerializedProperty _targetBindingsProperty;
@@ -38,6 +42,8 @@ namespace UnityAnimationGraph.Editor {
         private void OnEnable() {
             _graphAssetProperty = serializedObject.FindProperty(GraphAssetPropertyName);
             _playOnEnabledProperty = serializedObject.FindProperty(PlayOnEnabledPropertyName);
+            _loopProperty = serializedObject.FindProperty(LoopPropertyName);
+            _loopDelayProperty = serializedObject.FindProperty(LoopDelayPropertyName);
             _updateTypeProperty = serializedObject.FindProperty(UpdateTypePropertyName);
             _targetSchemaProperty = serializedObject.FindProperty(TargetSchemaPropertyName);
             _targetBindingsProperty = serializedObject.FindProperty(TargetBindingsPropertyName);
@@ -50,6 +56,8 @@ namespace UnityAnimationGraph.Editor {
             EditorGUILayout.PropertyField(_graphAssetProperty);
             EditorGUILayout.PropertyField(_targetSchemaProperty);
             EditorGUILayout.PropertyField(_playOnEnabledProperty);
+            EditorGUILayout.PropertyField(_loopProperty);
+            EditorGUILayout.PropertyField(_loopDelayProperty);
             EditorGUILayout.PropertyField(_updateTypeProperty);
 
             EnsureTargetBindings();

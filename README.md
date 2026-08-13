@@ -175,15 +175,19 @@ Inspector には、`Target Schema` の定義に対応する `Target Bindings` �
 - `Graph Asset`: 再生する `AnimationGraphAsset`
 - `Target Schema`: RunnerがサポートするTarget契約
 - `Play On Enabled`: `OnEnable` 時に自動再生する
+- `Loop`: 再生完了後に先頭から繰り返す
+- `Loop Delay`: Loop 間の待機時間（秒）
 - `Update Type`: `Update` / `LateUpdate` / `ManualUpdate`
 - `Target Bindings`: Target SchemaのkeyとComponentの対応表
 
 主なランタイム API:
 
-- `Play()` / `Play(AnimationGraphAsset)`: 再生を開始し、`AnimationGraphPlayHandle` を返す
+- `Play()`: 設定中のGraphをRunner設定で再生し、`AnimationGraphPlayHandle` を返す
+- `Play(AnimationGraphAsset, loop = false, loopDelay = 0.0f)`: Graphを差し替え、指定したLoop設定で再生する
 - `Pause()` / `Stop()`: 再生の一時停止、停止
 - `AnimationGraphPlayHandle.Pause()` / `Resume()` / `Stop()` / `Complete()`: 取得した handle に対応する再生を操作する
 - `ManualUpdate(deltaTime)`: `UpdateMode` が `AnimationGraphRunner.UpdateType.ManualUpdate` のときだけ手動で時間を進める
+- `Loop` / `LoopDelay`: 再生完了後の Loop と Loop 間の待機時間を設定する
 - `SetTarget(key, component)`: Target Bindingをコードから差し替える
 - `GetTarget<T>(key)` / `TryGetTarget<T>(key, out target)`: Target BindingからComponentを取得する
 - `SetBlackboardValue(key, value)`: Blackboard の現在値を差し替える
@@ -249,6 +253,34 @@ public sealed class AnimationGraphAwaitExample : MonoBehaviour {
             Debug.Log("Animation graph completed.");
         }
     }
+}
+```
+
+Loop 再生する場合は `Loop` を有効にします。`LoopDelay` は各周回の間だけ適用され、最初の再生前には待機しません。
+
+```csharp
+using UnityEngine;
+using UnityAnimationGraph;
+
+public sealed class AnimationGraphLoopExample : MonoBehaviour {
+    [SerializeField]
+    private AnimationGraphRunner _runner;
+
+    private void OnEnable() {
+        _runner.Loop = true;
+        _runner.LoopDelay = 0.25f;
+        _runner.Play();
+    }
+}
+```
+
+Loop 中の `AnimationGraphPlayHandle` は周回ごとには完了しません。`Stop()`、Graph の差し替え、または `Complete()` で再生を終了できます。
+
+外部から Graph を指定する場合、`loop` と `loopDelay` はその再生にだけ適用されます。省略時は `Loop = false`、`LoopDelay = 0.0f` です。
+
+```csharp
+private void PlayExternalGraph(AnimationGraphAsset graphAsset) {
+    _runner.Play(graphAsset, loop: true, loopDelay: 0.25f);
 }
 ```
 

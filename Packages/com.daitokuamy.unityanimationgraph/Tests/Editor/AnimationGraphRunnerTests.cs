@@ -118,6 +118,66 @@ namespace UnityAnimationGraph.Tests {
         }
 
         /// <summary>
+        /// Graph 指定の Loop と LoopDelay は Runner のデフォルト設定より優先される
+        /// </summary>
+        [Test]
+        public void PlayGraph_UsesExplicitLoopSettingsAndRunnerDefaults() {
+            using var builder = new AnimationGraphTestBuilder();
+            var startNode = builder.CreateStartNode("start", "action");
+            var actionNode = builder.CreateActionNode("action", 1.0f);
+            var graphAsset = builder.CreateGraph("start", startNode, actionNode);
+            var gameObject = new GameObject("AnimationGraphRunnerTest");
+
+            try {
+                var runner = gameObject.AddComponent<AnimationGraphRunner>();
+                runner.UpdateMode = AnimationGraphRunner.UpdateType.ManualUpdate;
+                runner.Loop = false;
+                runner.LoopDelay = 0.0f;
+
+                var handle = runner.Play(graphAsset, loop: true, loopDelay: 0.5f);
+                runner.ManualUpdate(1.0f);
+                runner.ManualUpdate(0.5f);
+
+                Assert.That(actionNode.EvaluateCount, Is.EqualTo(1));
+                Assert.IsFalse(handle.IsDone);
+
+                runner.ManualUpdate(0.1f);
+
+                Assert.That(actionNode.EvaluateCount, Is.EqualTo(2));
+                Assert.IsFalse(handle.IsDone);
+                runner.Stop();
+                Assert.IsTrue(handle.IsInterrupted);
+
+                runner.Loop = true;
+                runner.LoopDelay = 1.0f;
+                var defaultHandle = runner.Play(graphAsset);
+                runner.ManualUpdate(1.0f);
+                Assert.IsTrue(defaultHandle.IsCompleted);
+            }
+            finally {
+                Object.DestroyImmediate(gameObject);
+            }
+        }
+
+        /// <summary>
+        /// Runner の LoopDelay は負数を 0 に補正する
+        /// </summary>
+        [Test]
+        public void LoopDelay_ClampsToZero() {
+            var gameObject = new GameObject("AnimationGraphRunnerTest");
+
+            try {
+                var runner = gameObject.AddComponent<AnimationGraphRunner>();
+                runner.LoopDelay = -1.0f;
+
+                Assert.That(runner.LoopDelay, Is.EqualTo(0.0f));
+            }
+            finally {
+                Object.DestroyImmediate(gameObject);
+            }
+        }
+
+        /// <summary>
         /// 無効化時に再生中ノードへ中断を通知
         /// </summary>
         [Test]
