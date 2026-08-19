@@ -37,7 +37,7 @@ namespace Sample {
         }
 
         /// <inheritdoc/>
-        protected override void Evaluate(int seed, Graphic target, float localTime, float calculatedDuration, IAnimationGraphBlackboard blackboard) {
+        protected override void Evaluate(int seed, Graphic target, float localTime, float calculatedDuration, IAnimationGraphBlackboard blackboard, IActionNodeState state) {
             var progress = calculatedDuration <= 0.0f ? 1.0f : Mathf.Clamp01(localTime / calculatedDuration);
             target.color = Color.LerpUnclamped(_from, _to, progress);
         }
