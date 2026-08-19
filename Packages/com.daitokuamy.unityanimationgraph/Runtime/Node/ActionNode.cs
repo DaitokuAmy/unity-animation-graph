@@ -58,7 +58,6 @@ namespace UnityAnimationGraph {
         /// <param name="context">評価コンテキスト</param>
         /// <param name="state">実行状態</param>
         protected virtual void Enter(int seed, IAnimationGraphContext context, IActionNodeState state) {
-            Enter(seed, context);
         }
 
         /// <summary>
@@ -69,9 +68,7 @@ namespace UnityAnimationGraph {
         /// <param name="calculatedDuration">計算済みの実行時間</param>
         /// <param name="context">評価コンテキスト</param>
         /// <param name="state">実行状態</param>
-        protected virtual void Evaluate(int seed, float localTime, float calculatedDuration, IAnimationGraphContext context, IActionNodeState state) {
-            Evaluate(seed, localTime, calculatedDuration, context);
-        }
+        protected abstract void Evaluate(int seed, float localTime, float calculatedDuration, IAnimationGraphContext context, IActionNodeState state);
 
         /// <summary>
         /// 実行状態を使用してノード終了時の処理を行う
@@ -80,7 +77,6 @@ namespace UnityAnimationGraph {
         /// <param name="context">評価コンテキスト</param>
         /// <param name="state">実行状態</param>
         protected virtual void Exit(int seed, IAnimationGraphContext context, IActionNodeState state) {
-            Exit(seed, context);
         }
 
         /// <summary>
@@ -90,7 +86,30 @@ namespace UnityAnimationGraph {
         /// <param name="context">評価コンテキスト</param>
         /// <param name="state">実行状態</param>
         protected virtual void Cancel(int seed, IAnimationGraphContext context, IActionNodeState state) {
-            Cancel(seed, context);
+        }
+
+        /// <inheritdoc/>
+        protected sealed override void Enter(int seed, IAnimationGraphContext context) {
+            throw CreateStateRequiredException();
+        }
+
+        /// <inheritdoc/>
+        protected sealed override void Evaluate(int seed, float localTime, float calculatedDuration, IAnimationGraphContext context) {
+            throw CreateStateRequiredException();
+        }
+
+        /// <inheritdoc/>
+        protected sealed override void Exit(int seed, IAnimationGraphContext context) {
+            throw CreateStateRequiredException();
+        }
+
+        /// <inheritdoc/>
+        protected sealed override void Cancel(int seed, IAnimationGraphContext context) {
+            throw CreateStateRequiredException();
+        }
+
+        private System.InvalidOperationException CreateStateRequiredException() {
+            return new System.InvalidOperationException($"{GetType().Name} must be executed by AnimationGraphPlayer so its execution state is preserved");
         }
     }
 
@@ -133,30 +152,12 @@ namespace UnityAnimationGraph {
         }
 
         /// <inheritdoc/>
-        protected sealed override void Enter(int seed, IAnimationGraphContext context) {
-            if (!TryResolveTarget(context, out var target)) {
-                return;
-            }
-
-            Enter(seed, target, context);
-        }
-
-        /// <inheritdoc/>
         protected sealed override void Enter(int seed, IAnimationGraphContext context, IActionNodeState state) {
             if (!TryResolveTarget(context, out var target)) {
                 return;
             }
 
             Enter(seed, target, context, state);
-        }
-
-        /// <inheritdoc/>
-        protected sealed override void Evaluate(int seed, float localTime, float calculatedDuration, IAnimationGraphContext context) {
-            if (!TryResolveTarget(context, out var target)) {
-                return;
-            }
-
-            Evaluate(seed, target, localTime, calculatedDuration, context);
         }
 
         /// <inheritdoc/>
@@ -169,30 +170,12 @@ namespace UnityAnimationGraph {
         }
 
         /// <inheritdoc/>
-        protected sealed override void Exit(int seed, IAnimationGraphContext context) {
-            if (!TryResolveTarget(context, out var target)) {
-                return;
-            }
-
-            Exit(seed, target, context);
-        }
-
-        /// <inheritdoc/>
         protected sealed override void Exit(int seed, IAnimationGraphContext context, IActionNodeState state) {
             if (!TryResolveTarget(context, out var target)) {
                 return;
             }
 
             Exit(seed, target, context, state);
-        }
-
-        /// <inheritdoc/>
-        protected sealed override void Cancel(int seed, IAnimationGraphContext context) {
-            if (!TryResolveTarget(context, out var target)) {
-                return;
-            }
-
-            Cancel(seed, target, context);
         }
 
         /// <inheritdoc/>
@@ -244,24 +227,12 @@ namespace UnityAnimationGraph {
             yield break;
         }
 
-        /// <summary>
-        /// ノード開始時の処理を行う
-        /// </summary>
-        /// <param name="seed">評価に使用するシード</param>
-        /// <param name="target">解決済みの操作対象 Component</param>
-        /// <param name="blackboard">Blackboard 値の取得元</param>
-        protected virtual void Enter(int seed, TTarget target, IAnimationGraphBlackboard blackboard) {
-        }
-
-        /// <summary>
-        /// 実行状態を使用してノード開始時の処理を行う
-        /// </summary>
+        /// <summary>ノード開始時の処理を行う</summary>
         /// <param name="seed">評価に使用するシード</param>
         /// <param name="target">解決済みの操作対象 Component</param>
         /// <param name="blackboard">Blackboard 値の取得元</param>
         /// <param name="state">実行状態</param>
         protected virtual void Enter(int seed, TTarget target, IAnimationGraphBlackboard blackboard, IActionNodeState state) {
-            Enter(seed, target, blackboard);
         }
 
         /// <summary>
@@ -272,59 +243,23 @@ namespace UnityAnimationGraph {
         /// <param name="localTime">ノード開始時刻からの経過時間</param>
         /// <param name="calculatedDuration">計算済みの実行時間</param>
         /// <param name="blackboard">Blackboard 値の取得元</param>
-        protected abstract void Evaluate(int seed, TTarget target, float localTime, float calculatedDuration, IAnimationGraphBlackboard blackboard);
-
-        /// <summary>
-        /// 実行状態を使用してノードを評価
-        /// </summary>
-        /// <param name="seed">評価に使用するシード</param>
-        /// <param name="target">解決済みの操作対象 Component</param>
-        /// <param name="localTime">ノード開始時刻からの経過時間</param>
-        /// <param name="calculatedDuration">計算済みの実行時間</param>
-        /// <param name="blackboard">Blackboard 値の取得元</param>
         /// <param name="state">実行状態</param>
-        protected virtual void Evaluate(int seed, TTarget target, float localTime, float calculatedDuration, IAnimationGraphBlackboard blackboard, IActionNodeState state) {
-            Evaluate(seed, target, localTime, calculatedDuration, blackboard);
-        }
+        protected abstract void Evaluate(int seed, TTarget target, float localTime, float calculatedDuration, IAnimationGraphBlackboard blackboard, IActionNodeState state);
 
-        /// <summary>
-        /// ノード終了時の処理を行う
-        /// </summary>
-        /// <param name="seed">評価に使用するシード</param>
-        /// <param name="target">解決済みの操作対象 Component</param>
-        /// <param name="blackboard">Blackboard 値の取得元</param>
-        protected virtual void Exit(int seed, TTarget target, IAnimationGraphBlackboard blackboard) {
-        }
-
-        /// <summary>
-        /// 実行状態を使用してノード終了時の処理を行う
-        /// </summary>
+        /// <summary>ノード終了時の処理を行う</summary>
         /// <param name="seed">評価に使用するシード</param>
         /// <param name="target">解決済みの操作対象 Component</param>
         /// <param name="blackboard">Blackboard 値の取得元</param>
         /// <param name="state">実行状態</param>
         protected virtual void Exit(int seed, TTarget target, IAnimationGraphBlackboard blackboard, IActionNodeState state) {
-            Exit(seed, target, blackboard);
         }
 
-        /// <summary>
-        /// 実行中のノードをキャンセル
-        /// </summary>
-        /// <param name="seed">評価に使用するシード</param>
-        /// <param name="target">解決済みの操作対象 Component</param>
-        /// <param name="blackboard">Blackboard 値の取得元</param>
-        protected virtual void Cancel(int seed, TTarget target, IAnimationGraphBlackboard blackboard) {
-        }
-
-        /// <summary>
-        /// 実行状態を使用してノードをキャンセル
-        /// </summary>
+        /// <summary>実行中のノードをキャンセル</summary>
         /// <param name="seed">評価に使用するシード</param>
         /// <param name="target">解決済みの操作対象 Component</param>
         /// <param name="blackboard">Blackboard 値の取得元</param>
         /// <param name="state">実行状態</param>
         protected virtual void Cancel(int seed, TTarget target, IAnimationGraphBlackboard blackboard, IActionNodeState state) {
-            Cancel(seed, target, blackboard);
         }
 
         /// <summary>

@@ -21,7 +21,7 @@ namespace UnityAnimationGraph {
         }
 
         /// <inheritdoc/>
-        protected override void Evaluate(int seed, Component target, float localTime, float calculatedDuration, IAnimationGraphBlackboard blackboard) {
+        protected override void Evaluate(int seed, Component target, float localTime, float calculatedDuration, IAnimationGraphBlackboard blackboard, IActionNodeState state) {
             if (!TryGetEnabledProperty(target, out var enabledProperty)) {
                 return;
             }

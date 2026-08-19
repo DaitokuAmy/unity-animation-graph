@@ -25,7 +25,7 @@ namespace UnityAnimationGraph.Tests {
             }
 
             /// <inheritdoc/>
-            protected override void Evaluate(int seed, float localTime, float calculatedDuration, IAnimationGraphContext context) {
+            protected override void Evaluate(int seed, float localTime, float calculatedDuration, IAnimationGraphContext context, IActionNodeState state) {
             }
         }
 

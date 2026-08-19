@@ -36,7 +36,7 @@ namespace UnityAnimationGraph {
         }
 
         /// <inheritdoc/>
-        protected override void Enter(int seed, PlayableDirector playableDirector, IAnimationGraphBlackboard blackboard) {
+        protected override void Enter(int seed, PlayableDirector playableDirector, IAnimationGraphBlackboard blackboard, IActionNodeState state) {
             if (_timelineAsset == null) {
                 return;
             }
@@ -53,7 +53,7 @@ namespace UnityAnimationGraph {
         }
 
         /// <inheritdoc/>
-        protected override void Evaluate(int seed, PlayableDirector playableDirector, float localTime, float calculatedDuration, IAnimationGraphBlackboard blackboard) {
+        protected override void Evaluate(int seed, PlayableDirector playableDirector, float localTime, float calculatedDuration, IAnimationGraphBlackboard blackboard, IActionNodeState state) {
             if (_timelineAsset == null) {
                 return;
             }

@@ -40,7 +40,7 @@ namespace UnityAnimationGraph.Tests {
             context.SetTarget(TargetKey, playableDirector);
             SetNodeProperties(_node, TargetKey, _timelineAsset);
 
-            ((INodeExecutor)_node).Enter(0, context);
+            _node.ExecuteEnter(0, context);
 
             Assert.That(playableDirector.playableAsset, Is.SameAs(_timelineAsset));
             Assert.That(playableDirector.timeUpdateMode, Is.EqualTo(DirectorUpdateMode.Manual));
@@ -59,8 +59,8 @@ namespace UnityAnimationGraph.Tests {
             context.SetTarget(TargetKey, playableDirector);
             SetNodeProperties(_node, TargetKey, _timelineAsset);
 
-            ((INodeExecutor)_node).Enter(0, context);
-            ((INodeExecutor)_node).Evaluate(0, 1.25f, 2.0f, context);
+            _node.ExecuteEnter(0, context);
+            _node.ExecuteEvaluate(0, 1.25f, 2.0f, context);
 
             Assert.That(playableDirector.time, Is.EqualTo(1.25).Within(0.0001));
         }
@@ -77,7 +77,7 @@ namespace UnityAnimationGraph.Tests {
             context.SetTarget(TargetKey, playableDirector);
             SetNodeProperties(_node, TargetKey, null);
 
-            ((INodeExecutor)_node).Enter(0, context);
+            _node.ExecuteEnter(0, context);
 
             Assert.IsNull(playableDirector.playableAsset);
         }
@@ -92,7 +92,7 @@ namespace UnityAnimationGraph.Tests {
             var context = new TestAnimationGraphContext();
             SetNodeProperties(_node, TargetKey, _timelineAsset);
 
-            Assert.DoesNotThrow(() => ((INodeExecutor)_node).Evaluate(0, 1.25f, 2.0f, context));
+            Assert.DoesNotThrow(() => _node.ExecuteEvaluate(0, 1.25f, 2.0f, context));
         }
 
         /// <summary>

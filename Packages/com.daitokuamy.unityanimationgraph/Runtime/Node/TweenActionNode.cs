@@ -45,11 +45,6 @@ namespace UnityAnimationGraph {
         }
 
         /// <inheritdoc/>
-        protected override void Evaluate(int seed, TTarget target, float localTime, float calculatedDuration, IAnimationGraphBlackboard blackboard) {
-            Evaluate(seed, target, GetBaseValue(target), localTime, calculatedDuration, blackboard);
-        }
-
-        /// <inheritdoc/>
         protected override void Enter(int seed, TTarget target, IAnimationGraphBlackboard blackboard, IActionNodeState state) {
             var tweenState = (TweenActionNodeState<TValue>)state;
             tweenState.BaseValue = GetBaseValue(target);

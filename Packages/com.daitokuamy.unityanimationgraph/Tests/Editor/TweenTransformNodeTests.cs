@@ -36,7 +36,7 @@ namespace UnityAnimationGraph.Tests {
                 SetActionTargetKey(node, TargetKey);
                 SetVector3TweenDirect(node, Vector3.zero, Vector3.up, 2.0f, EaseType.EaseInQuad);
 
-                ((INodeExecutor)node).Evaluate(0, 1.0f, 2.0f, context);
+                node.ExecuteEvaluate(0, 1.0f, 2.0f, context);
 
                 AssertVector3(gameObject.transform.localPosition, Vector3.up * 0.25f);
             }
@@ -83,7 +83,7 @@ namespace UnityAnimationGraph.Tests {
                 SetActionTargetKey(node, TargetKey);
                 SetVector3TweenDirect(node, Vector3.zero, new Vector3(10.0f, 20.0f, 30.0f), 2.0f, EaseType.Linear, Vector3IgnoreMask.X | Vector3IgnoreMask.Z);
 
-                ((INodeExecutor)node).Evaluate(0, 1.0f, 2.0f, context);
+                node.ExecuteEvaluate(0, 1.0f, 2.0f, context);
 
                 AssertVector3(gameObject.transform.localPosition, new Vector3(5.0f, 10.0f, 9.0f));
             }
@@ -109,7 +109,7 @@ namespace UnityAnimationGraph.Tests {
                 SetVector3TweenDirect(node, Vector3.zero, Vector3.up * 2.0f, 2.0f, EaseType.Linear);
                 SetTransformSpace(node, Space.World);
 
-                ((INodeExecutor)node).Evaluate(0, 1.0f, 2.0f, context);
+                node.ExecuteEvaluate(0, 1.0f, 2.0f, context);
 
                 AssertVector3(gameObject.transform.position, Vector3.up);
             }
@@ -163,7 +163,7 @@ namespace UnityAnimationGraph.Tests {
                 SetActionTargetKey(node, TargetKey);
                 SetVector3TweenDirect(node, Vector3.zero, new Vector3(0.0f, 180.0f, 0.0f), 2.0f, EaseType.Linear);
 
-                ((INodeExecutor)node).Evaluate(0, 1.0f, 2.0f, context);
+                node.ExecuteEvaluate(0, 1.0f, 2.0f, context);
 
                 Assert.That(Quaternion.Angle(gameObject.transform.localRotation, Quaternion.Euler(0.0f, 90.0f, 0.0f)), Is.LessThan(0.01f));
             }
@@ -187,7 +187,7 @@ namespace UnityAnimationGraph.Tests {
                 SetActionTargetKey(node, TargetKey);
                 SetVector3TweenBlackboard(node, "before", "after", 2.0f, EaseType.Linear);
 
-                ((INodeExecutor)node).Evaluate(0, 1.0f, 2.0f, context);
+                node.ExecuteEvaluate(0, 1.0f, 2.0f, context);
 
                 AssertVector3(gameObject.transform.localScale, Vector3.one * 2.0f);
             }
@@ -212,7 +212,7 @@ namespace UnityAnimationGraph.Tests {
                 SetActionTargetKey(node, TargetKey);
                 SetColorTweenBlackboard(node, "beforeColor", "afterColor", 2.0f, EaseType.Linear);
 
-                ((INodeExecutor)node).Evaluate(0, 1.0f, 2.0f, context);
+                node.ExecuteEvaluate(0, 1.0f, 2.0f, context);
 
                 AssertColor(spriteRenderer.color, new Color(1.0f, 0.5f, 0.5f, 1.0f));
             }

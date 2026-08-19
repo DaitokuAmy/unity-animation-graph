@@ -25,7 +25,7 @@ namespace UnityAnimationGraph.Tests {
                 SetActionTargetKey(node, TargetKey);
                 SetBoolField(node, ActivePropertyName, false);
 
-                ((INodeExecutor)node).Evaluate(0, 0.0f, 0.0f, context);
+                node.ExecuteEvaluate(0, 0.0f, 0.0f, context);
 
                 Assert.IsFalse(gameObject.activeSelf);
             }
@@ -72,7 +72,7 @@ namespace UnityAnimationGraph.Tests {
                 SetActionTargetKey(node, TargetKey);
                 SetBoolField(node, EnabledPropertyName, false);
 
-                ((INodeExecutor)node).Evaluate(0, 0.0f, 0.0f, context);
+                node.ExecuteEvaluate(0, 0.0f, 0.0f, context);
 
                 Assert.IsFalse(light.enabled);
             }

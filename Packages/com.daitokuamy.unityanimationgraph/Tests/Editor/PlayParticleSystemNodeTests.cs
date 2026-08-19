@@ -82,7 +82,7 @@ namespace UnityAnimationGraph.Tests {
         /// </summary>
         [Test]
         public void Enter_AppliesSeedAndResetsSimulation() {
-            ((INodeExecutor)_node).Enter(123, _context);
+            _node.ExecuteEnter(123, _context);
 
             Assert.IsFalse(_particleSystem.useAutoRandomSeed);
             Assert.That(_particleSystem.randomSeed, Is.EqualTo(123u));
@@ -94,7 +94,7 @@ namespace UnityAnimationGraph.Tests {
         /// </summary>
         [Test]
         public void Evaluate_SimulatesParticleSystemAtLocalTime() {
-            ((INodeExecutor)_node).Evaluate(456, 0.5f, 2.5f, _context);
+            _node.ExecuteEvaluate(456, 0.5f, 2.5f, _context);
 
             Assert.That(_particleSystem.time, Is.EqualTo(0.5f).Within(0.05f));
         }
@@ -104,10 +104,10 @@ namespace UnityAnimationGraph.Tests {
         /// </summary>
         [Test]
         public void Evaluate_DoesNotSetSeed() {
-            ((INodeExecutor)_node).Enter(456, _context);
-            ((INodeExecutor)_node).Evaluate(456, 0.5f, 2.5f, _context);
+            _node.ExecuteEnter(456, _context);
+            _node.ExecuteEvaluate(456, 0.5f, 2.5f, _context);
 
-            ((INodeExecutor)_node).Evaluate(789, 1.0f, 2.5f, _context);
+            _node.ExecuteEvaluate(789, 1.0f, 2.5f, _context);
 
             Assert.That(_particleSystem.randomSeed, Is.EqualTo(456u));
             Assert.That(_particleSystem.time, Is.EqualTo(1.0f).Within(0.05f));
@@ -119,10 +119,10 @@ namespace UnityAnimationGraph.Tests {
         /// </summary>
         [Test]
         public void Evaluate_StopsParticleSystemWhenLocalTimeReturnsToStart() {
-            ((INodeExecutor)_node).Enter(456, _context);
-            ((INodeExecutor)_node).Evaluate(456, 0.5f, 2.5f, _context);
+            _node.ExecuteEnter(456, _context);
+            _node.ExecuteEvaluate(456, 0.5f, 2.5f, _context);
 
-            ((INodeExecutor)_node).Evaluate(789, 0.0f, 2.5f, _context);
+            _node.ExecuteEvaluate(789, 0.0f, 2.5f, _context);
 
             Assert.That(_particleSystem.randomSeed, Is.EqualTo(456u));
             Assert.That(_particleSystem.time, Is.EqualTo(0.0f).Within(0.0001f));
@@ -134,7 +134,7 @@ namespace UnityAnimationGraph.Tests {
         /// </summary>
         [Test]
         public void Evaluate_ClampsLocalTimeToDuration() {
-            ((INodeExecutor)_node).Evaluate(456, 4.0f, 1.5f, _context);
+            _node.ExecuteEvaluate(456, 4.0f, 1.5f, _context);
 
             Assert.That(_particleSystem.time, Is.EqualTo(1.5f).Within(0.05f));
         }
@@ -146,8 +146,8 @@ namespace UnityAnimationGraph.Tests {
         public void Evaluate_ReturnsWhenParticleSystemIsMissing() {
             var context = new TestAnimationGraphContext();
 
-            Assert.DoesNotThrow(() => ((INodeExecutor)_node).Enter(0, context));
-            Assert.DoesNotThrow(() => ((INodeExecutor)_node).Evaluate(0, 0.5f, 1.0f, context));
+            Assert.DoesNotThrow(() => _node.ExecuteEnter(0, context));
+            Assert.DoesNotThrow(() => _node.ExecuteEvaluate(0, 0.5f, 1.0f, context));
         }
 
         /// <summary>

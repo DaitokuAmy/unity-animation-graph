@@ -150,6 +150,25 @@ namespace UnityAnimationGraph.Tests {
         }
 
         /// <summary>
+        /// ActionNode は state を保持できない実行経路を拒否する
+        /// </summary>
+        [Test]
+        public void ActionNode_RejectsStatelessExecution() {
+            var actionNode = ScriptableObject.CreateInstance<TestActionNode>();
+            try {
+                var executor = (INodeExecutor)actionNode;
+
+                Assert.Throws<System.InvalidOperationException>(() => executor.Enter(0, null));
+                Assert.Throws<System.InvalidOperationException>(() => executor.Evaluate(0, 0.0f, 0.0f, null));
+                Assert.Throws<System.InvalidOperationException>(() => executor.Exit(0, null));
+                Assert.Throws<System.InvalidOperationException>(() => executor.Cancel(0, null));
+            }
+            finally {
+                Object.DestroyImmediate(actionNode);
+            }
+        }
+
+        /// <summary>
         /// DelayNode の待機時間を過ぎるまで後続ノードを評価しない
         /// </summary>
         [Test]

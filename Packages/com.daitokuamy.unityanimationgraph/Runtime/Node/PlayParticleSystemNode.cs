@@ -29,7 +29,7 @@ namespace UnityAnimationGraph {
         }
 
         /// <inheritdoc/>
-        protected override void Enter(int seed, ParticleSystem particleSystem, IAnimationGraphBlackboard blackboard) {
+        protected override void Enter(int seed, ParticleSystem particleSystem, IAnimationGraphBlackboard blackboard, IActionNodeState state) {
             particleSystem.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
             var randomSeed = unchecked((uint)seed);
             particleSystem.useAutoRandomSeed = false;
@@ -38,7 +38,7 @@ namespace UnityAnimationGraph {
         }
 
         /// <inheritdoc/>
-        protected override void Evaluate(int seed, ParticleSystem particleSystem, float localTime, float calculatedDuration, IAnimationGraphBlackboard blackboard) {
+        protected override void Evaluate(int seed, ParticleSystem particleSystem, float localTime, float calculatedDuration, IAnimationGraphBlackboard blackboard, IActionNodeState state) {
             var duration = calculatedDuration;
             if (duration <= 0.0f) {
                 var main = particleSystem.main;
@@ -58,7 +58,7 @@ namespace UnityAnimationGraph {
         }
 
         /// <inheritdoc/>
-        protected override void Cancel(int seed, ParticleSystem particleSystem, IAnimationGraphBlackboard blackboard) {
+        protected override void Cancel(int seed, ParticleSystem particleSystem, IAnimationGraphBlackboard blackboard, IActionNodeState state) {
             particleSystem.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
         }
     }

@@ -1,7 +1,46 @@
 using System.Collections.Generic;
+using System.Runtime.CompilerServices;
 using UnityEngine;
 
 namespace UnityAnimationGraph.Tests {
+    internal sealed class ActionNodeTestExecution {
+        private readonly IActionNodeStateExecutor _executor;
+        private readonly IActionNodeState _state;
+
+        public ActionNodeTestExecution(ActionNode node) {
+            _executor = node;
+            _state = _executor.CreateState();
+        }
+
+        public void Enter(int seed, IAnimationGraphContext context) {
+            _executor.Enter(seed, context, _state);
+        }
+
+        public void Evaluate(int seed, float localTime, float calculatedDuration, IAnimationGraphContext context) {
+            _executor.Evaluate(seed, localTime, calculatedDuration, context, _state);
+        }
+
+        public void Exit(int seed, IAnimationGraphContext context) {
+            _executor.Exit(seed, context, _state);
+        }
+
+        public void Cancel(int seed, IAnimationGraphContext context) {
+            _executor.Cancel(seed, context, _state);
+        }
+    }
+
+    internal static class ActionNodeTestExtensions {
+        private static readonly ConditionalWeakTable<ActionNode, ActionNodeTestExecution> Executions = new();
+
+        public static void ExecuteEnter(this ActionNode node, int seed, IAnimationGraphContext context) {
+            Executions.GetValue(node, value => new ActionNodeTestExecution(value)).Enter(seed, context);
+        }
+
+        public static void ExecuteEvaluate(this ActionNode node, int seed, float localTime, float calculatedDuration, IAnimationGraphContext context) {
+            Executions.GetValue(node, value => new ActionNodeTestExecution(value)).Evaluate(seed, localTime, calculatedDuration, context);
+        }
+    }
+
     /// <summary>
     /// テスト用 action node
     /// </summary>
@@ -63,14 +102,14 @@ namespace UnityAnimationGraph.Tests {
         }
 
         /// <inheritdoc/>
-        protected override void Enter(int seed, IAnimationGraphContext context) {
+        protected override void Enter(int seed, IAnimationGraphContext context, IActionNodeState state) {
             EnterCount++;
             LastEnterSeed = seed;
             RecordEvent("Enter");
         }
 
         /// <inheritdoc/>
-        protected override void Evaluate(int seed, float localTime, float calculatedDuration, IAnimationGraphContext context) {
+        protected override void Evaluate(int seed, float localTime, float calculatedDuration, IAnimationGraphContext context, IActionNodeState state) {
             EvaluateCount++;
             LastSeed = seed;
             LastLocalTime = localTime;
@@ -79,14 +118,14 @@ namespace UnityAnimationGraph.Tests {
         }
 
         /// <inheritdoc/>
-        protected override void Exit(int seed, IAnimationGraphContext context) {
+        protected override void Exit(int seed, IAnimationGraphContext context, IActionNodeState state) {
             ExitCount++;
             LastExitSeed = seed;
             RecordEvent("Exit");
         }
 
         /// <inheritdoc/>
-        protected override void Cancel(int seed, IAnimationGraphContext context) {
+        protected override void Cancel(int seed, IAnimationGraphContext context, IActionNodeState state) {
             CancelCount++;
             LastCancelSeed = seed;
         }
@@ -119,7 +158,7 @@ namespace UnityAnimationGraph.Tests {
         }
 
         /// <inheritdoc/>
-        protected override void Evaluate(int seed, Transform target, float localTime, float calculatedDuration, IAnimationGraphBlackboard blackboard) {
+        protected override void Evaluate(int seed, Transform target, float localTime, float calculatedDuration, IAnimationGraphBlackboard blackboard, IActionNodeState state) {
             _targets?.Add(target);
         }
     }
@@ -187,7 +226,7 @@ namespace UnityAnimationGraph.Tests {
         }
 
         /// <inheritdoc/>
-        protected override void Evaluate(int seed, float localTime, float calculatedDuration, IAnimationGraphContext context) {
+        protected override void Evaluate(int seed, float localTime, float calculatedDuration, IAnimationGraphContext context, IActionNodeState state) {
         }
 
         /// <inheritdoc/>

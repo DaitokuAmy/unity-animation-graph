@@ -35,7 +35,7 @@ namespace UnityAnimationGraph.Tests {
                 SetActionTargetKey(node, TargetKey);
                 SetFloatTweenDirect(node, 0.0f, 1.0f, 2.0f, EaseType.Linear);
 
-                ((INodeExecutor)node).Evaluate(0, 1.0f, 2.0f, context);
+                node.ExecuteEvaluate(0, 1.0f, 2.0f, context);
 
                 Assert.That(canvasGroup.alpha, Is.EqualTo(0.5f).Within(0.0001f));
             }
@@ -61,8 +61,8 @@ namespace UnityAnimationGraph.Tests {
                 SetFloatTweenDirect(volumeNode, 0.0f, 1.0f, 2.0f, EaseType.Linear);
                 SetFloatTweenDirect(pitchNode, 1.0f, 2.0f, 2.0f, EaseType.Linear);
 
-                ((INodeExecutor)volumeNode).Evaluate(0, 1.0f, 2.0f, context);
-                ((INodeExecutor)pitchNode).Evaluate(0, 1.0f, 2.0f, context);
+                volumeNode.ExecuteEvaluate(0, 1.0f, 2.0f, context);
+                pitchNode.ExecuteEvaluate(0, 1.0f, 2.0f, context);
 
                 Assert.That(audioSource.volume, Is.EqualTo(0.5f).Within(0.0001f));
                 Assert.That(audioSource.pitch, Is.EqualTo(1.5f).Within(0.0001f));
@@ -91,8 +91,8 @@ namespace UnityAnimationGraph.Tests {
                 SetFloatTweenDirect(intensityNode, 2.0f, 4.0f, 2.0f, EaseType.Linear);
                 SetColorTweenDirect(colorNode, Color.white, Color.red, 2.0f, EaseType.Linear, ColorIgnoreMask.G);
 
-                ((INodeExecutor)intensityNode).Evaluate(0, 1.0f, 2.0f, context);
-                ((INodeExecutor)colorNode).Evaluate(0, 1.0f, 2.0f, context);
+                intensityNode.ExecuteEvaluate(0, 1.0f, 2.0f, context);
+                colorNode.ExecuteEvaluate(0, 1.0f, 2.0f, context);
 
                 Assert.That(light.intensity, Is.EqualTo(3.0f).Within(0.0001f));
                 AssertColor(light.color, new Color(1.0f, 0.3f, 0.5f, 1.0f));
@@ -120,8 +120,8 @@ namespace UnityAnimationGraph.Tests {
                 SetFloatTweenDirect(fieldOfViewNode, 40.0f, 80.0f, 2.0f, EaseType.Linear);
                 SetFloatTweenDirect(orthographicSizeNode, 4.0f, 8.0f, 2.0f, EaseType.Linear);
 
-                ((INodeExecutor)fieldOfViewNode).Evaluate(0, 1.0f, 2.0f, context);
-                ((INodeExecutor)orthographicSizeNode).Evaluate(0, 1.0f, 2.0f, context);
+                fieldOfViewNode.ExecuteEvaluate(0, 1.0f, 2.0f, context);
+                orthographicSizeNode.ExecuteEvaluate(0, 1.0f, 2.0f, context);
 
                 Assert.That(camera.fieldOfView, Is.EqualTo(60.0f).Within(0.0001f));
                 Assert.That(camera.orthographicSize, Is.EqualTo(6.0f).Within(0.0001f));
@@ -151,8 +151,8 @@ namespace UnityAnimationGraph.Tests {
                 SetVector2TweenDirect(anchoredPositionNode, Vector2.zero, new Vector2(100.0f, 200.0f), 2.0f, EaseType.Linear, Vector2IgnoreMask.X);
                 SetVector2TweenDirect(sizeDeltaNode, Vector2.one * 100.0f, new Vector2(200.0f, 300.0f), 2.0f, EaseType.Linear, Vector2IgnoreMask.Y);
 
-                ((INodeExecutor)anchoredPositionNode).Evaluate(0, 1.0f, 2.0f, context);
-                ((INodeExecutor)sizeDeltaNode).Evaluate(0, 1.0f, 2.0f, context);
+                anchoredPositionNode.ExecuteEvaluate(0, 1.0f, 2.0f, context);
+                sizeDeltaNode.ExecuteEvaluate(0, 1.0f, 2.0f, context);
 
                 AssertVector2(rectTransform.anchoredPosition, new Vector2(10.0f, 100.0f));
                 AssertVector2(rectTransform.sizeDelta, new Vector2(150.0f, 40.0f));
@@ -178,7 +178,7 @@ namespace UnityAnimationGraph.Tests {
                 SetActionTargetKey(node, TargetKey);
                 SetFloatTweenDirect(node, 1.0f, 0.0f, 2.0f, EaseType.Linear);
 
-                ((INodeExecutor)node).Evaluate(0, 1.0f, 2.0f, context);
+                node.ExecuteEvaluate(0, 1.0f, 2.0f, context);
 
                 AssertColor(spriteRenderer.color, new Color(0.25f, 0.5f, 0.75f, 0.5f));
             }
@@ -206,8 +206,8 @@ namespace UnityAnimationGraph.Tests {
                 SetColorTweenDirect(graphicColorNode, Color.white, Color.red, 2.0f, EaseType.Linear, ColorIgnoreMask.A);
                 SetFloatTweenDirect(fillAmountNode, 0.0f, 1.0f, 2.0f, EaseType.Linear);
 
-                ((INodeExecutor)graphicColorNode).Evaluate(0, 1.0f, 2.0f, context);
-                ((INodeExecutor)fillAmountNode).Evaluate(0, 1.0f, 2.0f, context);
+                graphicColorNode.ExecuteEvaluate(0, 1.0f, 2.0f, context);
+                fillAmountNode.ExecuteEvaluate(0, 1.0f, 2.0f, context);
 
                 AssertColor(image.color, new Color(1.0f, 0.5f, 0.5f, 0.25f));
                 Assert.That(image.fillAmount, Is.EqualTo(0.5f).Within(0.0001f));
