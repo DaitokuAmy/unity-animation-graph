@@ -79,10 +79,9 @@ namespace UnityAnimationGraph {
         private readonly AnimationGraphScheduler _scheduler = new();
         private readonly Dictionary<Type, List<SignalSubscription>> _signalSubscriptionsByType = new();
         private readonly List<SignalSubscription> _anySignalSubscriptions = new();
-        private readonly TweenBaseValueStore _tweenBaseValues = new();
-
         private List<ScheduledNode> _activeScheduledNodes = new();
         private List<ScheduledNode> _nextActiveScheduledNodes = new();
+        private IActionNodeState[] _actionNodeStates = Array.Empty<IActionNodeState>();
         private AnimationGraphAsset _graphAsset;
         private IAnimationGraphContext _context;
         private AnimationGraphSchedule _schedule;
@@ -616,7 +615,13 @@ namespace UnityAnimationGraph {
         private void CancelActiveNodes() {
             for (var i = 0; i < _activeScheduledNodes.Count; i++) {
                 var scheduledNode = _activeScheduledNodes[i];
-                ((INodeExecutor)scheduledNode.Node).Cancel(scheduledNode.Seed, scheduledNode.Context ?? _context);
+                var context = scheduledNode.Context ?? _context;
+                if (scheduledNode.Node is IActionNodeStateExecutor stateExecutor) {
+                    stateExecutor.Cancel(scheduledNode.Seed, context, GetActionNodeState(scheduledNode));
+                    continue;
+                }
+
+                ((INodeExecutor)scheduledNode.Node).Cancel(scheduledNode.Seed, context);
             }
 
             ClearActiveNodes();
@@ -628,7 +633,7 @@ namespace UnityAnimationGraph {
         private void ClearActiveNodes() {
             _activeScheduledNodes.Clear();
             _nextActiveScheduledNodes.Clear();
-            _tweenBaseValues.Clear();
+            _actionNodeStates = Array.Empty<IActionNodeState>();
         }
 
         /// <summary>
@@ -833,8 +838,8 @@ namespace UnityAnimationGraph {
         private void EvaluateScheduledNode(ScheduledNode scheduledNode, float localTime) {
             var executor = (INodeExecutor)scheduledNode.Node;
             var context = scheduledNode.Context ?? _context;
-            if (scheduledNode.Node is ITweenNodeExecutor tweenExecutor) {
-                tweenExecutor.Evaluate(scheduledNode.StableOrder, scheduledNode.Seed, localTime, scheduledNode.Duration, context, _tweenBaseValues);
+            if (scheduledNode.Node is IActionNodeStateExecutor stateExecutor) {
+                stateExecutor.Evaluate(scheduledNode.Seed, localTime, scheduledNode.Duration, context, GetActionNodeState(scheduledNode));
                 return;
             }
 
@@ -852,8 +857,9 @@ namespace UnityAnimationGraph {
                 DispatchSignals(scheduledNode.Node.EnterSignals, scheduledNode.Seed);
             }
 
-            if (scheduledNode.Node is ITweenNodeExecutor tweenExecutor) {
-                tweenExecutor.CaptureBaseValue(scheduledNode.StableOrder, scheduledNode.Seed, context, _tweenBaseValues);
+            if (scheduledNode.Node is IActionNodeStateExecutor stateExecutor) {
+                stateExecutor.Enter(scheduledNode.Seed, context, GetActionNodeState(scheduledNode));
+                return;
             }
 
             ((INodeExecutor)scheduledNode.Node).Enter(scheduledNode.Seed, context);
@@ -866,10 +872,56 @@ namespace UnityAnimationGraph {
         /// <param name="dispatchSignals">Signal を通知する場合は true</param>
         private void ExitScheduledNode(ScheduledNode scheduledNode, bool dispatchSignals) {
             var context = scheduledNode.Context ?? _context;
-            ((INodeExecutor)scheduledNode.Node).Exit(scheduledNode.Seed, context);
+            if (scheduledNode.Node is IActionNodeStateExecutor stateExecutor) {
+                stateExecutor.Exit(scheduledNode.Seed, context, GetActionNodeState(scheduledNode));
+            }
+            else {
+                ((INodeExecutor)scheduledNode.Node).Exit(scheduledNode.Seed, context);
+            }
+
             if (dispatchSignals) {
                 DispatchSignals(scheduledNode.Node.ExitSignals, scheduledNode.Seed);
             }
+        }
+
+        /// <summary>
+        /// scheduled ActionNode に対応する実行状態を取得
+        /// </summary>
+        /// <param name="scheduledNode">状態を取得する scheduled node</param>
+        /// <returns>実行状態。状態を使用しない場合は null</returns>
+        private IActionNodeState GetActionNodeState(ScheduledNode scheduledNode) {
+            EnsureActionNodeStates();
+            if (scheduledNode.StableOrder < 0 || scheduledNode.StableOrder >= _actionNodeStates.Length) {
+                throw new InvalidOperationException($"ScheduledNode stable order '{scheduledNode.StableOrder}' is out of range");
+            }
+
+            return _actionNodeStates[scheduledNode.StableOrder];
+        }
+
+        /// <summary>
+        /// 現在の schedule に対応する ActionNode 実行状態を生成
+        /// </summary>
+        private void EnsureActionNodeStates() {
+            var nodes = _schedule.Nodes;
+            if (_actionNodeStates.Length == nodes.Count) {
+                return;
+            }
+
+            var states = new IActionNodeState[nodes.Count];
+            for (var i = 0; i < nodes.Count; i++) {
+                var scheduledNode = nodes[i];
+                if (scheduledNode.Node is not IActionNodeStateExecutor stateExecutor) {
+                    continue;
+                }
+
+                if (scheduledNode.StableOrder < 0 || scheduledNode.StableOrder >= states.Length) {
+                    throw new InvalidOperationException($"ScheduledNode stable order '{scheduledNode.StableOrder}' is out of range");
+                }
+
+                states[scheduledNode.StableOrder] = stateExecutor.CreateState();
+            }
+
+            _actionNodeStates = states;
         }
 
         /// <summary>

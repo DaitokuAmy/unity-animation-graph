@@ -123,4 +123,76 @@ namespace UnityAnimationGraph.Tests {
             _targets?.Add(target);
         }
     }
+
+    /// <summary>
+    /// 実行単位の state を使用するテスト用 ActionNode
+    /// </summary>
+    internal sealed class TestStatefulActionNode : ActionNode {
+        private sealed class State : IActionNodeState {
+            /// <summary>state の識別子</summary>
+            public int Id { get; }
+            /// <summary>Enter が呼ばれた回数</summary>
+            public int EnterCount { get; set; }
+
+            /// <summary>
+            /// State を生成
+            /// </summary>
+            /// <param name="id">state の識別子</param>
+            public State(int id) {
+                Id = id;
+            }
+        }
+
+        private float _duration;
+
+        /// <summary>生成した state の数</summary>
+        public int CreatedStateCount { get; private set; }
+        /// <summary>Enter 時の state 内呼び出し回数一覧</summary>
+        public List<int> EnterCountsByState { get; } = new();
+        /// <summary>Enter 時に使用した state ID 一覧</summary>
+        public List<int> EnterStateIds { get; } = new();
+        /// <summary>Cancel 時に使用した state ID 一覧</summary>
+        public List<int> CancelStateIds { get; } = new();
+
+        /// <summary>
+        /// 実行時間を設定
+        /// </summary>
+        /// <param name="duration">実行時間</param>
+        public void Configure(float duration) {
+            _duration = duration;
+        }
+
+        /// <inheritdoc/>
+        protected override IActionNodeState CreateState() {
+            CreatedStateCount++;
+            return new State(CreatedStateCount);
+        }
+
+        /// <inheritdoc/>
+        protected override float CalculateDuration(int seed, IAnimationGraphContext context) {
+            return _duration;
+        }
+
+        /// <inheritdoc/>
+        protected override float CalculateDelay(int seed, IAnimationGraphContext context) {
+            return 0.0f;
+        }
+
+        /// <inheritdoc/>
+        protected override void Enter(int seed, IAnimationGraphContext context, IActionNodeState state) {
+            var typedState = (State)state;
+            typedState.EnterCount++;
+            EnterCountsByState.Add(typedState.EnterCount);
+            EnterStateIds.Add(typedState.Id);
+        }
+
+        /// <inheritdoc/>
+        protected override void Evaluate(int seed, float localTime, float calculatedDuration, IAnimationGraphContext context) {
+        }
+
+        /// <inheritdoc/>
+        protected override void Cancel(int seed, IAnimationGraphContext context, IActionNodeState state) {
+            CancelStateIds.Add(((State)state).Id);
+        }
+    }
 }

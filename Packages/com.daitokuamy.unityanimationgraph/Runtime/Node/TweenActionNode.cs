@@ -1,152 +1,15 @@
-using System;
-using System.Collections.Generic;
 using UnityEngine;
 
 namespace UnityAnimationGraph {
     /// <summary>
-    /// Tween node の基準値を型ごとに保持するストア
+    /// Tween node の実行状態
     /// </summary>
-    internal sealed class TweenBaseValueStore {
-        private readonly Dictionary<Type, IStorage> _storagesByValueType = new();
-
-        /// <summary>
-        /// 保存済みの基準値をすべてクリア
-        /// </summary>
-        public void Clear() {
-            foreach (var storage in _storagesByValueType.Values) {
-                storage.Clear();
-            }
-        }
-
-        /// <summary>
-        /// 指定した安定順序の基準値を取得
-        /// </summary>
-        /// <param name="stableOrder">安定順序</param>
-        /// <param name="value">取得した基準値</param>
-        /// <typeparam name="TValue">基準値の型</typeparam>
-        /// <returns>取得できた場合は true</returns>
-        public bool TryGetValue<TValue>(int stableOrder, out TValue value) {
-            if (_storagesByValueType.TryGetValue(typeof(TValue), out var storage)) {
-                return ((Storage<TValue>)storage).TryGetValue(stableOrder, out value);
-            }
-
-            value = default;
-            return false;
-        }
-
-        /// <summary>
-        /// 指定した安定順序の基準値を保存
-        /// </summary>
-        /// <param name="stableOrder">安定順序</param>
-        /// <param name="value">保存する基準値</param>
-        /// <typeparam name="TValue">基準値の型</typeparam>
-        public void SetValue<TValue>(int stableOrder, TValue value) {
-            GetStorage<TValue>().SetValue(stableOrder, value);
-        }
-
-        /// <summary>
-        /// 指定した安定順序の基準値を削除
-        /// </summary>
-        /// <param name="stableOrder">安定順序</param>
-        /// <typeparam name="TValue">基準値の型</typeparam>
-        public void RemoveValue<TValue>(int stableOrder) {
-            if (_storagesByValueType.TryGetValue(typeof(TValue), out var storage)) {
-                ((Storage<TValue>)storage).RemoveValue(stableOrder);
-            }
-        }
-
-        /// <summary>
-        /// 指定型のストレージを取得
-        /// </summary>
-        /// <typeparam name="TValue">基準値の型</typeparam>
-        /// <returns>指定型のストレージ</returns>
-        private Storage<TValue> GetStorage<TValue>() {
-            var valueType = typeof(TValue);
-            if (_storagesByValueType.TryGetValue(valueType, out var storage)) {
-                return (Storage<TValue>)storage;
-            }
-
-            var typedStorage = new Storage<TValue>();
-            _storagesByValueType.Add(valueType, typedStorage);
-            return typedStorage;
-        }
-
-        /// <summary>
-        /// 型別ストレージの共通インターフェース
-        /// </summary>
-        private interface IStorage {
-            /// <summary>
-            /// 保存済みの基準値をクリア
-            /// </summary>
-            void Clear();
-        }
-
-        /// <summary>
-        /// 型付きの基準値ストレージ
-        /// </summary>
-        /// <typeparam name="TValue">基準値の型</typeparam>
-        private sealed class Storage<TValue> : IStorage {
-            private readonly Dictionary<int, TValue> _valuesByStableOrder = new();
-
-            /// <summary>
-            /// 保存済みの基準値をクリア
-            /// </summary>
-            public void Clear() {
-                _valuesByStableOrder.Clear();
-            }
-
-            /// <summary>
-            /// 指定した安定順序の基準値を取得
-            /// </summary>
-            /// <param name="stableOrder">安定順序</param>
-            /// <param name="value">取得した基準値</param>
-            /// <returns>取得できた場合は true</returns>
-            public bool TryGetValue(int stableOrder, out TValue value) {
-                return _valuesByStableOrder.TryGetValue(stableOrder, out value);
-            }
-
-            /// <summary>
-            /// 指定した安定順序の基準値を保存
-            /// </summary>
-            /// <param name="stableOrder">安定順序</param>
-            /// <param name="value">保存する基準値</param>
-            public void SetValue(int stableOrder, TValue value) {
-                _valuesByStableOrder[stableOrder] = value;
-            }
-
-            /// <summary>
-            /// 指定した安定順序の基準値を削除
-            /// </summary>
-            /// <param name="stableOrder">安定順序</param>
-            public void RemoveValue(int stableOrder) {
-                _valuesByStableOrder.Remove(stableOrder);
-            }
-        }
-    }
-
-    /// <summary>
-    /// Tween node の基準値キャプチャと基準値付き評価を行う内部インターフェース
-    /// </summary>
-    internal interface ITweenNodeExecutor {
-        /// <summary>
-        /// Tween 相対値の基準値を取得
-        /// </summary>
-        /// <param name="stableOrder">安定順序</param>
-        /// <param name="seed">評価に使用するシード</param>
-        /// <param name="context">評価コンテキスト</param>
-        /// <param name="baseValues">Tween 相対値の基準値ストア</param>
-        void CaptureBaseValue(int stableOrder, int seed, IAnimationGraphContext context, TweenBaseValueStore baseValues);
-
-        /// <summary>
-        /// 基準値を使って Tween node を評価
-        /// </summary>
-        /// <param name="stableOrder">安定順序</param>
-        /// <param name="seed">評価に使用するシード</param>
-        /// <param name="localTime">ノード開始時刻からの経過時間</param>
-        /// <param name="calculatedDuration">計算済みの実行時間</param>
-        /// <param name="context">評価コンテキスト</param>
-        /// <param name="baseValues">Tween 相対値の基準値ストア</param>
-        void Evaluate(int stableOrder, int seed, float localTime, float calculatedDuration, IAnimationGraphContext context, TweenBaseValueStore baseValues);
+    /// <typeparam name="TValue">Tween で補間する値型</typeparam>
+    internal sealed class TweenActionNodeState<TValue> : IActionNodeState {
+        /// <summary>基準値を取得済みの場合は true</summary>
+        public bool HasBaseValue { get; set; }
+        /// <summary>Tween 相対値の基準値</summary>
+        public TValue BaseValue { get; set; }
     }
 
     /// <summary>
@@ -155,7 +18,7 @@ namespace UnityAnimationGraph {
     /// <typeparam name="TTarget">Tween の適用対象 Component 型</typeparam>
     /// <typeparam name="TTween">使用する Tween 設定型</typeparam>
     /// <typeparam name="TValue">Tween で補間する値型</typeparam>
-    public abstract class TweenActionNode<TTarget, TTween, TValue> : ActionNode<TTarget>, ITweenNodeExecutor
+    public abstract class TweenActionNode<TTarget, TTween, TValue> : ActionNode<TTarget>
         where TTarget : Component
         where TTween : Tween {
         [SerializeField, Min(0.0f), Tooltip("Tween にかける時間")]
@@ -165,6 +28,11 @@ namespace UnityAnimationGraph {
 
         /// <summary>Tween 設定</summary>
         protected abstract TTween TweenSettings { get; }
+
+        /// <inheritdoc/>
+        protected override IActionNodeState CreateState() {
+            return new TweenActionNodeState<TValue>();
+        }
 
         /// <inheritdoc/>
         protected override float CalculateDuration(int seed, TTarget target, IAnimationGraphBlackboard blackboard) {
@@ -179,6 +47,24 @@ namespace UnityAnimationGraph {
         /// <inheritdoc/>
         protected override void Evaluate(int seed, TTarget target, float localTime, float calculatedDuration, IAnimationGraphBlackboard blackboard) {
             Evaluate(seed, target, GetBaseValue(target), localTime, calculatedDuration, blackboard);
+        }
+
+        /// <inheritdoc/>
+        protected override void Enter(int seed, TTarget target, IAnimationGraphBlackboard blackboard, IActionNodeState state) {
+            var tweenState = (TweenActionNodeState<TValue>)state;
+            tweenState.BaseValue = GetBaseValue(target);
+            tweenState.HasBaseValue = true;
+        }
+
+        /// <inheritdoc/>
+        protected override void Evaluate(int seed, TTarget target, float localTime, float calculatedDuration, IAnimationGraphBlackboard blackboard, IActionNodeState state) {
+            var tweenState = (TweenActionNodeState<TValue>)state;
+            if (!tweenState.HasBaseValue) {
+                tweenState.BaseValue = GetBaseValue(target);
+                tweenState.HasBaseValue = true;
+            }
+
+            Evaluate(seed, target, tweenState.BaseValue, localTime, calculatedDuration, blackboard);
         }
 
         /// <summary>
@@ -229,28 +115,5 @@ namespace UnityAnimationGraph {
             ApplyValue(target, value);
         }
 
-        /// <inheritdoc/>
-        void ITweenNodeExecutor.CaptureBaseValue(int stableOrder, int seed, IAnimationGraphContext context, TweenBaseValueStore baseValues) {
-            if (!TryResolveTarget(context, out var target)) {
-                baseValues.RemoveValue<TValue>(stableOrder);
-                return;
-            }
-
-            baseValues.SetValue(stableOrder, GetBaseValue(target));
-        }
-
-        /// <inheritdoc/>
-        void ITweenNodeExecutor.Evaluate(int stableOrder, int seed, float localTime, float calculatedDuration, IAnimationGraphContext context, TweenBaseValueStore baseValues) {
-            if (!TryResolveTarget(context, out var target)) {
-                return;
-            }
-
-            if (!baseValues.TryGetValue<TValue>(stableOrder, out var baseValue)) {
-                baseValue = GetBaseValue(target);
-                baseValues.SetValue(stableOrder, baseValue);
-            }
-
-            Evaluate(seed, target, baseValue, localTime, calculatedDuration, context);
-        }
     }
 }

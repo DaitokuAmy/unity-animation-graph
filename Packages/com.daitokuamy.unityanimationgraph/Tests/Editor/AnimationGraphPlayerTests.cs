@@ -86,6 +86,70 @@ namespace UnityAnimationGraph.Tests {
         }
 
         /// <summary>
+        /// 同じ GraphAsset を再生する Player は ActionNode state を共有しない
+        /// </summary>
+        [Test]
+        public void ActionNodeState_IsSeparatedBetweenPlayers() {
+            using var builder = new AnimationGraphTestBuilder();
+            var startNode = builder.CreateStartNode("start", "action");
+            var actionNode = builder.CreateNode<TestStatefulActionNode>("action");
+            actionNode.Configure(1.0f);
+            var graphAsset = builder.CreateGraph("start", startNode, actionNode);
+            var firstPlayer = CreatePlayer(graphAsset);
+            var secondPlayer = CreatePlayer(graphAsset);
+
+            firstPlayer.Play();
+            secondPlayer.Play();
+            firstPlayer.Tick(0.5f);
+            secondPlayer.Tick(0.5f);
+
+            Assert.That(actionNode.CreatedStateCount, Is.EqualTo(2));
+            Assert.That(actionNode.EnterCountsByState, Is.EqualTo(new[] { 1, 1 }));
+            Assert.That(actionNode.EnterStateIds, Is.EqualTo(new[] { 1, 2 }));
+        }
+
+        /// <summary>
+        /// 同じ ActionNode の複数 schedule は個別の state を使用する
+        /// </summary>
+        [Test]
+        public void ActionNodeState_IsSeparatedBetweenScheduledNodes() {
+            using var builder = new AnimationGraphTestBuilder();
+            var startNode = builder.CreateStartNode("start", "loop");
+            var loopNode = builder.CreateNode<LoopNode>("loop");
+            var actionNode = builder.CreateNode<TestStatefulActionNode>("action");
+            actionNode.Configure(1.0f);
+            builder.SetLoop(loopNode, 2, actionNode.NodeId);
+            var graphAsset = builder.CreateGraph("start", startNode, loopNode, actionNode);
+            var player = CreatePlayer(graphAsset);
+
+            player.Seek(2.0f);
+
+            Assert.That(actionNode.CreatedStateCount, Is.EqualTo(2));
+            Assert.That(actionNode.EnterCountsByState, Is.EqualTo(new[] { 1, 1 }));
+            Assert.That(actionNode.EnterStateIds, Is.EqualTo(new[] { 1, 2 }));
+        }
+
+        /// <summary>
+        /// Stop は Enter で使用した ActionNode state を Cancel に渡す
+        /// </summary>
+        [Test]
+        public void ActionNodeState_StopCancelsEnteredState() {
+            using var builder = new AnimationGraphTestBuilder();
+            var startNode = builder.CreateStartNode("start", "action");
+            var actionNode = builder.CreateNode<TestStatefulActionNode>("action");
+            actionNode.Configure(1.0f);
+            var graphAsset = builder.CreateGraph("start", startNode, actionNode);
+            var player = CreatePlayer(graphAsset);
+
+            player.Play();
+            player.Tick(0.5f);
+            player.Stop();
+
+            Assert.That(actionNode.EnterStateIds, Is.EqualTo(new[] { 1 }));
+            Assert.That(actionNode.CancelStateIds, Is.EqualTo(actionNode.EnterStateIds));
+        }
+
+        /// <summary>
         /// DelayNode の待機時間を過ぎるまで後続ノードを評価しない
         /// </summary>
         [Test]
