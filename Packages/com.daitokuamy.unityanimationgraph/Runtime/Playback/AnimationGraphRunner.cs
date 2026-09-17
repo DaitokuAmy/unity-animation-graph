@@ -164,6 +164,26 @@ namespace UnityAnimationGraph {
         }
 
         /// <summary>
+        /// 現在設定中の AnimationGraphAsset を指定時刻で即時評価
+        /// </summary>
+        /// <param name="time">評価する時刻</param>
+        public void Seek(float time) {
+            EnsureGraphAsset();
+            InitializePlayer();
+            _player.Seek(time);
+        }
+
+        /// <summary>
+        /// AnimationGraphAsset を設定して指定時刻で即時評価
+        /// </summary>
+        /// <param name="graphAsset">評価する AnimationGraphAsset</param>
+        /// <param name="time">評価する時刻</param>
+        public void Seek(AnimationGraphAsset graphAsset, float time) {
+            SetGraph(graphAsset);
+            Seek(time);
+        }
+
+        /// <summary>
         /// 再生する AnimationGraphAsset を設定
         /// </summary>
         /// <param name="graphAsset">再生する AnimationGraphAsset。null の場合は設定を解除</param>
@@ -542,16 +562,6 @@ namespace UnityAnimationGraph {
             PrepareGraphState(_graphAsset, false);
             InitializePlayer();
             _player.RebuildSchedule(overrideSeed);
-        }
-
-        /// <summary>
-        /// 0 秒から指定時刻までを順方向に評価
-        /// </summary>
-        /// <param name="time">評価する時刻</param>
-        internal void Seek(float time) {
-            EnsureGraphAsset();
-            InitializePlayer();
-            _player.Seek(time);
         }
 
         /// <inheritdoc/>

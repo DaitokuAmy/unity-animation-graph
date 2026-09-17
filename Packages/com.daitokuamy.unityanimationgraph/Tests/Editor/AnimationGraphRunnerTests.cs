@@ -118,6 +118,60 @@ namespace UnityAnimationGraph.Tests {
         }
 
         /// <summary>
+        /// Seek は再生を開始せず現在の Graph の指定時刻を評価する
+        /// </summary>
+        [Test]
+        public void Seek_EvaluatesCurrentGraphWithoutPlaying() {
+            using var builder = new AnimationGraphTestBuilder();
+            var startNode = builder.CreateStartNode("start", "action");
+            var actionNode = builder.CreateActionNode("action", 1.0f);
+            var graphAsset = builder.CreateGraph("start", startNode, actionNode);
+            var gameObject = new GameObject("AnimationGraphRunnerTest");
+
+            try {
+                var runner = gameObject.AddComponent<AnimationGraphRunner>();
+                runner.GraphAsset = graphAsset;
+
+                runner.Seek(0.25f);
+
+                Assert.That(actionNode.EnterCount, Is.EqualTo(1));
+                Assert.That(actionNode.EvaluateCount, Is.EqualTo(1));
+                Assert.That(actionNode.LastLocalTime, Is.EqualTo(0.25f).Within(0.0001f));
+                Assert.That(runner.CurrentTime, Is.EqualTo(0.25f).Within(0.0001f));
+                Assert.That(runner.State, Is.EqualTo(AnimationGraphPlayerState.Stopped));
+                Assert.IsFalse(runner.IsPlaying);
+            }
+            finally {
+                Object.DestroyImmediate(gameObject);
+            }
+        }
+
+        /// <summary>
+        /// Graph 指定の Seek は Graph を差し替えて指定時刻を評価する
+        /// </summary>
+        [Test]
+        public void Seek_SetsGraphAndEvaluatesSpecifiedTime() {
+            using var builder = new AnimationGraphTestBuilder();
+            var startNode = builder.CreateStartNode("start", "action");
+            var actionNode = builder.CreateActionNode("action", 1.0f);
+            var graphAsset = builder.CreateGraph("start", startNode, actionNode);
+            var gameObject = new GameObject("AnimationGraphRunnerTest");
+
+            try {
+                var runner = gameObject.AddComponent<AnimationGraphRunner>();
+
+                runner.Seek(graphAsset, 0.5f);
+
+                Assert.That(runner.GraphAsset, Is.EqualTo(graphAsset));
+                Assert.That(actionNode.EvaluateCount, Is.EqualTo(1));
+                Assert.That(actionNode.LastLocalTime, Is.EqualTo(0.5f).Within(0.0001f));
+            }
+            finally {
+                Object.DestroyImmediate(gameObject);
+            }
+        }
+
+        /// <summary>
         /// Graph 指定の Loop と LoopDelay は Runner のデフォルト設定より優先される
         /// </summary>
         [Test]

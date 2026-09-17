@@ -185,6 +185,7 @@ Inspector には、`Target Schema` の定義に対応する `Target Bindings` �
 - `Play()`: 設定中のGraphをRunner設定で再生し、`AnimationGraphPlayHandle` を返す
 - `Play(AnimationGraphAsset, loop = false, loopDelay = 0.0f)`: Graphを差し替え、指定したLoop設定で再生する
 - `Pause()` / `Stop()`: 再生の一時停止、停止
+- `Seek(time)` / `Seek(AnimationGraphAsset, time)`: Graph を指定時刻で即時評価する。停止中の場合は再生を開始しない
 - `AnimationGraphPlayHandle.Pause()` / `Resume()` / `Stop()` / `Complete()`: 取得した handle に対応する再生を操作する
 - `ManualUpdate(deltaTime)`: `UpdateMode` が `AnimationGraphRunner.UpdateType.ManualUpdate` のときだけ手動で時間を進める
 - `Loop` / `LoopDelay`: 再生完了後の Loop と Loop 間の待機時間を設定する
@@ -342,6 +343,30 @@ public sealed class AnimationGraphBlackboardExample : MonoBehaviour {
     }
 }
 ```
+
+Graph の開始状態を再生前に即時反映する場合:
+
+```csharp
+using UnityEngine;
+using UnityAnimationGraph;
+
+public sealed class AnimationGraphInitialStateExample : MonoBehaviour {
+    [SerializeField]
+    private AnimationGraphRunner _runner;
+
+    public void Prepare(AnimationGraphAsset graphAsset, Vector3 destination) {
+        _runner.SetGraph(graphAsset);
+        _runner.SetBlackboardValue("MoveTo", destination);
+        _runner.Seek(0.0f);
+    }
+
+    public void Play() {
+        _runner.Play();
+    }
+}
+```
+
+`Seek(0.0f)` は現在設定中の Graph の開始状態を評価します。停止中の場合は再生を開始せず、Signal も通知しません。Blackboard 値を開始状態へ反映したい場合は、上記のように `SetGraph`、`SetBlackboardValue`、`Seek(0.0f)` の順で呼び出します。Graph の default Blackboard 値をそのまま使う場合は、`Seek(graphAsset, 0.0f)` でも設定と反映をまとめて実行できます。0 秒以外を指定すると、その時刻までの状態を即時反映できます。
 
 ## 組み込みノード
 
