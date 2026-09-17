@@ -66,6 +66,8 @@ namespace UnityAnimationGraph.Editor {
         public SerializedPropertyType PropertyType { get; }
         /// <summary>Target key field の場合は true</summary>
         public bool IsTargetKey { get; }
+        /// <summary>Target key field の multiplicity filter</summary>
+        public TargetMultiplicity TargetMultiplicity { get; }
         /// <summary>Blackboard key field の場合は true</summary>
         public bool IsBlackboardKey { get; }
         /// <summary>Blackboard value type filter を持つ場合は true</summary>
@@ -80,6 +82,7 @@ namespace UnityAnimationGraph.Editor {
         /// <param name="label">GraphView 詳細に表示するラベル</param>
         /// <param name="propertyType">SerializedProperty の型</param>
         /// <param name="isTargetKey">Target key field の場合は true</param>
+        /// <param name="targetMultiplicity">Target key field の multiplicity filter</param>
         /// <param name="isBlackboardKey">Blackboard key field の場合は true</param>
         /// <param name="hasBlackboardValueTypeFilter">Blackboard value type filter を持つ場合は true</param>
         /// <param name="blackboardValueType">Blackboard value type filter</param>
@@ -88,6 +91,7 @@ namespace UnityAnimationGraph.Editor {
             string label,
             SerializedPropertyType propertyType,
             bool isTargetKey,
+            TargetMultiplicity targetMultiplicity,
             bool isBlackboardKey,
             bool hasBlackboardValueTypeFilter,
             BlackboardValueType blackboardValueType) {
@@ -95,6 +99,7 @@ namespace UnityAnimationGraph.Editor {
             Label = label ?? string.Empty;
             PropertyType = propertyType;
             IsTargetKey = isTargetKey;
+            TargetMultiplicity = targetMultiplicity;
             IsBlackboardKey = isBlackboardKey;
             HasBlackboardValueTypeFilter = hasBlackboardValueTypeFilter;
             BlackboardValueType = blackboardValueType;
@@ -152,6 +157,7 @@ namespace UnityAnimationGraph.Editor {
             return node switch {
                 BranchNode branchNode => new BranchNodeEditorModel(branchNode),
                 LoopNode loopNode => new LoopNodeEditorModel(loopNode),
+                EachNode eachNode => new EachNodeEditorModel(eachNode),
                 DelayNode delayNode => new DelayNodeEditorModel(delayNode),
                 _ => new NodeEditorModel(node),
             };
@@ -361,12 +367,14 @@ namespace UnityAnimationGraph.Editor {
                     continue;
                 }
 
+                var targetKeyAttribute = fieldInfo.GetCustomAttribute<TargetKeyAttribute>();
                 var blackboardKeyAttribute = fieldInfo.GetCustomAttribute<BlackboardKeyAttribute>();
                 fields.Add(new NodeDetailField(
                     fieldInfo.Name,
                     GetDetailFieldLabel(fieldInfo, detailFieldAttribute),
                     property.propertyType,
-                    fieldInfo.GetCustomAttribute<TargetKeyAttribute>() != null,
+                    targetKeyAttribute != null,
+                    targetKeyAttribute?.Multiplicity ?? default,
                     blackboardKeyAttribute != null,
                     blackboardKeyAttribute?.HasValueTypeFilter ?? false,
                     blackboardKeyAttribute?.ValueType ?? default));

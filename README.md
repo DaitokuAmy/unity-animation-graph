@@ -122,6 +122,7 @@ GraphView 上で右クリックし、`Create` メニューからノードを追�
 - `Create > Control > Delay`
 - `Create > Control > Join`
 - `Create > Control > Loop`
+- `Create > Control > Each`
 - `Create > Control > Flag Branch`
 - `Create > Action > Built-in > Tween > Transform > Position`
 - `Create > Action > Built-in > Tween > UI > Graphic Color`
@@ -380,6 +381,7 @@ public sealed class AnimationGraphInitialStateExample : MonoBehaviour {
 | `DelayNode` | 指定時間待機します |
 | `JoinNode` | 複数の流れを合流します |
 | `LoopNode` | 指定したノード群を指定回数ループします |
+| `EachNode` | Collectionの各要素に対して指定したノード群を同時実行します |
 | `FlagBranchNode` | bool Blackboard 値で true / false に分岐します |
 
 ### Action ノード

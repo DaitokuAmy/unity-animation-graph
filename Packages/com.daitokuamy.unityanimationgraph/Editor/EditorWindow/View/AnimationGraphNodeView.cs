@@ -203,7 +203,8 @@ namespace UnityAnimationGraph.Editor {
             }
 
             if (typeof(ScopedControlNode).IsAssignableFrom(NodeModel.NodeType)) {
-                AddOutputPort(AnimationGraphOutputPortKind.Loop, "Loop", Port.Capacity.Multi, keyColor);
+                var portName = NodeModel is EachNodeEditorModel ? "Each" : "Loop";
+                AddOutputPort(AnimationGraphOutputPortKind.Loop, portName, Port.Capacity.Multi, keyColor);
             }
 
             if (NodeModel.EnableEnterSignalPort) {
@@ -490,7 +491,7 @@ namespace UnityAnimationGraph.Editor {
 
         private void AddTargetKeyDetailField(NodeDetailField field) {
             var currentValue = NodeModel.GetDetailFieldStringValue(field);
-            var choices = CreateTargetKeyChoices(_targetDefinitionsProvider(), currentValue);
+            var choices = CreateTargetKeyChoices(_targetDefinitionsProvider(), field.TargetMultiplicity, currentValue);
             var selectedIndex = FindChoiceIndex(choices, currentValue);
             var popup = new PopupField<string>(choices, selectedIndex);
             popup.formatSelectedValueCallback = value => FormatTargetKeyChoice(value, _targetDefinitionsProvider());
@@ -663,13 +664,17 @@ namespace UnityAnimationGraph.Editor {
             };
         }
 
-        private static List<string> CreateTargetKeyChoices(IReadOnlyList<TargetDefinition> targetDefinitions, string currentTargetKey) {
+        private static List<string> CreateTargetKeyChoices(IReadOnlyList<TargetDefinition> targetDefinitions, TargetMultiplicity multiplicity, string currentTargetKey) {
             var choices = new List<string> {
                 string.Empty,
             };
 
             if (targetDefinitions != null) {
                 for (var i = 0; i < targetDefinitions.Count; i++) {
+                    if (targetDefinitions[i].Multiplicity != multiplicity) {
+                        continue;
+                    }
+
                     AddUniqueChoice(choices, targetDefinitions[i].Key);
                 }
             }

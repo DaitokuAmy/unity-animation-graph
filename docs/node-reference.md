@@ -19,9 +19,9 @@ Action Nodeは`Target Reference`を通して操作対象のComponentを解決し
 | Kind | 表示例 | 解決方法 |
 | --- | --- | --- |
 | `Binding` | `Binding/MoveTarget` | `AnimationGraphRunner`のTarget Bindingから単一Componentを取得します |
-| `CollectionItem` | `CollectionItem/MoveTargets` | 親Loopの現在Indexに対応するCollection要素を取得します |
+| `CollectionItem` | `CollectionItem/MoveTargets` | 親の反復scopeの現在Indexに対応するCollection要素を取得します |
 
-`CollectionItem`は参照元となるLoopのScope Nodeも保持します。Loopがネストしている場合は、最も内側のLoopだけでなく任意の祖先Loopを参照できます。
+`CollectionItem`は参照元となるLoopまたはEachのScope Nodeも保持します。scopeがネストしている場合は、最も内側だけでなく任意の祖先scopeを参照できます。
 
 Targetが未設定、null、またはCollectionの範囲外だった場合、Action Nodeは既定で処理をスキップします。特殊な独自Action Nodeだけ、基底クラスの`AllowNullTarget`をoverrideしてnullを受け取れます。
 
@@ -123,6 +123,25 @@ ColorTargets = [X, Y,    Z]
 `MoveTargets`をCount Targetとして`Skip Null`を有効にした場合、実行されるIndexは0と2です。body内の`CollectionItem/ColorTargets`はXとZを参照します。
 
 CollectionはSchedule構築時にSnapshotされます。再生中のAdd / Remove / Clearは現在の再生へ反映されず、次回再生から反映されます。
+
+### Each
+
+型: `EachNode`
+作成メニュー: `Control/Each`
+
+`Collection`の各要素に対して`Each` Portに接続されたNode群を同時に実行し、すべての要素の処理が完了した後に`Next`へ進みます。
+
+| 設定 | 説明 |
+| --- | --- |
+| `Collection` | 並列実行の基準となるCollection Target |
+| `Skip Null` | Collectionのnull要素をスキップします |
+| `Interval` | 要素ごとの開始間隔。`Interval * Index`秒だけ開始を遅らせます |
+
+各要素のbodyは独立した反復scopeを持ちます。body内のAction Nodeは、`CollectionItem`から現在のIndexに対応する要素を参照できます。空Collectionの場合はbodyを実行せず、即座に`Next`へ進みます。
+
+`Interval`が0の場合はすべての要素を同時に開始します。正数の場合はCollectionのIndexに応じて開始時刻をずらします。`Skip Null`で要素を省略してもIndexは詰めません。
+
+CollectionはSchedule構築時にSnapshotされます。同じ開始時刻を持つ要素はCollectionのIndex順で安定して評価されます。
 
 ## State Action Node
 

@@ -752,7 +752,8 @@ Editor 側は次を確認する。
 
 ### Collection scheduling
 
-- Collection の反復は専用の ForEachNode を持たず、`LoopNode` の Collection count source で表現する
+- Collection の逐次反復は `LoopNode` の Collection count source で表現する
+- Collection の全要素に対する並列実行は `EachNode` で表現する
 - Collection は schedule build、すなわち再生開始時に snapshot する
 - 再生中の Collection 変更は現在の schedule に反映せず、次回の schedule build から反映する
 - 空 Collection の body は 0 回実行する

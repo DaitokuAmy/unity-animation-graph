@@ -62,6 +62,8 @@ namespace UnityAnimationGraph.Editor {
         private const string BranchNodeIdsPropertyName = "_nodeIds";
         /// <summary>LoopNode のループ内容ノード ID フィールド名</summary>
         private const string LoopNodeIdsPropertyName = "_loopNodeIds";
+        /// <summary>EachNode の body node ID フィールド名</summary>
+        private const string EachNodeIdsPropertyName = "_eachNodeIds";
         /// <summary>AnimationGraphAsset の asset GUID フィールド名</summary>
         private const string AssetGuidPropertyName = "_assetGuid";
         /// <summary>AnimationGraphAsset のグラフシードフィールド名</summary>
@@ -748,6 +750,34 @@ namespace UnityAnimationGraph.Editor {
         }
 
         /// <summary>
+        /// EachNode の body node ID 一覧を設定
+        /// </summary>
+        /// <param name="node">設定対象の EachNode</param>
+        /// <param name="eachNodeIds">設定する body node ID 一覧</param>
+        public static void SetEachNodeIds(EachNode node, IReadOnlyList<string> eachNodeIds) {
+            if (node == null) {
+                throw new ArgumentNullException(nameof(node));
+            }
+
+            if (eachNodeIds == null) {
+                throw new ArgumentNullException(nameof(eachNodeIds));
+            }
+
+            var undoName = "Set Animation Graph Each Connections";
+            Undo.RecordObject(node, undoName);
+
+            var serializedNode = new SerializedObject(node);
+            var eachNodeIdsProperty = serializedNode.FindProperty(EachNodeIdsPropertyName);
+            eachNodeIdsProperty.arraySize = eachNodeIds.Count;
+            for (var i = 0; i < eachNodeIds.Count; i++) {
+                eachNodeIdsProperty.GetArrayElementAtIndex(i).stringValue = eachNodeIds[i] ?? string.Empty;
+            }
+
+            serializedNode.ApplyModifiedProperties();
+            EditorUtility.SetDirty(node);
+        }
+
+        /// <summary>
         /// AnimationGraphAsset からノードを削除
         /// </summary>
         /// <param name="graphAsset">削除元の AnimationGraphAsset</param>
@@ -846,6 +876,10 @@ namespace UnityAnimationGraph.Editor {
                 if (current is LoopNode) {
                     var loopNodeIdsProperty = serializedNode.FindProperty(LoopNodeIdsPropertyName);
                     RemoveStringArrayValue(loopNodeIdsProperty, node.NodeId);
+                }
+                else if (current is EachNode) {
+                    var eachNodeIdsProperty = serializedNode.FindProperty(EachNodeIdsPropertyName);
+                    RemoveStringArrayValue(eachNodeIdsProperty, node.NodeId);
                 }
 
                 serializedNode.ApplyModifiedProperties();
@@ -997,6 +1031,9 @@ namespace UnityAnimationGraph.Editor {
 
             if (node is LoopNode) {
                 serializedNode.FindProperty(LoopNodeIdsPropertyName).arraySize = 0;
+            }
+            else if (node is EachNode) {
+                serializedNode.FindProperty(EachNodeIdsPropertyName).arraySize = 0;
             }
 
             serializedNode.ApplyModifiedPropertiesWithoutUndo();

@@ -30,6 +30,14 @@ namespace UnityAnimationGraph.Tests {
         private const string LoopCountPropertyName = "_loopCount";
         /// <summary>LoopNode のループ内容ノード ID フィールド名</summary>
         private const string LoopNodeIdsPropertyName = "_loopNodeIds";
+        /// <summary>EachNode の body node ID フィールド名</summary>
+        private const string EachNodeIdsPropertyName = "_eachNodeIds";
+        /// <summary>EachNode の collection target key フィールド名</summary>
+        private const string EachCollectionTargetKeyPropertyName = "_collectionTargetKey";
+        /// <summary>EachNode の null skip フィールド名</summary>
+        private const string EachSkipNullItemsPropertyName = "_skipNullItems";
+        /// <summary>EachNode の要素開始間隔フィールド名</summary>
+        private const string EachIntervalPropertyName = "_interval";
         /// <summary>JoinNode の合流方法フィールド名</summary>
         private const string JoinTypePropertyName = "_joinType";
         /// <summary>AnimationGraphAsset の asset GUID フィールド名</summary>
@@ -338,6 +346,23 @@ namespace UnityAnimationGraph.Tests {
         }
 
         /// <summary>
+        /// EachNode の設定を更新
+        /// </summary>
+        /// <param name="eachNode">設定対象 EachNode</param>
+        /// <param name="collectionTargetKey">target collection key</param>
+        /// <param name="skipNullItems">null 要素をスキップする場合は true</param>
+        /// <param name="interval">要素ごとの開始間隔</param>
+        /// <param name="eachNodeIds">body node ID 一覧</param>
+        public void SetEach(EachNode eachNode, string collectionTargetKey, bool skipNullItems, float interval, params string[] eachNodeIds) {
+            var serializedNode = new SerializedObject(eachNode);
+            serializedNode.FindProperty(EachCollectionTargetKeyPropertyName).stringValue = collectionTargetKey ?? string.Empty;
+            serializedNode.FindProperty(EachSkipNullItemsPropertyName).boolValue = skipNullItems;
+            serializedNode.FindProperty(EachIntervalPropertyName).floatValue = interval;
+            SetStringArray(serializedNode.FindProperty(EachNodeIdsPropertyName), eachNodeIds);
+            serializedNode.ApplyModifiedPropertiesWithoutUndo();
+        }
+
+        /// <summary>
         /// JoinNode の合流方法を設定
         /// </summary>
         /// <param name="joinNode">設定対象 JoinNode</param>
@@ -378,6 +403,9 @@ namespace UnityAnimationGraph.Tests {
 
             if (node is LoopNode) {
                 SetStringArray(serializedNode.FindProperty(LoopNodeIdsPropertyName), Array.Empty<string>());
+            }
+            else if (node is EachNode) {
+                SetStringArray(serializedNode.FindProperty(EachNodeIdsPropertyName), Array.Empty<string>());
             }
 
             serializedNode.ApplyModifiedPropertiesWithoutUndo();

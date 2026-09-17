@@ -182,6 +182,85 @@ namespace UnityAnimationGraph.Tests {
         }
 
         /// <summary>
+        /// EachNode は collection の各要素に body を同時展開し、全要素の完了後に後続へ進む
+        /// </summary>
+        [Test]
+        public void BuildSchedule_EachNodeExpandsCollectionInParallel() {
+            using var builder = new AnimationGraphTestBuilder();
+            var startNode = builder.CreateStartNode("start", "each");
+            var eachNode = builder.CreateNode<EachNode>("each", "after");
+            var bodyNode = builder.CreateActionNode("body", 1.0f, "bodyNext");
+            var bodyNextNode = builder.CreateActionNode("bodyNext", 2.0f);
+            var afterNode = builder.CreateActionNode("after", 3.0f);
+            builder.SetEach(eachNode, "targets", false, 0.0f, bodyNode.NodeId);
+            var graphAsset = builder.CreateGraph("start", startNode, eachNode, bodyNode, bodyNextNode, afterNode);
+            builder.SetTargetDefinitions(graphAsset, new TargetDefinition("targets", string.Empty, TargetMultiplicity.Collection));
+            var firstTarget = new GameObject("FirstTarget");
+            var secondTarget = new GameObject("SecondTarget");
+            var thirdTarget = new GameObject("ThirdTarget");
+
+            try {
+                var context = new TestAnimationGraphContext();
+                var contextTargets = new[] { firstTarget.transform, secondTarget.transform, thirdTarget.transform };
+                context.SetTargets("targets", contextTargets);
+                var schedule = new AnimationGraphScheduler().Build(graphAsset, context);
+                var bodyScheduledNodes = FindScheduledNodes(schedule, bodyNode);
+                var bodyNextScheduledNodes = FindScheduledNodes(schedule, bodyNextNode);
+
+                Assert.That(bodyScheduledNodes.Count, Is.EqualTo(3));
+                Assert.That(bodyNextScheduledNodes.Count, Is.EqualTo(3));
+                for (var i = 0; i < 3; i++) {
+                    Assert.That(bodyScheduledNodes[i].StartTime, Is.EqualTo(0.0f).Within(0.0001f));
+                    Assert.That(bodyNextScheduledNodes[i].StartTime, Is.EqualTo(1.0f).Within(0.0001f));
+                    Assert.That(bodyScheduledNodes[i].Context, Is.InstanceOf<ScopedAnimationGraphContext>());
+                    var scopedContext = (ScopedAnimationGraphContext)bodyScheduledNodes[i].Context;
+                    Assert.That(scopedContext.TryGetScopedTarget(eachNode.NodeId, "targets", out Transform target), Is.True);
+                    Assert.That(target, Is.EqualTo(contextTargets[i]));
+                }
+
+                AssertScheduledNode(schedule, afterNode, 3.0f, 3.0f);
+            }
+            finally {
+                UnityEngine.Object.DestroyImmediate(firstTarget);
+                UnityEngine.Object.DestroyImmediate(secondTarget);
+                UnityEngine.Object.DestroyImmediate(thirdTarget);
+            }
+        }
+
+        /// <summary>
+        /// EachNode は設定に応じて null 要素をスキップする
+        /// </summary>
+        [Test]
+        public void BuildSchedule_EachNodeOptionallySkipsNullItems() {
+            using var builder = new AnimationGraphTestBuilder();
+            var startNode = builder.CreateStartNode("start", "each");
+            var eachNode = builder.CreateNode<EachNode>("each", "after");
+            var bodyNode = builder.CreateActionNode("body", 1.0f);
+            var afterNode = builder.CreateActionNode("after", 1.0f);
+            builder.SetEach(eachNode, "targets", true, 0.5f, bodyNode.NodeId);
+            var graphAsset = builder.CreateGraph("start", startNode, eachNode, bodyNode, afterNode);
+            builder.SetTargetDefinitions(graphAsset, new TargetDefinition("targets", string.Empty, TargetMultiplicity.Collection));
+            var firstTarget = new GameObject("FirstTarget");
+            var thirdTarget = new GameObject("ThirdTarget");
+
+            try {
+                var context = new TestAnimationGraphContext();
+                context.SetTargets("targets", firstTarget.transform, null, thirdTarget.transform);
+                var schedule = new AnimationGraphScheduler().Build(graphAsset, context);
+
+                Assert.That(FindScheduledNodes(schedule, bodyNode).Count, Is.EqualTo(2));
+                var bodyScheduledNodes = FindScheduledNodes(schedule, bodyNode);
+                Assert.That(bodyScheduledNodes[0].StartTime, Is.EqualTo(0.0f).Within(0.0001f));
+                Assert.That(bodyScheduledNodes[1].StartTime, Is.EqualTo(1.0f).Within(0.0001f));
+                AssertScheduledNode(schedule, afterNode, 2.0f, 1.0f);
+            }
+            finally {
+                UnityEngine.Object.DestroyImmediate(firstTarget);
+                UnityEngine.Object.DestroyImmediate(thirdTarget);
+            }
+        }
+
+        /// <summary>
         /// Schedule node 数が上限を超えた場合は build を中断する
         /// </summary>
         [Test]

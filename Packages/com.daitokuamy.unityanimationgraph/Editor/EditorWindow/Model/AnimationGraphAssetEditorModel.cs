@@ -1105,7 +1105,7 @@ namespace UnityAnimationGraph.Editor {
             var targetLoopOwner = FindLoopOwner(targetNodeModel.NodeId);
             if (outputPortKind == AnimationGraphOutputPortKind.Loop) {
                 if (targetLoopOwner != null && targetLoopOwner.NodeId != sourceNodeModel.NodeId) {
-                    errorMessage = "Node is already contained in another LoopNode";
+                    errorMessage = "Node is already contained in another scoped control node";
                     return false;
                 }
 
@@ -1136,12 +1136,12 @@ namespace UnityAnimationGraph.Editor {
             }
 
             if (sourceLoopOwner != null && targetLoopOwner.NodeId != sourceLoopOwner.NodeId) {
-                errorMessage = "Loop body node cannot connect outside its LoopNode";
+                errorMessage = "Scoped body node cannot connect outside its owner";
                 return false;
             }
 
             if (targetLoopOwner != null && sourceLoopOwner.NodeId != targetLoopOwner.NodeId) {
-                errorMessage = "Loop body node cannot receive connections from outside its LoopNode";
+                errorMessage = "Scoped body node cannot receive connections from outside its owner";
                 return false;
             }
 
@@ -1158,12 +1158,12 @@ namespace UnityAnimationGraph.Editor {
         /// <returns>追加できる場合は true</returns>
         private bool CanAddNodeToLoop(ScopedControlNodeEditorModel loopNodeModel, NodeEditorModel targetNodeModel, out string errorMessage) {
             if (targetNodeModel.NodeType == typeof(StartNode)) {
-                errorMessage = "LoopNode cannot contain StartNode";
+                errorMessage = "Scoped control node cannot contain StartNode";
                 return false;
             }
 
             if (targetNodeModel.NodeId == loopNodeModel.NodeId) {
-                errorMessage = "LoopNode cannot contain itself";
+                errorMessage = "Scoped control node cannot contain itself";
                 return false;
             }
 
@@ -1270,7 +1270,7 @@ namespace UnityAnimationGraph.Editor {
             for (var i = 0; i < loopNodeIds.Count; i++) {
                 var loopNodeId = loopNodeIds[i];
                 if (string.IsNullOrEmpty(loopNodeId)) {
-                    AddNodeValidationMessageIfNeeded(messagesByNodeId, loopNodeModel.NodeId, $"{loopNodeModel.DisplayName} has empty loop node id");
+                    AddNodeValidationMessageIfNeeded(messagesByNodeId, loopNodeModel.NodeId, $"{loopNodeModel.DisplayName} has empty body node id");
                     continue;
                 }
 
@@ -1280,12 +1280,12 @@ namespace UnityAnimationGraph.Editor {
                 }
 
                 if (!explicitLoopNodeIds.Add(loopNodeId)) {
-                    AddNodeValidationMessageIfNeeded(messagesByNodeId, loopNodeModel.NodeId, $"{loopNodeModel.DisplayName} contains duplicated loop node");
+                    AddNodeValidationMessageIfNeeded(messagesByNodeId, loopNodeModel.NodeId, $"{loopNodeModel.DisplayName} contains duplicated body node");
                     continue;
                 }
 
                 if (!_nodeModelsById.TryGetValue(loopNodeId, out var bodyNodeModel)) {
-                    AddNodeValidationMessageIfNeeded(messagesByNodeId, loopNodeModel.NodeId, $"{loopNodeModel.DisplayName} contains missing loop node");
+                    AddNodeValidationMessageIfNeeded(messagesByNodeId, loopNodeModel.NodeId, $"{loopNodeModel.DisplayName} contains missing body node");
                     continue;
                 }
 

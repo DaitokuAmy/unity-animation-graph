@@ -774,6 +774,9 @@ namespace UnityAnimationGraph {
                 if (node is LoopNode loopNode && node.NodeId != terminalNodeId) {
                     endTime = BuildLoop(loopNode, endTime, seedSalt, ref buildContext);
                 }
+                else if (node is EachNode eachNode && node.NodeId != terminalNodeId) {
+                    endTime = BuildEach(eachNode, endTime, seedSalt, ref buildContext);
+                }
                 scopeEndTime = Mathf.Max(scopeEndTime, endTime);
 
                 if (!nextNodeIdsByNodeId.TryGetValue(node.NodeId, out var nextNodeIds)) {
@@ -833,6 +836,41 @@ namespace UnityAnimationGraph {
             }
 
             return loopEndTime;
+        }
+
+        /// <summary>
+        /// EachNode の body を target collection の各要素に対して並列展開
+        /// </summary>
+        /// <param name="eachNode">展開する EachNode</param>
+        /// <param name="incomingTime">EachNode の終了時刻</param>
+        /// <param name="seedSalt">親 scope のシード salt</param>
+        /// <param name="buildContext">スケジュール build 全体の状態</param>
+        /// <returns>全要素の body が終了する時刻</returns>
+        private float BuildEach(EachNode eachNode, float incomingTime, int seedSalt, ref ScheduleBuildContext buildContext) {
+            var bodyNodeIds = BuildScopedBodyNodeIdSet(eachNode, _nodeMap);
+            if (bodyNodeIds.Count == 0) {
+                return incomingTime;
+            }
+
+            if (!buildContext.CollectionSnapshots.TryGetSnapshot(eachNode.CollectionTargetKey, out var snapshot)) {
+                throw new InvalidOperationException($"EachNode '{eachNode.NodeId}' cannot resolve collection target '{eachNode.CollectionTargetKey}'");
+            }
+
+            var startNodeIds = GetScopedStartNodeIds(eachNode, bodyNodeIds);
+            var eachEndTime = incomingTime;
+            for (var i = 0; i < snapshot.Count; i++) {
+                if (eachNode.SkipNullItems && snapshot[i] == null) {
+                    continue;
+                }
+
+                var iterationScope = new IterationScope(eachNode.NodeId, i, buildContext.IterationScope);
+                var iterationSeedSalt = CreateNodeSeed(seedSalt, eachNode.NodeId, i);
+                var iterationStartTime = incomingTime + eachNode.Interval * i;
+                var iterationEndTime = BuildScope(startNodeIds, iterationStartTime, iterationSeedSalt, null, bodyNodeIds, iterationScope, ref buildContext);
+                eachEndTime = Mathf.Max(eachEndTime, iterationEndTime);
+            }
+
+            return eachEndTime;
         }
 
         private int ResolveLoopCount(LoopNode loopNode, CollectionSnapshotRegistry collectionSnapshots) {
