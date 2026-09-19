@@ -31,6 +31,8 @@ namespace UnityAnimationGraph.Editor {
         private static readonly GUIContent TargetLabel = new("Target");
         private static readonly GUIContent ComponentMenuLabel = new(string.Empty, "Select Component");
 
+        private readonly Dictionary<string, ReorderableList> _targetListsByPropertyPath = new();
+
         private SerializedProperty _graphAssetProperty;
         private SerializedProperty _playOnEnabledProperty;
         private SerializedProperty _loopProperty;
@@ -40,6 +42,7 @@ namespace UnityAnimationGraph.Editor {
         private SerializedProperty _targetBindingsProperty;
 
         private void OnEnable() {
+            _targetListsByPropertyPath.Clear();
             _graphAssetProperty = serializedObject.FindProperty(GraphAssetPropertyName);
             _playOnEnabledProperty = serializedObject.FindProperty(PlayOnEnabledPropertyName);
             _loopProperty = serializedObject.FindProperty(LoopPropertyName);
@@ -158,6 +161,7 @@ namespace UnityAnimationGraph.Editor {
         private void EnsureTargetBindings() {
             var targetSchema = _targetSchemaProperty.objectReferenceValue as AnimationGraphTargetSchema;
             if (!IsBindingStructureValid(_targetBindingsProperty, targetSchema)) {
+                _targetListsByPropertyPath.Clear();
                 SetBindingProperties(_targetBindingsProperty, targetSchema);
             }
         }
@@ -227,12 +231,19 @@ namespace UnityAnimationGraph.Editor {
             var targetType = AnimationGraphTargetScriptUtility.GetObjectFieldType(monoScriptGuid);
             var targetsProperty = bindingProperty.FindPropertyRelative(TargetsPropertyName);
             var label = new GUIContent($"{key} ({ObjectNames.NicifyVariableName(targetType.Name)}[])");
-            var targetsList = new ReorderableList(serializedObject, targetsProperty, true, true, true, true) {
-                drawHeaderCallback = rect => EditorGUI.LabelField(rect, label),
-                drawElementCallback = (rect, index, _, _) => DrawCollectionElement(rect, targetsProperty, index, monoScriptGuid, targetType),
-                elementHeight = EditorGUIUtility.singleLineHeight,
-            };
-            targetsList.DoLayoutList();
+            var propertyPath = targetsProperty.propertyPath;
+            if (!_targetListsByPropertyPath.TryGetValue(propertyPath, out var targetsList)) {
+                targetsList = new ReorderableList(serializedObject, targetsProperty, true, true, true, true) {
+                    drawHeaderCallback = rect => EditorGUI.LabelField(rect, label),
+                    drawElementCallback = (rect, index, _, _) => DrawCollectionElement(rect, targetsProperty, index, monoScriptGuid, targetType),
+                    elementHeight = EditorGUIUtility.singleLineHeight,
+                };
+                _targetListsByPropertyPath.Add(propertyPath, targetsList);
+            }
+
+            var listRect = EditorGUILayout.GetControlRect(false, targetsList.GetHeight());
+            HandleCollectionDragAndDrop(listRect, targetsProperty, targetType);
+            targetsList.DoList(listRect);
         }
 
         private static void DrawCollectionElement(Rect rect, SerializedProperty targetsProperty, int index, string monoScriptGuid, System.Type targetType) {
@@ -244,6 +255,56 @@ namespace UnityAnimationGraph.Editor {
             elementProperty.objectReferenceValue = AnimationGraphTargetScriptUtility.IsTargetAssignable(target, monoScriptGuid)
                 ? target
                 : null;
+        }
+
+        private static void HandleCollectionDragAndDrop(Rect rect, SerializedProperty targetsProperty, System.Type targetType) {
+            var currentEvent = Event.current;
+            if (!rect.Contains(currentEvent.mousePosition)
+                || currentEvent.type != EventType.DragUpdated && currentEvent.type != EventType.DragPerform) {
+                return;
+            }
+
+            var draggedObjects = DragAndDrop.objectReferences;
+            var hasValidTarget = false;
+            for (var i = 0; i < draggedObjects.Length; i++) {
+                if (ResolveDraggedTarget(draggedObjects[i], targetType) != null) {
+                    hasValidTarget = true;
+                    break;
+                }
+            }
+
+            if (!hasValidTarget) {
+                return;
+            }
+
+            DragAndDrop.visualMode = DragAndDropVisualMode.Copy;
+            if (currentEvent.type == EventType.DragPerform) {
+                DragAndDrop.AcceptDrag();
+                for (var i = 0; i < draggedObjects.Length; i++) {
+                    var target = ResolveDraggedTarget(draggedObjects[i], targetType);
+                    if (target == null) {
+                        continue;
+                    }
+
+                    var index = targetsProperty.arraySize;
+                    targetsProperty.InsertArrayElementAtIndex(index);
+                    targetsProperty.GetArrayElementAtIndex(index).objectReferenceValue = target;
+                }
+            }
+
+            currentEvent.Use();
+        }
+
+        private static Component ResolveDraggedTarget(Object draggedObject, System.Type targetType) {
+            if (draggedObject is GameObject gameObject) {
+                return gameObject.GetComponent(targetType);
+            }
+
+            if (draggedObject is not Component component) {
+                return null;
+            }
+
+            return targetType.IsInstanceOfType(component) ? component : component.GetComponent(targetType);
         }
 
         private void DrawComponentMenuButton(Rect rect, SerializedProperty targetComponentProperty, Component targetComponent, System.Type targetType) {
