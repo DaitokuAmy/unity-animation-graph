@@ -447,6 +447,50 @@ namespace UnityAnimationGraph.Tests {
         }
 
         /// <summary>
+        /// CollectionItem の ActionNode が Loop body から外れると scope のみ解除する
+        /// </summary>
+        [Test]
+        public void Disconnect_ClearsCollectionItemScopeWhenActionNodeLeavesLoopBody() {
+            var graphAsset = CreateSavedGraphAsset();
+            var model = new AnimationGraphAssetEditorModel();
+            model.SetGraphAsset(graphAsset);
+            model.InitializeGraph(Vector2.zero);
+            var loopNodeModel = model.AddNode<LoopNode>(Vector2.right);
+            var bodyNodeModel = model.AddNode<TestActionNode>(Vector2.right * 2.0f);
+            bodyNodeModel.SetActionTargetReference(new TargetReference(TargetReferenceKind.CollectionItem, "targets"));
+            Assert.IsTrue(model.Connect(AnimationGraphOutputPortKind.Loop, loopNodeModel, bodyNodeModel, out _));
+
+            Assert.IsTrue(model.Disconnect(AnimationGraphOutputPortKind.Loop, loopNodeModel, bodyNodeModel));
+
+            var targetReference = ((ActionNode)bodyNodeModel.Node).TargetReference;
+            Assert.That(targetReference.Kind, Is.EqualTo(TargetReferenceKind.CollectionItem));
+            Assert.That(targetReference.TargetKey, Is.EqualTo("targets"));
+            Assert.That(targetReference.ScopeNodeId, Is.Empty);
+        }
+
+        /// <summary>
+        /// 別の body 登録で Loop 内に残る CollectionItem の scope は維持する
+        /// </summary>
+        [Test]
+        public void Disconnect_KeepsCollectionItemScopeWhenActionNodeRemainsInLoopBody() {
+            var graphAsset = CreateSavedGraphAsset();
+            var model = new AnimationGraphAssetEditorModel();
+            model.SetGraphAsset(graphAsset);
+            model.InitializeGraph(Vector2.zero);
+            var loopNodeModel = model.AddNode<LoopNode>(Vector2.right);
+            var firstBodyNodeModel = model.AddNode<DelayNode>(Vector2.right * 2.0f);
+            var actionNodeModel = model.AddNode<TestActionNode>(Vector2.right * 3.0f);
+            actionNodeModel.SetActionTargetReference(new TargetReference(TargetReferenceKind.CollectionItem, "targets"));
+            Assert.IsTrue(model.Connect(AnimationGraphOutputPortKind.Loop, loopNodeModel, firstBodyNodeModel, out _));
+            Assert.IsTrue(model.Connect(AnimationGraphOutputPortKind.Loop, loopNodeModel, actionNodeModel, out _));
+            Assert.IsTrue(model.Connect(firstBodyNodeModel, actionNodeModel, out _));
+
+            Assert.IsTrue(model.Disconnect(firstBodyNodeModel, actionNodeModel));
+
+            Assert.That(((ActionNode)actionNodeModel.Node).TargetReference.ScopeNodeId, Is.EqualTo(loopNodeModel.NodeId));
+        }
+
+        /// <summary>
         /// LoopNode に取り込んだノードの後続は Loop body として扱う
         /// </summary>
         [Test]

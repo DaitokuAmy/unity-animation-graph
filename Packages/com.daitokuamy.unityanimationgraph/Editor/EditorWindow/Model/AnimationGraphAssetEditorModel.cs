@@ -773,6 +773,7 @@ namespace UnityAnimationGraph.Editor {
             }
 
             SetConnectedNodeIds(sourceNodeModel, outputPortKind, nodeIdsWithoutTarget);
+            ClearInvalidIterationScopeNodeIds();
             return true;
         }
 
@@ -1241,6 +1242,52 @@ namespace UnityAnimationGraph.Editor {
                     actionNode.TargetReference.TargetKey,
                     owner.NodeId));
             }
+        }
+
+        /// <summary>
+        /// 所属 scope の body から外れた CollectionItem 参照の scope node ID を解除
+        /// </summary>
+        private void ClearInvalidIterationScopeNodeIds() {
+            for (var i = 0; i < _nodes.Count; i++) {
+                var nodeModel = _nodes[i];
+                if (nodeModel.Node is not ActionNode actionNode
+                    || actionNode.TargetReference.Kind != TargetReferenceKind.CollectionItem
+                    || string.IsNullOrEmpty(actionNode.TargetReference.ScopeNodeId)) {
+                    continue;
+                }
+
+                if (_nodeModelsById.TryGetValue(actionNode.TargetReference.ScopeNodeId, out var scopeNodeModel)
+                    && scopeNodeModel is ScopedControlNodeEditorModel scopedControlNodeModel
+                    && scopedControlNodeModel.Node is IIterationScopeProvider
+                    && IsNodeInScopedBody(scopedControlNodeModel, nodeModel.NodeId, new HashSet<string>(StringComparer.Ordinal))) {
+                    continue;
+                }
+
+                nodeModel.SetActionTargetReference(new TargetReference(
+                    TargetReferenceKind.CollectionItem,
+                    actionNode.TargetReference.TargetKey));
+            }
+        }
+
+        private bool IsNodeInScopedBody(ScopedControlNodeEditorModel scopedNodeModel, string nodeId, HashSet<string> visitedScopeNodeIds) {
+            if (!visitedScopeNodeIds.Add(scopedNodeModel.NodeId)) {
+                return false;
+            }
+
+            var bodyNodeIds = BuildLoopBodyNodeIdSet(scopedNodeModel, null);
+            if (bodyNodeIds.Contains(nodeId)) {
+                return true;
+            }
+
+            foreach (var bodyNodeId in bodyNodeIds) {
+                if (_nodeModelsById.TryGetValue(bodyNodeId, out var bodyNodeModel)
+                    && bodyNodeModel is ScopedControlNodeEditorModel nestedScopeNodeModel
+                    && IsNodeInScopedBody(nestedScopeNodeModel, nodeId, visitedScopeNodeIds)) {
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         private void AddLoopValidationMessages(ScopedControlNodeEditorModel loopNodeModel, Dictionary<string, string> messagesByNodeId) {

@@ -9,6 +9,10 @@ namespace UnityAnimationGraph.Tests {
     public sealed class TweenTransformNodeTests {
         private const string TargetKey = "target";
         private const string ActionTargetKeyPropertyName = "_targetKey";
+        private const string ActionTargetReferencePropertyName = "_targetReference";
+        private const string TargetReferenceKindPropertyName = "_kind";
+        private const string TargetReferenceTargetKeyPropertyName = "_targetKey";
+        private const string TargetReferenceScopeNodeIdPropertyName = "_scopeNodeId";
         private const string TweenPropertyName = "_tween";
         private const string SpacePropertyName = "_space";
         private const string DurationPropertyName = "_duration";
@@ -39,6 +43,56 @@ namespace UnityAnimationGraph.Tests {
                 node.ExecuteEvaluate(0, 1.0f, 2.0f, context);
 
                 AssertVector3(gameObject.transform.localPosition, Vector3.up * 0.25f);
+            }
+            finally {
+                DestroyObject(node);
+                DestroyObject(gameObject);
+            }
+        }
+
+        /// <summary>
+        /// Position node は Binding された任意の Component の Transform を操作する
+        /// </summary>
+        [Test]
+        public void PositionNode_ResolvesTransformFromBoundComponent() {
+            var node = ScriptableObject.CreateInstance<TweenTransformPositionNode>();
+            var gameObject = new GameObject("Target");
+            try {
+                var spriteRenderer = gameObject.AddComponent<SpriteRenderer>();
+                var context = CreateContext(spriteRenderer);
+                SetActionTargetKey(node, TargetKey);
+                SetVector3TweenDirect(node, Vector3.zero, Vector3.up, 1.0f, EaseType.Linear);
+
+                node.ExecuteEvaluate(0, 1.0f, 1.0f, context);
+
+                AssertVector3(gameObject.transform.localPosition, Vector3.up);
+            }
+            finally {
+                DestroyObject(node);
+                DestroyObject(gameObject);
+            }
+        }
+
+        /// <summary>
+        /// Position node は CollectionItem の任意の Component から Transform を解決する
+        /// </summary>
+        [Test]
+        public void PositionNode_ResolvesTransformFromCollectionItemComponent() {
+            var node = ScriptableObject.CreateInstance<TweenTransformPositionNode>();
+            var gameObject = new GameObject("Target");
+            try {
+                var spriteRenderer = gameObject.AddComponent<SpriteRenderer>();
+                var baseContext = new TestAnimationGraphContext();
+                baseContext.SetTargets(TargetKey, spriteRenderer);
+                var snapshots = new CollectionSnapshotRegistry(baseContext);
+                var scope = new IterationScope("scope", 0, null);
+                var context = new ScopedAnimationGraphContext(baseContext, snapshots, scope);
+                SetActionTargetReference(node, new TargetReference(TargetReferenceKind.CollectionItem, TargetKey, scope.ScopeNodeId));
+                SetVector3TweenDirect(node, Vector3.zero, Vector3.right, 1.0f, EaseType.Linear);
+
+                node.ExecuteEvaluate(0, 1.0f, 1.0f, context);
+
+                AssertVector3(gameObject.transform.localPosition, Vector3.right);
             }
             finally {
                 DestroyObject(node);
@@ -241,6 +295,20 @@ namespace UnityAnimationGraph.Tests {
         private static void SetActionTargetKey(ActionNode node, string targetKey) {
             var serializedNode = new SerializedObject(node);
             serializedNode.FindProperty(ActionTargetKeyPropertyName).stringValue = targetKey;
+            serializedNode.ApplyModifiedPropertiesWithoutUndo();
+        }
+
+        /// <summary>
+        /// ActionNode の TargetReference を設定
+        /// </summary>
+        /// <param name="node">設定対象 ActionNode</param>
+        /// <param name="targetReference">設定する TargetReference</param>
+        private static void SetActionTargetReference(ActionNode node, TargetReference targetReference) {
+            var serializedNode = new SerializedObject(node);
+            var targetReferenceProperty = serializedNode.FindProperty(ActionTargetReferencePropertyName);
+            targetReferenceProperty.FindPropertyRelative(TargetReferenceKindPropertyName).enumValueIndex = (int)targetReference.Kind;
+            targetReferenceProperty.FindPropertyRelative(TargetReferenceTargetKeyPropertyName).stringValue = targetReference.TargetKey;
+            targetReferenceProperty.FindPropertyRelative(TargetReferenceScopeNodeIdPropertyName).stringValue = targetReference.ScopeNodeId;
             serializedNode.ApplyModifiedPropertiesWithoutUndo();
         }
 

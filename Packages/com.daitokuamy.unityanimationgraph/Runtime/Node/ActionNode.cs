@@ -122,6 +122,22 @@ namespace UnityAnimationGraph {
         /// <summary>null target を有効な解決結果として扱う場合は true</summary>
         protected virtual bool AllowNullTarget => false;
 
+        /// <summary>
+        /// Binding された Component から ActionNode が操作する target を解決
+        /// </summary>
+        /// <param name="source">Binding された Component</param>
+        /// <param name="target">解決した操作対象 Component</param>
+        /// <returns>解決できた場合は true</returns>
+        protected virtual bool TryResolveActionTarget(Component source, out TTarget target) {
+            if (source is TTarget typedTarget) {
+                target = typedTarget;
+                return true;
+            }
+
+            target = null;
+            return false;
+        }
+
         /// <inheritdoc/>
         protected sealed override float CalculateDuration(int seed, IAnimationGraphContext context) {
             return TryResolveTarget(context, out var target)
@@ -279,12 +295,28 @@ namespace UnityAnimationGraph {
             }
 
             if (TargetReference.Kind == TargetReferenceKind.CollectionItem) {
-                var resolved = context is ScopedAnimationGraphContext scopedContext
-                    && scopedContext.TryGetScopedTarget(TargetReference.ScopeNodeId, TargetReference.TargetKey, out target);
-                return resolved && (target != null || AllowNullTarget);
+                if (context is not ScopedAnimationGraphContext scopedContext) {
+                    return false;
+                }
+
+                var resolved = scopedContext.TryGetScopedTarget<Component>(TargetReference.ScopeNodeId, TargetReference.TargetKey, out var source);
+                return TryResolveActionTarget(resolved, source, out target);
             }
 
-            return context.TryGetTarget(TargetKey, out target)
+            return TryResolveActionTarget(context.TryGetTarget<Component>(TargetKey, out var binding), binding, out target);
+        }
+
+        private bool TryResolveActionTarget(bool sourceResolved, Component source, out TTarget target) {
+            target = null;
+            if (!sourceResolved) {
+                return false;
+            }
+
+            if (source == null) {
+                return AllowNullTarget;
+            }
+
+            return TryResolveActionTarget(source, out target)
                 && (target != null || AllowNullTarget);
         }
 
