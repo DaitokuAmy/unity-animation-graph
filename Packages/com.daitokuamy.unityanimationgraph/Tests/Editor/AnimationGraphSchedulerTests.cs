@@ -261,6 +261,79 @@ namespace UnityAnimationGraph.Tests {
         }
 
         /// <summary>
+        /// EachNode の Random Delay はすべての要素を指定範囲内で開始する
+        /// </summary>
+        [Test]
+        public void BuildSchedule_EachNodeUsesDeterministicRandomStartDelays() {
+            using var builder = new AnimationGraphTestBuilder();
+            var startNode = builder.CreateStartNode("start", "each");
+            var eachNode = builder.CreateNode<EachNode>("each");
+            var bodyNode = builder.CreateActionNode("body", 1.0f);
+            builder.SetEachRandomDelay(eachNode, "targets", false, 0.1f, 0.5f, bodyNode.NodeId);
+            var graphAsset = builder.CreateGraph("start", startNode, eachNode, bodyNode);
+            builder.SetTargetDefinitions(graphAsset, new TargetDefinition("targets", string.Empty, TargetMultiplicity.Collection));
+            var firstTarget = new GameObject("FirstTarget");
+            var secondTarget = new GameObject("SecondTarget");
+            var thirdTarget = new GameObject("ThirdTarget");
+
+            try {
+                var context = new TestAnimationGraphContext();
+                context.SetTargets("targets", firstTarget.transform, secondTarget.transform, thirdTarget.transform);
+                var scheduler = new AnimationGraphScheduler();
+                scheduler.SetGraph(graphAsset);
+
+                var firstSchedule = scheduler.BuildSchedule(context, 1234);
+                var secondSchedule = scheduler.BuildSchedule(context, 1234);
+                var firstScheduledNodes = FindScheduledNodes(firstSchedule, bodyNode);
+                var secondScheduledNodes = FindScheduledNodes(secondSchedule, bodyNode);
+
+                for (var i = 0; i < firstScheduledNodes.Count; i++) {
+                    Assert.That(firstScheduledNodes[i].StartTime, Is.InRange(0.1f, 0.5f));
+                }
+
+                for (var i = 0; i < firstScheduledNodes.Count; i++) {
+                    Assert.That(secondScheduledNodes[i].StartTime, Is.EqualTo(firstScheduledNodes[i].StartTime).Within(0.0001f));
+                }
+            }
+            finally {
+                UnityEngine.Object.DestroyImmediate(firstTarget);
+                UnityEngine.Object.DestroyImmediate(secondTarget);
+                UnityEngine.Object.DestroyImmediate(thirdTarget);
+            }
+        }
+
+        /// <summary>
+        /// EachNode の Random Delay は null をスキップしても Collection Index 基準で決定する
+        /// </summary>
+        [Test]
+        public void BuildSchedule_EachNodeRandomDelayUsesCollectionIndexWhenSkippingNull() {
+            using var builder = new AnimationGraphTestBuilder();
+            var startNode = builder.CreateStartNode("start", "each");
+            var eachNode = builder.CreateNode<EachNode>("each");
+            var bodyNode = builder.CreateActionNode("body", 1.0f);
+            builder.SetEachRandomDelay(eachNode, "targets", true, 0.5f, 0.5f, bodyNode.NodeId);
+            var graphAsset = builder.CreateGraph("start", startNode, eachNode, bodyNode);
+            builder.SetTargetDefinitions(graphAsset, new TargetDefinition("targets", string.Empty, TargetMultiplicity.Collection));
+            var firstTarget = new GameObject("FirstTarget");
+            var thirdTarget = new GameObject("ThirdTarget");
+
+            try {
+                var context = new TestAnimationGraphContext();
+                context.SetTargets("targets", firstTarget.transform, null, thirdTarget.transform);
+                var schedule = new AnimationGraphScheduler().Build(graphAsset, context, 1234);
+                var bodyScheduledNodes = FindScheduledNodes(schedule, bodyNode);
+
+                Assert.That(bodyScheduledNodes.Count, Is.EqualTo(2));
+                Assert.That(bodyScheduledNodes[0].StartTime, Is.EqualTo(0.5f).Within(0.0001f));
+                Assert.That(bodyScheduledNodes[1].StartTime, Is.EqualTo(0.5f).Within(0.0001f));
+            }
+            finally {
+                UnityEngine.Object.DestroyImmediate(firstTarget);
+                UnityEngine.Object.DestroyImmediate(thirdTarget);
+            }
+        }
+
+        /// <summary>
         /// Schedule node 数が上限を超えた場合は build を中断する
         /// </summary>
         [Test]

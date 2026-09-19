@@ -218,6 +218,15 @@ namespace UnityAnimationGraph.Editor {
         }
 
         /// <summary>
+        /// GraphView 詳細 field を現在の設定で表示するかを判定
+        /// </summary>
+        /// <param name="field">判定対象 field</param>
+        /// <returns>表示する場合は true</returns>
+        internal virtual bool IsDetailFieldVisible(NodeDetailField field) {
+            return true;
+        }
+
+        /// <summary>
         /// GraphView 詳細 field の string 値を取得
         /// </summary>
         /// <param name="field">取得対象 field</param>
@@ -246,9 +255,23 @@ namespace UnityAnimationGraph.Editor {
         /// <returns>取得した int 値</returns>
         internal int GetDetailFieldIntValue(NodeDetailField field) {
             var property = FindDetailFieldProperty(field);
-            return property != null && property.propertyType == SerializedPropertyType.Integer
-                ? property.intValue
-                : 0;
+            if (property == null) {
+                return 0;
+            }
+
+            return property.propertyType == SerializedPropertyType.Enum
+                ? property.enumValueIndex
+                : property.propertyType == SerializedPropertyType.Integer ? property.intValue : 0;
+        }
+
+        /// <summary>
+        /// GraphView 詳細 enum field の表示名一覧を取得
+        /// </summary>
+        internal IReadOnlyList<string> GetDetailFieldEnumDisplayNames(NodeDetailField field) {
+            var property = FindDetailFieldProperty(field);
+            return property != null && property.propertyType == SerializedPropertyType.Enum
+                ? property.enumDisplayNames
+                : Array.Empty<string>();
         }
 
         /// <summary>
@@ -410,6 +433,7 @@ namespace UnityAnimationGraph.Editor {
             return propertyType is SerializedPropertyType.String
                 or SerializedPropertyType.Boolean
                 or SerializedPropertyType.Integer
+                or SerializedPropertyType.Enum
                 or SerializedPropertyType.Float;
         }
 

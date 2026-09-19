@@ -859,18 +859,27 @@ namespace UnityAnimationGraph {
             var startNodeIds = GetScopedStartNodeIds(eachNode, bodyNodeIds);
             var eachEndTime = incomingTime;
             for (var i = 0; i < snapshot.Count; i++) {
-                if (eachNode.SkipNullItems && snapshot[i] == null) {
-                    continue;
+                if (!eachNode.SkipNullItems || snapshot[i] != null) {
+                    var iterationScope = new IterationScope(eachNode.NodeId, i, buildContext.IterationScope);
+                    var iterationSeedSalt = CreateNodeSeed(seedSalt, eachNode.NodeId, i);
+                    var iterationStartTime = incomingTime + ResolveEachStartDelay(eachNode, i, seedSalt, buildContext.GraphSeed);
+                    var iterationEndTime = BuildScope(startNodeIds, iterationStartTime, iterationSeedSalt, null, bodyNodeIds, iterationScope, ref buildContext);
+                    eachEndTime = Mathf.Max(eachEndTime, iterationEndTime);
                 }
-
-                var iterationScope = new IterationScope(eachNode.NodeId, i, buildContext.IterationScope);
-                var iterationSeedSalt = CreateNodeSeed(seedSalt, eachNode.NodeId, i);
-                var iterationStartTime = incomingTime + eachNode.Interval * i;
-                var iterationEndTime = BuildScope(startNodeIds, iterationStartTime, iterationSeedSalt, null, bodyNodeIds, iterationScope, ref buildContext);
-                eachEndTime = Mathf.Max(eachEndTime, iterationEndTime);
             }
 
             return eachEndTime;
+        }
+
+        private float ResolveEachStartDelay(EachNode eachNode, int iterationIndex, int seedSalt, int graphSeed) {
+            if (eachNode.StaggerMode == EachStaggerMode.Interval) {
+                return eachNode.StaggerDelay * iterationIndex;
+            }
+
+            var delaySeedSalt = CreateNodeSeed(seedSalt, eachNode.NodeId, iterationIndex);
+            var delaySeed = CreateNodeSeed(graphSeed, eachNode.NodeId, delaySeedSalt);
+            var normalizedValue = (float)((uint)delaySeed / ((double)uint.MaxValue + 1.0));
+            return Mathf.Lerp(eachNode.MinStaggerDelay, eachNode.MaxStaggerDelay, normalizedValue);
         }
 
         private int ResolveLoopCount(LoopNode loopNode, CollectionSnapshotRegistry collectionSnapshots) {

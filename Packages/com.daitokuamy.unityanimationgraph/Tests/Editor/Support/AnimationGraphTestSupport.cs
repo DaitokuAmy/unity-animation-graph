@@ -37,7 +37,13 @@ namespace UnityAnimationGraph.Tests {
         /// <summary>EachNode の null skip フィールド名</summary>
         private const string EachSkipNullItemsPropertyName = "_skipNullItems";
         /// <summary>EachNode の要素開始間隔フィールド名</summary>
-        private const string EachIntervalPropertyName = "_interval";
+        private const string EachIntervalPropertyName = "_staggerDelay";
+        /// <summary>EachNode の要素開始間隔 mode フィールド名</summary>
+        private const string EachStaggerModePropertyName = "_staggerMode";
+        /// <summary>EachNode のランダム開始間隔最小値フィールド名</summary>
+        private const string EachMinStaggerDelayPropertyName = "_minStaggerDelay";
+        /// <summary>EachNode のランダム開始間隔最大値フィールド名</summary>
+        private const string EachMaxStaggerDelayPropertyName = "_maxStaggerDelay";
         /// <summary>JoinNode の合流方法フィールド名</summary>
         private const string JoinTypePropertyName = "_joinType";
         /// <summary>AnimationGraphAsset の asset GUID フィールド名</summary>
@@ -357,7 +363,22 @@ namespace UnityAnimationGraph.Tests {
             var serializedNode = new SerializedObject(eachNode);
             serializedNode.FindProperty(EachCollectionTargetKeyPropertyName).stringValue = collectionTargetKey ?? string.Empty;
             serializedNode.FindProperty(EachSkipNullItemsPropertyName).boolValue = skipNullItems;
+            serializedNode.FindProperty(EachStaggerModePropertyName).enumValueIndex = (int)EachStaggerMode.Interval;
             serializedNode.FindProperty(EachIntervalPropertyName).floatValue = interval;
+            SetStringArray(serializedNode.FindProperty(EachNodeIdsPropertyName), eachNodeIds);
+            serializedNode.ApplyModifiedPropertiesWithoutUndo();
+        }
+
+        /// <summary>
+        /// EachNode のランダム開始間隔設定を更新
+        /// </summary>
+        public void SetEachRandomDelay(EachNode eachNode, string collectionTargetKey, bool skipNullItems, float minDelay, float maxDelay, params string[] eachNodeIds) {
+            var serializedNode = new SerializedObject(eachNode);
+            serializedNode.FindProperty(EachCollectionTargetKeyPropertyName).stringValue = collectionTargetKey ?? string.Empty;
+            serializedNode.FindProperty(EachSkipNullItemsPropertyName).boolValue = skipNullItems;
+            serializedNode.FindProperty(EachStaggerModePropertyName).enumValueIndex = (int)EachStaggerMode.RandomDelay;
+            serializedNode.FindProperty(EachMinStaggerDelayPropertyName).floatValue = minDelay;
+            serializedNode.FindProperty(EachMaxStaggerDelayPropertyName).floatValue = maxDelay;
             SetStringArray(serializedNode.FindProperty(EachNodeIdsPropertyName), eachNodeIds);
             serializedNode.ApplyModifiedPropertiesWithoutUndo();
         }

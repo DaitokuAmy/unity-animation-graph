@@ -164,7 +164,10 @@ namespace UnityAnimationGraph.Editor {
             }
 
             for (var i = 0; i < NodeModel.DetailFields.Count; i++) {
-                AddDetailField(NodeModel.DetailFields[i]);
+                var field = NodeModel.DetailFields[i];
+                if (NodeModel.IsDetailFieldVisible(field)) {
+                    AddDetailField(field);
+                }
             }
 
             if (NodeModel.Node is JoinNode joinNode) {
@@ -465,6 +468,11 @@ namespace UnityAnimationGraph.Editor {
                 return;
             }
 
+            if (field.PropertyType == SerializedPropertyType.Enum) {
+                AddEnumDetailField(field);
+                return;
+            }
+
             if (field.PropertyType == SerializedPropertyType.Float) {
                 AddFloatDetailField(field);
             }
@@ -554,6 +562,26 @@ namespace UnityAnimationGraph.Editor {
                 DetailIntChanged?.Invoke(NodeModel, field, evt.newValue);
             });
             AddDetailInputElement(field.Label, intField);
+        }
+
+        private void AddEnumDetailField(NodeDetailField field) {
+            var choices = new List<string>(NodeModel.GetDetailFieldEnumDisplayNames(field));
+            if (choices.Count == 0) {
+                return;
+            }
+
+            var currentValue = Mathf.Clamp(NodeModel.GetDetailFieldIntValue(field), 0, choices.Count - 1);
+            var popup = new PopupField<string>(choices, currentValue);
+            popup.SetValueWithoutNotify(choices[currentValue]);
+            popup.RegisterValueChangedCallback(evt => {
+                var nextValue = choices.IndexOf(evt.newValue);
+                if (nextValue < 0 || nextValue == currentValue) {
+                    return;
+                }
+
+                DetailIntChanged?.Invoke(NodeModel, field, nextValue);
+            });
+            AddDetailInputElement(field.Label, popup);
         }
 
         private void AddFloatDetailField(NodeDetailField field) {

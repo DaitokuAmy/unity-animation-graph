@@ -627,7 +627,14 @@ namespace UnityAnimationGraph.Editor {
         /// <param name="field">設定対象 field</param>
         /// <param name="value">設定する値</param>
         internal static void SetNodeDetailFieldValue(Node node, NodeDetailField field, int value) {
-            SetNodeDetailFieldValue(node, field, SerializedPropertyType.Integer, property => property.intValue = value);
+            SetNodeDetailFieldValue(node, field, field.PropertyType, property => {
+                if (property.propertyType == SerializedPropertyType.Enum) {
+                    property.enumValueIndex = value;
+                    return;
+                }
+
+                property.intValue = value;
+            });
         }
 
         /// <summary>

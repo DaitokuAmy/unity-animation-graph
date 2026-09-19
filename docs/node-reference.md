@@ -135,11 +135,14 @@ CollectionはSchedule構築時にSnapshotされます。再生中のAdd / Remove
 | --- | --- |
 | `Collection` | 並列実行の基準となるCollection Target |
 | `Skip Null` | Collectionのnull要素をスキップします |
-| `Interval` | 要素ごとの開始間隔。`Interval * Index`秒だけ開始を遅らせます |
+| `Stagger` | 要素の開始を`Interval`または`Random Delay`でずらします |
+| `Interval` | `Interval`時の要素ごとの開始間隔 |
+| `Min Delay` | `Random Delay`時にEach開始位置から要素を開始するまでの最小待機時間 |
+| `Max Delay` | `Random Delay`時にEach開始位置から要素を開始するまでの最大待機時間 |
 
 各要素のbodyは独立した反復scopeを持ちます。body内のAction Nodeは、`CollectionItem`から現在のIndexに対応する要素を参照できます。空Collectionの場合はbodyを実行せず、即座に`Next`へ進みます。
 
-`Interval`が0の場合はすべての要素を同時に開始します。正数の場合はCollectionのIndexに応じて開始時刻をずらします。`Skip Null`で要素を省略してもIndexは詰めません。
+`Interval`では全要素の開始時刻を`Each開始位置 + Interval * Index`で計算するためCollection順を維持します。`Random Delay`では全要素について、Each開始位置からの待機時間をGraph Seed、Each Node ID、Collection Indexから独立して決定するため、開始順がCollection順と異なる場合があります。`Min Delay`と`Max Delay`が逆の場合は小さい方を最小値として扱い、負値は0に制限します。`Skip Null`で要素を省略しても、他要素の待機時間は元のCollection Indexを基準に決定します。
 
 CollectionはSchedule構築時にSnapshotされます。同じ開始時刻を持つ要素はCollectionのIndex順で安定して評価されます。
 
