@@ -184,6 +184,23 @@ namespace UnityAnimationGraph {
         }
 
         /// <summary>
+        /// Preview 再生中に Node が作成した一時状態を破棄
+        /// </summary>
+        public void CleanupPreview() {
+            if (_schedule == null) {
+                return;
+            }
+
+            foreach (var scheduledNode in _schedule.Nodes) {
+                if (scheduledNode.Node is not IPreviewCleanupNode cleanupNode) {
+                    continue;
+                }
+
+                cleanupNode.CleanupPreview(scheduledNode.Context ?? _context);
+            }
+        }
+
+        /// <summary>
         /// 指定した Signal 型の発火通知を購読
         /// </summary>
         /// <param name="callback">Signal 発火時に呼び出す callback</param>

@@ -299,6 +299,22 @@ Target: `SpriteRenderer`
 
 SpriteRendererの`color.a`だけをfloatで補間し、RGBは維持します。
 
+## Renderer Material Tween Node
+
+Targetは`Renderer`です。`Material Index`で対象スロット、`Property Name`でShaderプロパティを指定します。Editor Previewでは`MaterialPropertyBlock`を使用してPreview終了時にクリアし、Play ModeではRenderer固有のMaterialインスタンスを使用します。
+
+Scene内の`AnimationGraphRunner`からTargetを解決できる場合、Materialは名前付きのプルダウン、Shaderプロパティは型に対応したプロパティのプルダウンから選択できます。Targetを解決できない場合はシリアライズ値を直接入力します。
+
+| Node | 作成メニュー | 対象プロパティ |
+| --- | --- | --- |
+| `TweenRendererMaterialFloatNode` | `Action/Built-in/Tween/Renderer Material/Float` | Float / Range |
+| `TweenRendererMaterialColorNode` | `Action/Built-in/Tween/Renderer Material/Color` | Color |
+| `TweenRendererMaterialVectorNode` | `Action/Built-in/Tween/Renderer Material/Vector` | Vector |
+| `TweenRendererMaterialTextureOffsetNode` | `Action/Built-in/Tween/Renderer Material/Texture Offset` | Texture Offset |
+| `TweenRendererMaterialTextureScaleNode` | `Action/Built-in/Tween/Renderer Material/Texture Scale` | Texture Scale |
+
+指定したMaterialスロット、Shaderプロパティ、プロパティ型が一致しない場合は値を変更しません。
+
 ## Camera Tween Node
 
 ### Tween Camera Field Of View

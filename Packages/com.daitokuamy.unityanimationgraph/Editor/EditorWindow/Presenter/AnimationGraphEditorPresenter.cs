@@ -102,8 +102,6 @@ namespace UnityAnimationGraph.Editor {
         private const double RuntimePreviewRefreshInterval = 1.0 / 30.0;
 
         private readonly AnimationGraphAssetEditorModel _assetModel = new();
-        private readonly List<NodeEditorModel> _copiedNodeModels = new();
-        private readonly List<SignalEditorModel> _copiedSignalModels = new();
         private readonly List<string> _inspectedNodeIds = new();
         private readonly List<string> _inspectedSignalIds = new();
 
@@ -393,7 +391,6 @@ namespace UnityAnimationGraph.Editor {
                 }
             }
 
-            _copiedNodeModels.Clear();
             ClearInspectorSelection();
             _schemaView.SetGraphAsset(graphAsset);
             _graphView.SetGraphAsset(_assetModel);
@@ -735,8 +732,10 @@ namespace UnityAnimationGraph.Editor {
                 else {
                     player?.Stop();
                 }
+
             }
             finally {
+                player?.CleanupPreview();
                 if (ownsAnimationMode || IsPreviewAnimationModeActive()) {
                     StopOwnedAnimationMode();
                 }
@@ -762,6 +761,7 @@ namespace UnityAnimationGraph.Editor {
             _previewTimelineView?.CancelDrag();
             var ownsAnimationMode = _ownsAnimationMode;
             var hasPreviewAnimationMode = IsPreviewAnimationModeActive();
+            _editorPreviewPlayer?.CleanupPreview();
             _editorPreviewPlayer = null;
             _editorPreviewContext = null;
             _isEditorPreviewPlaying = false;

@@ -398,6 +398,11 @@ public sealed class AnimationGraphInitialStateExample : MonoBehaviour {
 | `TweenCanvasGroupAlphaNode` | `CanvasGroup.alpha` |
 | `TweenSpriteRendererColorNode` | `SpriteRenderer.color` |
 | `TweenSpriteRendererAlphaNode` | `SpriteRenderer.color.a` |
+| `TweenRendererMaterialFloatNode` | Renderer Material の Float / Range property |
+| `TweenRendererMaterialColorNode` | Renderer Material の Color property |
+| `TweenRendererMaterialVectorNode` | Renderer Material の Vector property |
+| `TweenRendererMaterialTextureOffsetNode` | Renderer Material の Texture Offset |
+| `TweenRendererMaterialTextureScaleNode` | Renderer Material の Texture Scale |
 | `TweenCameraFieldOfViewNode` | `Camera.fieldOfView` |
 | `TweenCameraOrthographicSizeNode` | `Camera.orthographicSize` |
 | `TweenLightColorNode` | `Light.color` |

@@ -26,32 +26,13 @@ namespace UnityAnimationGraph.Editor {
         }
 
         /// <summary>
-        /// 選択中の Node と Signal を複製用に保持
+        /// 選択中の Node と Signal をシステムクリップボードへコピー
         /// </summary>
         private void CopySelection() {
-            _copiedNodeModels.Clear();
-            _copiedSignalModels.Clear();
             var selectedNodeModels = _graphView.GetSelectedNodeModels();
-            for (var i = 0; i < selectedNodeModels.Count; i++) {
-                var nodeModel = selectedNodeModels[i];
-                if (!_assetModel.CanDuplicateNode(nodeModel)) {
-                    continue;
-                }
-
-                _copiedNodeModels.Add(nodeModel);
-            }
-
             var selectedSignalModels = _graphView.GetSelectedSignalModels();
-            for (var i = 0; i < selectedSignalModels.Count; i++) {
-                var signalModel = selectedSignalModels[i];
-                if (!_assetModel.CanDuplicateSignal(signalModel)) {
-                    continue;
-                }
-
-                _copiedSignalModels.Add(signalModel);
-            }
-
-            SetFooterMessage($"{_copiedNodeModels.Count + _copiedSignalModels.Count} item copied");
+            var copiedCount = AnimationGraphClipboardUtility.Copy(selectedNodeModels, selectedSignalModels);
+            SetFooterMessage($"{copiedCount} item copied");
         }
 
         /// <summary>
@@ -62,13 +43,29 @@ namespace UnityAnimationGraph.Editor {
                 return;
             }
 
-            if (_copiedNodeModels.Count == 0 && _copiedSignalModels.Count == 0) {
-                SetFooterMessage("No copied item", true);
+            if (!AnimationGraphClipboardUtility.TryPaste(_assetModel.GraphAsset, DuplicateOffset, out var pastedNodes, out var pastedSignals, out var errorMessage)) {
+                SetFooterMessage(errorMessage, true);
                 return;
             }
 
-            var duplicatedNodeModels = _assetModel.DuplicateNodes(_copiedNodeModels, DuplicateOffset);
-            var duplicatedSignalModels = _assetModel.DuplicateSignals(_copiedSignalModels, DuplicateOffset);
+            _assetModel.RefreshNodes();
+            var duplicatedNodeModels = new List<NodeEditorModel>();
+            for (var i = 0; i < pastedNodes.Count; i++) {
+                if (_assetModel.TryGetNode(pastedNodes[i].NodeId, out var nodeModel)) {
+                    duplicatedNodeModels.Add(nodeModel);
+                }
+            }
+
+            var duplicatedSignalModels = new List<SignalEditorModel>();
+            for (var i = 0; i < pastedSignals.Count; i++) {
+                var signalModels = _assetModel.Signals;
+                for (var j = 0; j < signalModels.Count; j++) {
+                    if (signalModels[j].SignalId == pastedSignals[i].SignalId) {
+                        duplicatedSignalModels.Add(signalModels[j]);
+                        break;
+                    }
+                }
+            }
             _graphView.Rebuild(_assetModel);
             _graphView.SelectGraphElementModels(duplicatedNodeModels, duplicatedSignalModels);
             UpdateInspectorSelection();

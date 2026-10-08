@@ -619,6 +619,77 @@ namespace UnityAnimationGraph.Tests {
         }
 
         /// <summary>
+        /// Clipboard の Node を別の GraphAsset へ内部接続を維持して貼り付けられる
+        /// </summary>
+        [Test]
+        public void Clipboard_PastesNodesIntoAnotherGraphAsset() {
+            var sourceGraphAsset = CreateSavedGraphAsset();
+            var destinationGraphAsset = CreateSavedGraphAsset();
+            var sourceModel = new AnimationGraphAssetEditorModel();
+            var destinationModel = new AnimationGraphAssetEditorModel();
+            var offset = new Vector2(20.0f, 30.0f);
+            sourceModel.SetGraphAsset(sourceGraphAsset);
+            sourceModel.InitializeGraph(Vector2.zero);
+            var firstNode = sourceModel.AddNode<DelayNode>(new Vector2(10.0f, 20.0f));
+            var secondNode = sourceModel.AddNode<DelayNode>(new Vector2(30.0f, 40.0f));
+            sourceModel.Connect(firstNode, secondNode, out _);
+            destinationModel.SetGraphAsset(destinationGraphAsset);
+            destinationModel.InitializeGraph(Vector2.zero);
+            var previousClipboard = EditorGUIUtility.systemCopyBuffer;
+
+            try {
+                var copiedCount = AnimationGraphClipboardUtility.Copy(new[] { firstNode, secondNode }, Array.Empty<SignalEditorModel>());
+                var pasted = AnimationGraphClipboardUtility.TryPaste(destinationGraphAsset, offset, out var pastedNodes, out var pastedSignals, out var errorMessage);
+
+                Assert.That(copiedCount, Is.EqualTo(2));
+                Assert.IsTrue(pasted, errorMessage);
+                Assert.That(pastedSignals, Is.Empty);
+                Assert.That(pastedNodes.Count, Is.EqualTo(2));
+                Assert.That(pastedNodes[0].NodeId, Is.Not.EqualTo(firstNode.NodeId));
+                Assert.That(pastedNodes[1].NodeId, Is.Not.EqualTo(secondNode.NodeId));
+                Assert.That(pastedNodes[0].GraphPosition, Is.EqualTo(firstNode.GraphPosition + offset));
+                Assert.That(pastedNodes[0].NextNodeIds, Is.EqualTo(new[] { pastedNodes[1].NodeId }));
+            }
+            finally {
+                EditorGUIUtility.systemCopyBuffer = previousClipboard;
+            }
+        }
+
+        /// <summary>
+        /// Clipboard の Signal 接続を別の GraphAsset で復元できる
+        /// </summary>
+        [Test]
+        public void Clipboard_PastesSelectedSignalConnectionIntoAnotherGraphAsset() {
+            var sourceGraphAsset = CreateSavedGraphAsset();
+            var destinationGraphAsset = CreateSavedGraphAsset();
+            var sourceModel = new AnimationGraphAssetEditorModel();
+            sourceModel.SetGraphAsset(sourceGraphAsset);
+            sourceModel.InitializeGraph(Vector2.zero);
+            var nodeModel = sourceModel.AddNode<DelayNode>(new Vector2(10.0f, 20.0f));
+            SetSignalPortSettings(nodeModel.Node, true, false);
+            sourceModel.RefreshNodes();
+            Assert.IsTrue(sourceModel.TryGetNode(nodeModel.NodeId, out nodeModel));
+            var signal = AnimationGraphAssetUtility.AddEnterSignal(sourceGraphAsset, nodeModel.Node, typeof(TestSignal), new Vector2(30.0f, 40.0f));
+            sourceModel.RefreshNodes();
+            var signalModel = sourceModel.Signals[0];
+            var previousClipboard = EditorGUIUtility.systemCopyBuffer;
+
+            try {
+                AnimationGraphClipboardUtility.Copy(new[] { nodeModel }, new[] { signalModel });
+                var pasted = AnimationGraphClipboardUtility.TryPaste(destinationGraphAsset, Vector2.zero, out var pastedNodes, out var pastedSignals, out var errorMessage);
+
+                Assert.IsTrue(pasted, errorMessage);
+                Assert.That(pastedNodes.Count, Is.EqualTo(1));
+                Assert.That(pastedSignals.Count, Is.EqualTo(1));
+                Assert.That(pastedNodes[0].EnterSignals, Is.EqualTo(new[] { pastedSignals[0] }));
+                Assert.That(pastedSignals[0].SignalId, Is.Not.EqualTo(signal.SignalId));
+            }
+            finally {
+                EditorGUIUtility.systemCopyBuffer = previousClipboard;
+            }
+        }
+
+        /// <summary>
         /// GraphAsset の target schema を serialized property 経由で更新できる
         /// </summary>
         [Test]
@@ -713,6 +784,15 @@ namespace UnityAnimationGraph.Tests {
             var serializedNode = new SerializedObject(node);
             serializedNode.FindProperty(LegacyEnableEnterSignalPortPropertyName).boolValue = enableEnterSignalPort;
             serializedNode.FindProperty(LegacyEnableExitSignalPortPropertyName).boolValue = enableExitSignalPort;
+            serializedNode.ApplyModifiedPropertiesWithoutUndo();
+        }
+
+        private static void SetSignalPortSettings(Node node, bool enterEnabled, bool exitEnabled) {
+            var serializedNode = new SerializedObject(node);
+            var signalPorts = serializedNode.FindProperty(SignalPortsPropertyName);
+            signalPorts.FindPropertyRelative(SignalPortsEnterEnabledPropertyName).boolValue = enterEnabled;
+            signalPorts.FindPropertyRelative(SignalPortsExitEnabledPropertyName).boolValue = exitEnabled;
+            serializedNode.FindProperty(SignalPortSettingsVersionPropertyName).intValue = 1;
             serializedNode.ApplyModifiedPropertiesWithoutUndo();
         }
 
