@@ -1,6 +1,6 @@
 # Coding Examples
 
-このファイルは [coding-guidelines.md](/d:/GitHub/Private/unity-mobile-haptics/docs/overview/coding-guidelines.md) の補助サンプルです。  
+このファイルは [coding-guidelines.md](coding-guidelines.md) の補助サンプルです。
 実装例は `.editorconfig` を意識した書き方の叩き台として管理します。
 
 ## Class Example
@@ -128,6 +128,6 @@ namespace Project.Sample {
 }
 ```
 
-同じブロックに属する宣言は空行を挟まず連続で配置します。  
-別ブロックの宣言をまたぐ場合だけ空行を入れます。  
+同じブロックに属する宣言は空行を挟まず連続で配置します。
+別ブロックの宣言をまたぐ場合だけ空行を入れます。
 例: `const` と `static readonly`、`private readonly` フィールドと `private` フィールド、`[SerializeField] private` フィールドと通常の `private` フィールド、プロパティと `event` は別ブロックです。
