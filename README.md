@@ -163,6 +163,8 @@ Tween 系ノードでは、主に次を設定します。
 
 プレビューは Unity の `AnimationMode` を使います。`Target` は選択中 GameObject、その親子にある Component、または近くにある `AnimationGraphRunner` の `Target Binding` から解決されます。
 
+Play Mode 中も `Animation Graph` ウィンドウで Graph、Schema、Node / Signal の設定を編集できます。変更時は同じ `AnimationGraphAsset` を使用中の `AnimationGraphRunner` のスケジュールが現在時刻と再生状態を保ったまま再構築されます。`AnimationGraphAsset` は Project のアセットなので、Play Mode 中の変更も Play Mode 終了後に残ります。Play Mode への遷移中と終了遷移中だけは、安全にウィンドウを再構築するため編集できません。
+
 <!-- TODO: docs/img/unity-animation-graph-editor-preview.gif を追加し、Play と time slider のプレビュー操作を差し込む -->
 
 ### 7. `AnimationGraphRunner` でランタイム再生する

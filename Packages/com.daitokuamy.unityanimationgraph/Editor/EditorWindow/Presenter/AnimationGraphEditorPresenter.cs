@@ -382,7 +382,7 @@ namespace UnityAnimationGraph.Editor {
             if (graphAsset != null
                 && !_assetModel.HasStartNode
                 && _assetModel.Nodes.Count == 0
-                && !EditorApplication.isPlayingOrWillChangePlaymode) {
+                && !IsPlayModeTransitioning()) {
                 try {
                     _assetModel.InitializeGraph(DefaultStartNodePosition);
                 }
@@ -1111,11 +1111,49 @@ namespace UnityAnimationGraph.Editor {
         /// </summary>
         /// <returns>Preview の更新に成功した場合は true</returns>
         private bool RefreshPreviewAfterGraphChanged() {
+            if (EditorApplication.isPlaying) {
+                return RebuildRuntimeSchedulesAfterGraphChanged();
+            }
+
             if (_editorPreviewPlayer != null) {
                 return ReevaluateEditorPreviewAtCurrentTime();
             }
 
             RebuildPreviewSchedule();
+            UpdatePreviewControls();
+            return true;
+        }
+
+        /// <summary>
+        /// Play Mode 中に同じ GraphAsset を使用する Runner の schedule を再構築
+        /// </summary>
+        /// <returns>すべての schedule を再構築できた場合は true</returns>
+        private bool RebuildRuntimeSchedulesAfterGraphChanged() {
+            var graphAsset = GetSelectedGraphAsset();
+            if (graphAsset == null) {
+                UpdatePreviewControls();
+                return true;
+            }
+
+            var runners = UnityEngine.Object.FindObjectsByType<AnimationGraphRunner>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+            try {
+                for (var i = 0; i < runners.Length; i++) {
+                    var runner = runners[i];
+                    if (runner.GraphAsset != graphAsset || runner.Schedule == null) {
+                        continue;
+                    }
+
+                    runner.RebuildSchedule();
+                }
+            }
+            catch (Exception exception) {
+                RefreshRuntimePreviewFromSelection(false);
+                UpdatePreviewControls();
+                SetFooterMessage($"Runtime schedule update failed: {exception.Message}", true);
+                return false;
+            }
+
+            RefreshRuntimePreviewFromSelection(false);
             UpdatePreviewControls();
             return true;
         }
@@ -1477,7 +1515,7 @@ namespace UnityAnimationGraph.Editor {
         /// Preview toolbar の表示と操作可否を更新
         /// </summary>
         private void UpdatePreviewControls() {
-            var isEditorLocked = EditorApplication.isPlayingOrWillChangePlaymode;
+            var isEditorLocked = IsPlayModeTransitioning();
             _graphAssetField?.SetEnabled(!isEditorLocked);
             _graphView?.SetReadOnly(isEditorLocked);
             _schemaView?.SetReadOnly(isEditorLocked);
@@ -1709,11 +1747,11 @@ namespace UnityAnimationGraph.Editor {
         }
 
         private bool EnsureGraphEditingAllowed() {
-            if (!EditorApplication.isPlayingOrWillChangePlaymode) {
+            if (!IsPlayModeTransitioning()) {
                 return true;
             }
 
-            SetFooterMessage("Graph editing is disabled during Play Mode", true);
+            SetFooterMessage("Graph editing is disabled during Play Mode transition", true);
             return false;
         }
 
