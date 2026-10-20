@@ -119,6 +119,7 @@ namespace UnityAnimationGraph.Editor {
         private Image _previewStopIcon;
         private Image _previewNextFrameIcon;
         private Image _previewLastFrameIcon;
+        private ToolbarToggle _previewLoopToggle;
         private IntegerField _previewFrameRateField;
         private AnimationGraphPreviewTimelineView _previewTimelineView;
         private Label _previewTimeLabel;
@@ -157,6 +158,7 @@ namespace UnityAnimationGraph.Editor {
         /// <param name="previewStopButton">Preview 停止ボタン</param>
         /// <param name="previewNextFrameButton">Preview 次 frame button</param>
         /// <param name="previewLastFrameButton">Preview 終端 frame button</param>
+        /// <param name="previewLoopToggle">Preview Loop toggle</param>
         /// <param name="previewFrameRateField">Preview frame rate field</param>
         /// <param name="previewTimelineView">Preview timeline view</param>
         /// <param name="previewTimeLabel">Preview time label</param>
@@ -174,6 +176,7 @@ namespace UnityAnimationGraph.Editor {
             ToolbarButton previewStopButton,
             ToolbarButton previewNextFrameButton,
             ToolbarButton previewLastFrameButton,
+            ToolbarToggle previewLoopToggle,
             IntegerField previewFrameRateField,
             AnimationGraphPreviewTimelineView previewTimelineView,
             Label previewTimeLabel,
@@ -196,6 +199,8 @@ namespace UnityAnimationGraph.Editor {
             _previewStopIcon = CreatePreviewButtonIcon(_previewStopButton);
             _previewNextFrameIcon = CreatePreviewButtonIcon(_previewNextFrameButton);
             _previewLastFrameIcon = CreatePreviewButtonIcon(_previewLastFrameButton);
+            _previewLoopToggle = previewLoopToggle ?? throw new ArgumentNullException(nameof(previewLoopToggle));
+            _previewLoopToggle.RegisterValueChangedCallback(OnPreviewLoopChanged);
             _previewFrameRateField = previewFrameRateField ?? throw new ArgumentNullException(nameof(previewFrameRateField));
             _previewFrameRate = ClampPreviewFrameRate(_previewFrameRateField.value);
             _previewFrameRateField.SetValueWithoutNotify(_previewFrameRate);
@@ -294,6 +299,8 @@ namespace UnityAnimationGraph.Editor {
             if (_previewLastFrameButton != null) {
                 _previewLastFrameButton.clicked -= SeekPreviewToLastFrame;
             }
+
+            _previewLoopToggle?.UnregisterValueChangedCallback(OnPreviewLoopChanged);
 
             if (_previewFrameRateField != null) {
                 _previewFrameRateField.UnregisterValueChangedCallback(OnPreviewFrameRateChanged);
@@ -829,6 +836,16 @@ namespace UnityAnimationGraph.Editor {
         }
 
         /// <summary>
+        /// Editor Preview 専用の Loop 設定を反映
+        /// </summary>
+        /// <param name="evt">Loop toggle の値変更イベント</param>
+        private void OnPreviewLoopChanged(ChangeEvent<bool> evt) {
+            if (_editorPreviewPlayer != null) {
+                _editorPreviewPlayer.Loop = evt.newValue;
+            }
+        }
+
+        /// <summary>
         /// Preview frame rate の変更を反映
         /// </summary>
         /// <param name="evt">Frame rate field の値変更イベント</param>
@@ -1043,6 +1060,7 @@ namespace UnityAnimationGraph.Editor {
 
                 _editorPreviewContext = context;
                 _editorPreviewPlayer = player;
+                player.Loop = _previewLoopToggle.value;
                 _editorPreviewRoot = rootGameObject;
                 _editorPreviewSourceRunner = previewRunner;
                 _ownsAnimationMode = true;
@@ -1098,7 +1116,7 @@ namespace UnityAnimationGraph.Editor {
             }
 
             EvaluateEditorPreviewDelta(deltaTime);
-            if (_editorPreviewPlayer.State == AnimationGraphPlayerState.Stopped || IsPreviewAtEnd()) {
+            if (_editorPreviewPlayer.State == AnimationGraphPlayerState.Stopped || !_editorPreviewPlayer.Loop && IsPreviewAtEnd()) {
                 _isEditorPreviewPlaying = false;
             }
 
@@ -1188,7 +1206,7 @@ namespace UnityAnimationGraph.Editor {
                 RefreshEditorPreviewContext(graphAsset);
                 player.RebuildSchedule();
                 EvaluateEditorPreview(currentTime);
-                if (wasPlaying && !IsPreviewAtEnd()) {
+                if (wasPlaying && (player.Loop || !IsPreviewAtEnd())) {
                     player.Play();
                     _isEditorPreviewPlaying = true;
                     _lastEditorPreviewUpdateTime = EditorApplication.timeSinceStartup;
@@ -1516,6 +1534,7 @@ namespace UnityAnimationGraph.Editor {
         /// </summary>
         private void UpdatePreviewControls() {
             var isEditorLocked = IsPlayModeTransitioning();
+            _previewLoopToggle?.SetEnabled(!EditorApplication.isPlayingOrWillChangePlaymode);
             _graphAssetField?.SetEnabled(!isEditorLocked);
             _graphView?.SetReadOnly(isEditorLocked);
             _schemaView?.SetReadOnly(isEditorLocked);

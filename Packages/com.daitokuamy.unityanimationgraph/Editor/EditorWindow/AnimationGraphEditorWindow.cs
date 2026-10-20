@@ -114,6 +114,7 @@ namespace UnityAnimationGraph.Editor {
                 out var previewStopButton,
                 out var previewNextFrameButton,
                 out var previewLastFrameButton,
+                out var previewLoopToggle,
                 out var previewFrameRateField,
                 out var previewTimelineView,
                 out var previewTimeLabel);
@@ -136,6 +137,7 @@ namespace UnityAnimationGraph.Editor {
                 previewStopButton,
                 previewNextFrameButton,
                 previewLastFrameButton,
+                previewLoopToggle,
                 previewFrameRateField,
                 previewTimelineView,
                 previewTimeLabel,
@@ -219,6 +221,7 @@ namespace UnityAnimationGraph.Editor {
         /// <param name="previewStopButton">Preview 停止ボタン</param>
         /// <param name="previewNextFrameButton">Preview 次 frame button</param>
         /// <param name="previewLastFrameButton">Preview 終端 frame button</param>
+        /// <param name="previewLoopToggle">Preview Loop toggle</param>
         /// <param name="previewFrameRateField">Preview frame rate field</param>
         /// <param name="previewTimelineView">Preview timeline view</param>
         /// <param name="previewTimeLabel">Preview time label</param>
@@ -231,6 +234,7 @@ namespace UnityAnimationGraph.Editor {
             out ToolbarButton previewStopButton,
             out ToolbarButton previewNextFrameButton,
             out ToolbarButton previewLastFrameButton,
+            out ToolbarToggle previewLoopToggle,
             out IntegerField previewFrameRateField,
             out AnimationGraphPreviewTimelineView previewTimelineView,
             out Label previewTimeLabel) {
@@ -255,6 +259,10 @@ namespace UnityAnimationGraph.Editor {
             previewSourceField.style.flexGrow = 1.0f;
             previewSourceField.style.marginRight = 4.0f;
             sourceRow.Add(previewSourceField);
+            previewLoopToggle = new ToolbarToggle {
+                text = "Loop",
+                tooltip = "Loop editor preview playback",
+            };
             previewFrameRateField = new IntegerField("FPS") {
                 value = 30,
                 tooltip = "Preview frame rate",
@@ -308,6 +316,7 @@ namespace UnityAnimationGraph.Editor {
             sourceRow.Add(previewStopButton);
             sourceRow.Add(previewNextFrameButton);
             sourceRow.Add(previewLastFrameButton);
+            sourceRow.Add(previewLoopToggle);
             sourceRow.Add(previewFrameRateField);
             playbackRow.Add(previewTimelineView);
             playbackRow.Add(previewTimeLabel);
