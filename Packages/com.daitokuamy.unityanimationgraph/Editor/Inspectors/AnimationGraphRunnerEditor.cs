@@ -7,7 +7,7 @@ namespace UnityAnimationGraph.Editor {
     /// <summary>
     /// AnimationGraphRunner の Inspector
     /// </summary>
-    [CustomEditor(typeof(AnimationGraphRunner))]
+    [CustomEditor(typeof(AnimationGraphRunner)), CanEditMultipleObjects]
     internal sealed class AnimationGraphRunnerEditor : UnityEditor.Editor {
         private const string GraphAssetPropertyName = "_graphAsset";
         private const string PlayOnEnabledPropertyName = "_playOnEnabled";
@@ -62,6 +62,16 @@ namespace UnityAnimationGraph.Editor {
             EditorGUILayout.PropertyField(_loopProperty);
             EditorGUILayout.PropertyField(_loopDelayProperty);
             EditorGUILayout.PropertyField(_updateTypeProperty);
+
+            if (serializedObject.isEditingMultipleObjects) {
+                serializedObject.ApplyModifiedProperties();
+                SynchronizeSelectedTargetBindings();
+                DrawSelectedTargetSchemaCompatibilityMessage();
+                EditorGUILayout.Space();
+                EditorGUILayout.LabelField(TargetBindingsLabel, EditorStyles.boldLabel);
+                EditorGUILayout.HelpBox("Select a single Runner to edit Target Bindings.", MessageType.Info);
+                return;
+            }
 
             EnsureTargetBindings();
             DrawTargetSchemaCompatibilityMessage();
@@ -158,6 +168,39 @@ namespace UnityAnimationGraph.Editor {
             return true;
         }
 
+        /// <summary>
+        /// 選択した Runner ごとの参照を保持して Target Bindings を同期
+        /// </summary>
+        private void SynchronizeSelectedTargetBindings() {
+            foreach (var selectedTarget in targets) {
+                using var runnerObject = new SerializedObject(selectedTarget);
+                runnerObject.Update();
+                var schema = runnerObject.FindProperty(TargetSchemaPropertyName).objectReferenceValue as AnimationGraphTargetSchema;
+                var bindings = runnerObject.FindProperty(TargetBindingsPropertyName);
+                if (!IsBindingStructureValid(bindings, schema)) {
+                    SetBindingProperties(bindings, schema);
+                    runnerObject.ApplyModifiedProperties();
+                }
+            }
+        }
+
+        /// <summary>
+        /// 選択した Runner 全体の Schema 不一致を表示
+        /// </summary>
+        private void DrawSelectedTargetSchemaCompatibilityMessage() {
+            var mismatchCount = 0;
+            foreach (var selectedTarget in targets) {
+                var runner = (AnimationGraphRunner)selectedTarget;
+                if (runner.GraphAsset != null && runner.GraphAsset.TargetSchema != runner.TargetSchema) {
+                    mismatchCount++;
+                }
+            }
+
+            if (mismatchCount > 0) {
+                EditorGUILayout.HelpBox($"Graph Asset and Runner must use the same Target Schema ({mismatchCount} of {targets.Length} Runners).", MessageType.Error);
+            }
+        }
+
         private void EnsureTargetBindings() {
             var targetSchema = _targetSchemaProperty.objectReferenceValue as AnimationGraphTargetSchema;
             if (!IsBindingStructureValid(_targetBindingsProperty, targetSchema)) {
@@ -242,11 +285,20 @@ namespace UnityAnimationGraph.Editor {
             }
 
             var listRect = EditorGUILayout.GetControlRect(false, targetsList.GetHeight());
-            HandleCollectionDragAndDrop(listRect, targetsProperty, targetType);
+            var headerRect = new Rect(listRect.x, listRect.y, listRect.width, targetsList.headerHeight);
+            HandleCollectionDragAndDrop(headerRect, targetsProperty, targetType);
             targetsList.DoList(listRect);
         }
 
-        private static void DrawCollectionElement(Rect rect, SerializedProperty targetsProperty, int index, string monoScriptGuid, System.Type targetType) {
+        private void DrawCollectionElement(Rect rect, SerializedProperty targetsProperty, int index, string monoScriptGuid, System.Type targetType) {
+            if (Event.current.type == EventType.ContextClick && rect.Contains(Event.current.mousePosition)) {
+                var propertyPath = targetsProperty.propertyPath;
+                var menu = new GenericMenu();
+                menu.AddItem(new GUIContent("Duplicate"), false, () => EditCollectionElement(propertyPath, index, true));
+                menu.AddItem(new GUIContent("Delete"), false, () => EditCollectionElement(propertyPath, index, false));
+                menu.ShowAsContext();
+                Event.current.Use();
+            }
             var elementProperty = targetsProperty.GetArrayElementAtIndex(index);
             var currentTarget = AnimationGraphTargetScriptUtility.IsTargetAssignable(elementProperty.objectReferenceValue, monoScriptGuid)
                 ? elementProperty.objectReferenceValue
@@ -255,6 +307,37 @@ namespace UnityAnimationGraph.Editor {
             elementProperty.objectReferenceValue = AnimationGraphTargetScriptUtility.IsTargetAssignable(target, monoScriptGuid)
                 ? target
                 : null;
+        }
+
+        /// <summary>
+        /// Collection 要素を複製または削除して変更を保存
+        /// </summary>
+        /// <param name="propertyPath">Collection の property path</param>
+        /// <param name="index">対象要素の index</param>
+        /// <param name="duplicate">複製する場合は true、削除する場合は false</param>
+        private void EditCollectionElement(string propertyPath, int index, bool duplicate) {
+            if (this == null || serializedObject.isEditingMultipleObjects) {
+                return;
+            }
+
+            serializedObject.Update();
+            var targetsProperty = serializedObject.FindProperty(propertyPath);
+            if (targetsProperty == null || index < 0 || index >= targetsProperty.arraySize) {
+                return;
+            }
+
+            if (duplicate) {
+                var target = targetsProperty.GetArrayElementAtIndex(index).objectReferenceValue;
+                targetsProperty.InsertArrayElementAtIndex(index + 1);
+                targetsProperty.GetArrayElementAtIndex(index + 1).objectReferenceValue = target;
+            }
+            else {
+                targetsProperty.GetArrayElementAtIndex(index).objectReferenceValue = null;
+                targetsProperty.DeleteArrayElementAtIndex(index);
+            }
+
+            serializedObject.ApplyModifiedProperties();
+            Repaint();
         }
 
         private static void HandleCollectionDragAndDrop(Rect rect, SerializedProperty targetsProperty, System.Type targetType) {
