@@ -115,6 +115,9 @@ namespace UnityAnimationGraph {
             get => _loop;
             set => _loop = value;
         }
+        /// <summary>Handle による一時停止解除後の通知</summary>
+        internal event Action PlaybackResumed;
+
         /// <summary>Loop 間の待機時間</summary>
         public float LoopDelay {
             get => _loopDelay;
@@ -391,34 +394,81 @@ namespace UnityAnimationGraph {
 
             EnsureSchedule();
             var scaledDeltaTime = Mathf.Max(0.0f, deltaTime * TimeScale);
-            if (_loopDelayRemaining > TimeComparisonEpsilon) {
-                if (!Loop) {
-                    CompleteAfterLoopDisabled();
-                    return;
-                }
-
-                _loopDelayRemaining -= scaledDeltaTime;
+            while (true) {
                 if (_loopDelayRemaining > TimeComparisonEpsilon) {
+                    if (!Loop) {
+                        CompleteAfterLoopDisabled();
+                        return;
+                    }
+
+                    var delayTime = Mathf.Min(scaledDeltaTime, _loopDelayRemaining);
+                    _loopDelayRemaining -= delayTime;
+                    scaledDeltaTime -= delayTime;
+                    if (_loopDelayRemaining > TimeComparisonEpsilon || scaledDeltaTime <= 0.0f) {
+                        return;
+                    }
+                }
+
+                var previousTime = _currentTime;
+                var duration = Duration;
+                var remainingTime = Mathf.Max(0.0f, duration - previousTime);
+                var stepTime = Mathf.Min(scaledDeltaTime, remainingTime);
+                var playVersion = _playVersion;
+                var schedule = _schedule;
+                _currentTime = Mathf.Clamp(previousTime + stepTime, 0.0f, duration);
+                var evaluationTime = _currentTime;
+                EvaluateCurrentTime(evaluationTime, true, previousTime, true);
+                if (_state != AnimationGraphPlayerState.Playing || _playVersion != playVersion
+                    || _schedule != schedule || _currentTime != evaluationTime) {
                     return;
                 }
 
-                scaledDeltaTime = Mathf.Max(0.0f, -_loopDelayRemaining);
-                _loopDelayRemaining = 0.0f;
-                if (scaledDeltaTime <= TimeComparisonEpsilon) {
+                if (!IsEndTime(_currentTime)) {
+                    return;
+                }
+
+                if (!Loop) {
+                    CompleteCurrentPlayback();
+                    return;
+                }
+
+                scaledDeltaTime -= stepTime;
+                StartNextLoop();
+                if (scaledDeltaTime <= 0.0f || (duration <= TimeComparisonEpsilon && LoopDelay <= TimeComparisonEpsilon)) {
                     return;
                 }
             }
+        }
 
-            var previousTime = _currentTime;
-            _currentTime = Mathf.Clamp(_currentTime + scaledDeltaTime, 0.0f, Duration);
-            EvaluateCurrentTime(_currentTime, true, previousTime, true);
-            if (IsEndTime(_currentTime)) {
-                if (Loop) {
-                    StartNextLoop();
-                    return;
-                }
+        /// <summary>
+        /// Signal を通知せず共有サイクル上の位置を反映
+        /// </summary>
+        /// <param name="cycleTime">Offset と再生速度を反映したサイクル時刻</param>
+        internal void SynchronizeLoopCycle(double cycleTime) {
+            if (!Loop || _state != AnimationGraphPlayerState.Playing) {
+                return;
+            }
 
-                CompleteCurrentPlayback();
+            EnsureSchedule();
+            var period = (double)Duration + LoopDelay;
+            if (period <= TimeComparisonEpsilon || double.IsNaN(cycleTime) || double.IsInfinity(cycleTime)) {
+                return;
+            }
+
+            var phase = cycleTime % period;
+            if (phase < 0.0) {
+                phase += period;
+            }
+
+            ResetEvaluatedNodesToStart(_currentTime);
+            ClearActiveNodes();
+            _loopDelayRemaining = 0.0f;
+            _currentTime = (float)Math.Min(phase, Duration);
+            EvaluateCurrentTime(_currentTime, true, 0.0f, false);
+            if (phase >= Duration) {
+                _currentTime = 0.0f;
+                _loopDelayRemaining = (float)(period - phase);
+                ClearActiveNodes();
             }
         }
 
@@ -493,6 +543,7 @@ namespace UnityAnimationGraph {
             }
 
             _state = AnimationGraphPlayerState.Playing;
+            PlaybackResumed?.Invoke();
             return true;
         }
 

@@ -8,6 +8,70 @@ namespace UnityAnimationGraph.Tests {
     /// </summary>
     public sealed class AnimationGraphRunnerTests {
         /// <summary>
+        /// 共有サイクルは開始と Handle 再開時だけ同期し通常 Tick では同期しない
+        /// </summary>
+        [Test]
+        public void Play_SynchronizesCycleOnStartAndHandleResume() {
+            using var builder = new AnimationGraphTestBuilder();
+            var startNode = builder.CreateStartNode("start", "action");
+            var actionNode = builder.CreateActionNode("action", 1.0f);
+            var graphAsset = builder.CreateGraph("start", startNode, actionNode);
+            var gameObject = new GameObject("CycleSyncTest");
+            try {
+                var runner = gameObject.AddComponent<AnimationGraphRunner>();
+                runner.GraphAsset = graphAsset;
+                runner.Loop = true;
+                runner.UpdateMode = AnimationGraphRunner.UpdateType.ManualUpdate;
+                runner.SynchronizeLoopCycle = true;
+                runner.CycleOffset = (float)(0.25 - Time.timeAsDouble % 1.0);
+                var handle = runner.Play();
+                Assert.That(runner.CurrentTime, Is.EqualTo(0.25f).Within(0.001f));
+
+                runner.CycleOffset += 0.25f;
+                runner.ManualUpdate(0.1f);
+                Assert.That(runner.CurrentTime, Is.EqualTo(0.35f).Within(0.001f));
+                runner.Play();
+                Assert.That(runner.CurrentTime, Is.EqualTo(0.35f).Within(0.001f));
+
+                Assert.IsTrue(handle.Pause());
+                Assert.IsTrue(handle.Resume());
+                Assert.That(runner.CurrentTime, Is.EqualTo(0.5f).Within(0.001f));
+                Assert.IsFalse(handle.IsDone);
+            }
+            finally {
+                Object.DestroyImmediate(gameObject);
+            }
+        }
+
+        /// <summary>
+        /// 同期が無効または非 Loop の場合は Offset を適用しない
+        /// </summary>
+        [TestCase(false, true)]
+        [TestCase(true, false)]
+        public void Play_DoesNotSynchronizeIndependentOrNonLoopPlayback(bool synchronize, bool loop) {
+            using var builder = new AnimationGraphTestBuilder();
+            var startNode = builder.CreateStartNode("start", "action");
+            var actionNode = builder.CreateActionNode("action", 1.0f);
+            var graphAsset = builder.CreateGraph("start", startNode, actionNode);
+            var gameObject = new GameObject("IndependentCycleTest");
+            try {
+                var runner = gameObject.AddComponent<AnimationGraphRunner>();
+                runner.GraphAsset = graphAsset;
+                runner.Loop = loop;
+                runner.SynchronizeLoopCycle = synchronize;
+                runner.CycleOffset = 0.5f;
+
+                runner.Play();
+
+                Assert.That(runner.CurrentTime, Is.Zero);
+                Assert.That(actionNode.EvaluateCount, Is.Zero);
+            }
+            finally {
+                Object.DestroyImmediate(gameObject);
+            }
+        }
+
+        /// <summary>
         /// 再生中に GraphAsset を差し替えると現在の再生を中断して次の graph を再生できる
         /// </summary>
         [Test]

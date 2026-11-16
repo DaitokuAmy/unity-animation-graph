@@ -37,6 +37,8 @@ namespace UnityAnimationGraph.Editor {
         private SerializedProperty _playOnEnabledProperty;
         private SerializedProperty _loopProperty;
         private SerializedProperty _loopDelayProperty;
+        private SerializedProperty _synchronizeLoopCycleProperty;
+        private SerializedProperty _cycleOffsetProperty;
         private SerializedProperty _updateTypeProperty;
         private SerializedProperty _targetSchemaProperty;
         private SerializedProperty _targetBindingsProperty;
@@ -47,6 +49,8 @@ namespace UnityAnimationGraph.Editor {
             _playOnEnabledProperty = serializedObject.FindProperty(PlayOnEnabledPropertyName);
             _loopProperty = serializedObject.FindProperty(LoopPropertyName);
             _loopDelayProperty = serializedObject.FindProperty(LoopDelayPropertyName);
+            _synchronizeLoopCycleProperty = serializedObject.FindProperty("_synchronizeLoopCycle");
+            _cycleOffsetProperty = serializedObject.FindProperty("_cycleOffset");
             _updateTypeProperty = serializedObject.FindProperty(UpdateTypePropertyName);
             _targetSchemaProperty = serializedObject.FindProperty(TargetSchemaPropertyName);
             _targetBindingsProperty = serializedObject.FindProperty(TargetBindingsPropertyName);
@@ -61,6 +65,11 @@ namespace UnityAnimationGraph.Editor {
             EditorGUILayout.PropertyField(_playOnEnabledProperty);
             EditorGUILayout.PropertyField(_loopProperty);
             EditorGUILayout.PropertyField(_loopDelayProperty);
+            EditorGUILayout.PropertyField(_synchronizeLoopCycleProperty);
+            if (_synchronizeLoopCycleProperty.boolValue || _synchronizeLoopCycleProperty.hasMultipleDifferentValues) {
+                EditorGUILayout.PropertyField(_cycleOffsetProperty);
+                EditorGUILayout.HelpBox("Loop の開始・再開時のみ共有時刻へ同期します。同じ周期・TimeScale・更新タイミングで使用してください。ManualUpdate では呼び出し側で時間の進行を合わせてください。", MessageType.Info);
+            }
             EditorGUILayout.PropertyField(_updateTypeProperty);
 
             if (serializedObject.isEditingMultipleObjects) {

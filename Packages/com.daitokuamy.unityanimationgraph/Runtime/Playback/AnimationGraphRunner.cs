@@ -29,6 +29,10 @@ namespace UnityAnimationGraph {
         private bool _loop;
         [SerializeField, Min(0.0f), Tooltip("Loop 間の待機時間")]
         private float _loopDelay;
+        [SerializeField, Tooltip("Loop の開始・再開時に共有時刻へ同期する。通常更新では再同期しない")]
+        private bool _synchronizeLoopCycle;
+        [SerializeField, Tooltip("共有サイクルに対する位相オフセット（秒）")]
+        private float _cycleOffset;
         [SerializeField, Tooltip("自動 Tick の Unity 更新タイミング")]
         private UpdateType _updateType = UpdateType.Update;
         [SerializeField, Tooltip("Runner がサポートする target schema")]
@@ -67,6 +71,18 @@ namespace UnityAnimationGraph {
         public float LoopDelay {
             get => _loopDelay;
             set => _loopDelay = Mathf.Max(0.0f, value);
+        }
+
+        /// <summary>Loop の開始・再開時に共有時刻へ同期する場合は true</summary>
+        public bool SynchronizeLoopCycle {
+            get => _synchronizeLoopCycle;
+            set => _synchronizeLoopCycle = value;
+        }
+
+        /// <summary>共有サイクルに対する位相オフセット（秒）</summary>
+        public float CycleOffset {
+            get => _cycleOffset;
+            set => _cycleOffset = value;
         }
 
         /// <summary>自動 Tick の Unity 更新タイミング</summary>
@@ -161,6 +177,16 @@ namespace UnityAnimationGraph {
             }
 
             Tick(deltaTime);
+        }
+
+        /// <summary>
+        /// Loop 再生を共有時刻へ同期。Signal は通知しない
+        /// </summary>
+        public void SynchronizePlaybackCycle() {
+            ApplyPlaybackSettings();
+            if (_synchronizeLoopCycle && _player.Loop) {
+                _player.SynchronizeLoopCycle(Time.timeAsDouble * TimeScale + _cycleOffset);
+            }
         }
 
         /// <summary>
@@ -753,6 +779,7 @@ namespace UnityAnimationGraph {
             }
 
             _player.SetContext(this);
+            _player.PlaybackResumed += SynchronizePlaybackCycle;
             ApplyPlaybackSettings();
             if (_graphAsset != null) {
                 _player.SetGraph(_graphAsset);
@@ -784,7 +811,13 @@ namespace UnityAnimationGraph {
             EnsureGraphAsset();
             InitializePlayer();
             ApplyPlaybackSettings();
-            return _player.Play();
+            var wasPlaying = _player.IsPlaying;
+            var handle = _player.Play();
+            if (!wasPlaying) {
+                SynchronizePlaybackCycle();
+            }
+
+            return handle;
         }
 
         /// <summary>

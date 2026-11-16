@@ -321,6 +321,95 @@ namespace UnityAnimationGraph.Tests {
         }
 
         /// <summary>
+        /// Loop 境界の超過時間を待機時間と次の周回へ引き継ぐ
+        /// </summary>
+        [TestCase(0.49f, 0.03f, 0.0f, 1.0f, 0.02f, 1)]
+        [TestCase(0.0f, 1.2f, 0.0f, 1.0f, 0.2f, 2)]
+        [TestCase(0.0f, 0.6f, 0.0f, 2.0f, 0.2f, 2)]
+        [TestCase(0.0f, 0.9f, 0.2f, 1.0f, 0.2f, 1)]
+        [TestCase(0.0f, 0.6f, 0.2f, 1.0f, 0.0f, 1)]
+        public void Tick_CarriesLoopOverflow(float initialTime, float deltaTime, float loopDelay, float timeScale, float expectedTime, int completedLoops) {
+            using var builder = new AnimationGraphTestBuilder();
+            var startNode = builder.CreateStartNode("start", "first");
+            var firstNode = builder.CreateActionNode("first", 0.1f, "second");
+            var secondNode = builder.CreateActionNode("second", 0.4f);
+            var graphAsset = builder.CreateGraph("start", startNode, firstNode, secondNode);
+            var player = CreatePlayer(graphAsset);
+            player.Loop = true;
+            player.LoopDelay = loopDelay;
+            player.TimeScale = timeScale;
+            var handle = player.Play();
+            if (initialTime > 0.0f) {
+                player.Tick(initialTime / timeScale);
+            }
+
+            player.Tick(deltaTime);
+
+            Assert.That(player.CurrentTime, Is.EqualTo(expectedTime).Within(0.0001f));
+            var expectedFirstCount = completedLoops + (expectedTime > 0.0f ? 1 : 0);
+            Assert.That(firstNode.EnterCount, Is.EqualTo(expectedFirstCount));
+            Assert.That(firstNode.EvaluateCount, Is.EqualTo(expectedFirstCount));
+            Assert.That(firstNode.ExitCount, Is.EqualTo(completedLoops + (expectedTime >= 0.1f ? 1 : 0)));
+            Assert.That(firstNode.LastLocalTime, Is.EqualTo(expectedTime > 0.0f ? Mathf.Min(expectedTime, 0.1f) : 0.1f).Within(0.0001f));
+            Assert.That(player.State, Is.EqualTo(AnimationGraphPlayerState.Playing));
+            Assert.IsFalse(handle.IsDone);
+        }
+
+        /// <summary>
+        /// 長さゼロの Loop は Tick ごとに一度だけ評価する
+        /// </summary>
+        [Test]
+        public void Tick_ZeroDurationLoopDoesNotRepeatIndefinitely() {
+            using var builder = new AnimationGraphTestBuilder();
+            var startNode = builder.CreateStartNode("start", "action");
+            var actionNode = builder.CreateActionNode("action", 0.0f);
+            var graphAsset = builder.CreateGraph("start", startNode, actionNode);
+            var player = CreatePlayer(graphAsset);
+            player.Loop = true;
+            player.Play();
+
+            player.Tick(1.0f);
+
+            Assert.That(actionNode.EvaluateCount, Is.EqualTo(1));
+            Assert.That(player.CurrentTime, Is.EqualTo(0.0f));
+        }
+
+        /// <summary>
+        /// サイクル同期は Signal を通知せず現在の周回だけ評価する
+        /// </summary>
+        [TestCase(10.2, 0.2f, 0.3f)]
+        [TestCase(-0.8, 0.2f, 0.3f)]
+        [TestCase(10.7, 0.0f, 0.0f)]
+        [TestCase(10.95, 0.0f, 0.05f)]
+        public void SynchronizeLoopCycle_EvaluatesPhaseWithoutSignals(double cycleTime, float expectedTime, float timeAfterTick) {
+            using var builder = new AnimationGraphTestBuilder();
+            var startNode = builder.CreateStartNode("start", "first");
+            var firstNode = builder.CreateActionNode("first", 0.1f, "second");
+            var secondNode = builder.CreateActionNode("second", 0.4f);
+            var signal = builder.CreateSignal("enter");
+            builder.SetEnterSignals(firstNode, signal);
+            builder.SetExitSignals(firstNode, signal);
+            var graphAsset = builder.CreateGraph("start", startNode, firstNode, secondNode);
+            var player = CreatePlayer(graphAsset);
+            player.Loop = true;
+            player.LoopDelay = 0.5f;
+            var handle = player.Play();
+
+            player.SynchronizeLoopCycle(cycleTime);
+
+            Assert.That(player.CurrentTime, Is.EqualTo(expectedTime).Within(0.0001f));
+            Assert.That(signal.DispatchCount, Is.Zero);
+            Assert.That(firstNode.EnterCount, Is.EqualTo(1));
+            Assert.That(firstNode.ExitCount, Is.EqualTo(1));
+            Assert.That(firstNode.LastLocalTime, Is.EqualTo(0.1f).Within(0.0001f));
+            Assert.IsFalse(handle.IsDone);
+
+            player.Tick(0.1f);
+
+            Assert.That(player.CurrentTime, Is.EqualTo(timeAfterTick).Within(0.0001f));
+        }
+
+        /// <summary>
         /// LoopDelay 中は次の Loop を評価しない
         /// </summary>
         [Test]
