@@ -42,7 +42,7 @@ namespace UnityAnimationGraph.Tests {
                 var propertyBlock = new MaterialPropertyBlock();
                 renderer.GetPropertyBlock(propertyBlock, 0);
                 Assert.That(propertyBlock.GetFloat("_FloatValue"), Is.EqualTo(1.0f).Within(0.0001f));
-                Assert.That(propertyBlock.GetColor("_ColorValue"), Is.EqualTo(new Color(0.5f, 0.5f, 0.5f, 0.5f)).Using(ColorComparer.Instance));
+                Assert.That(propertyBlock.GetColor("_ColorValue"), Is.EqualTo(new Color(0.5f, 0.5f, 0.5f, 1.0f)).Using(ColorComparer.Instance));
                 Assert.That(propertyBlock.GetVector("_VectorValue"), Is.EqualTo(new Vector4(1.0f, 2.0f, 3.0f, 4.0f)).Using(Vector4Comparer.Instance));
             }
             finally {
