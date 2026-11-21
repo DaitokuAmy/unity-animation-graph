@@ -1,5 +1,263 @@
 %YAML 1.1
 %TAG !u! tag:unity3d.com,2011:
+--- !u!114 &-8824444702039307548
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 8216a11a4768450db4de71c16c16d3b2, type: 3}
+  m_Name: TweenTransformRotationNode
+  m_EditorClassIdentifier: UnityAnimationGraph::UnityAnimationGraph.TweenTransformRotationNode
+  _displayName:
+  _signalPorts:
+    _enterEnabled: 0
+    _exitEnabled: 0
+  _nodeId: 00a3b2aa07bb4644ab42b3fa2628761c
+  _graphPosition: {x: 798, y: 532}
+  _nextNodeIds: []
+  _enableEnterSignalPort: 0
+  _enableExitSignalPort: 0
+  _signalPortSettingsVersion: 1
+  _enterSignals: []
+  _exitSignals: []
+  _targetReference:
+    _kind: 1
+    _targetKey: Targets
+    _scopeNodeId: 644c5723698e488cb16437a22fa4e687
+  _targetKey:
+  _duration: 1.48
+  _delay: 0
+  _tween:
+    _ease:
+      _mode: 1
+      _easeType: 0
+      _animationCurve:
+        serializedVersion: 2
+        m_Curve:
+        - serializedVersion: 3
+          time: 0
+          value: 0
+          inSlope: 0
+          outSlope: 0
+          tangentMode: 0
+          weightedMode: 0
+          inWeight: 0
+          outWeight: 0
+        - serializedVersion: 3
+          time: 0.22
+          value: -0.045
+          inSlope: 0
+          outSlope: 0
+          tangentMode: 0
+          weightedMode: 0
+          inWeight: 0
+          outWeight: 0
+        - serializedVersion: 3
+          time: 0.4
+          value: 0.07
+          inSlope: 1.2
+          outSlope: 1.2
+          tangentMode: 0
+          weightedMode: 0
+          inWeight: 0
+          outWeight: 0
+        - serializedVersion: 3
+          time: 0.53
+          value: 0.35
+          inSlope: 3.5
+          outSlope: 3.5
+          tangentMode: 0
+          weightedMode: 0
+          inWeight: 0
+          outWeight: 0
+        - serializedVersion: 3
+          time: 0.6
+          value: 0.72
+          inSlope: 5.5
+          outSlope: 5.5
+          tangentMode: 0
+          weightedMode: 0
+          inWeight: 0
+          outWeight: 0
+        - serializedVersion: 3
+          time: 0.66
+          value: 1
+          inSlope: 1.45
+          outSlope: 1.45
+          tangentMode: 0
+          weightedMode: 0
+          inWeight: 0
+          outWeight: 0
+        - serializedVersion: 3
+          time: 0.71
+          value: 1.027
+          inSlope: 0
+          outSlope: 0
+          tangentMode: 0
+          weightedMode: 0
+          inWeight: 0
+          outWeight: 0
+        - serializedVersion: 3
+          time: 0.8
+          value: 0.997
+          inSlope: 0
+          outSlope: 0
+          tangentMode: 0
+          weightedMode: 0
+          inWeight: 0
+          outWeight: 0
+        - serializedVersion: 3
+          time: 1
+          value: 1
+          inSlope: 0
+          outSlope: 0
+          tangentMode: 0
+          weightedMode: 0
+          inWeight: 0
+          outWeight: 0
+        m_PreInfinity: 2
+        m_PostInfinity: 2
+        m_RotationOrder: 4
+    _before:
+      _source: 0
+      _blackboardKey:
+      _value: {x: 0, y: 0, z: 0}
+      _relative: 0
+    _after:
+      _source: 0
+      _blackboardKey:
+      _value: {x: 0, y: 720, z: 0}
+      _relative: 0
+    _ignoreMask: 0
+  _space: 1
+--- !u!114 &-7315854441658986711
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 05f233e35dd84d2fbcfd3ad56a705ac3, type: 3}
+  m_Name: TweenTransformScaleNode
+  m_EditorClassIdentifier: UnityAnimationGraph::UnityAnimationGraph.TweenTransformScaleNode
+  _displayName:
+  _signalPorts:
+    _enterEnabled: 0
+    _exitEnabled: 0
+  _nodeId: 7ec8bbaae8354661be2d976b3551dca6
+  _graphPosition: {x: 798, y: 350}
+  _nextNodeIds: []
+  _enableEnterSignalPort: 0
+  _enableExitSignalPort: 0
+  _signalPortSettingsVersion: 1
+  _enterSignals: []
+  _exitSignals: []
+  _targetReference:
+    _kind: 1
+    _targetKey: Targets
+    _scopeNodeId: 644c5723698e488cb16437a22fa4e687
+  _targetKey:
+  _duration: 1.48
+  _delay: 0
+  _tween:
+    _ease:
+      _mode: 1
+      _easeType: 0
+      _animationCurve:
+        serializedVersion: 2
+        m_Curve:
+        - serializedVersion: 3
+          time: 0
+          value: 1
+          inSlope: 0
+          outSlope: 0
+          tangentMode: 0
+          weightedMode: 0
+          inWeight: 0
+          outWeight: 0
+        - serializedVersion: 3
+          time: 0.3
+          value: 0.54
+          inSlope: 0
+          outSlope: 0
+          tangentMode: 0
+          weightedMode: 0
+          inWeight: 0
+          outWeight: 0
+        - serializedVersion: 3
+          time: 0.43
+          value: 0.5
+          inSlope: 0
+          outSlope: 0
+          tangentMode: 0
+          weightedMode: 0
+          inWeight: 0
+          outWeight: 0
+        - serializedVersion: 3
+          time: 0.6
+          value: 0
+          inSlope: 0
+          outSlope: 0
+          tangentMode: 0
+          weightedMode: 0
+          inWeight: 0
+          outWeight: 0
+        - serializedVersion: 3
+          time: 0.66
+          value: 2.15
+          inSlope: 0
+          outSlope: 0
+          tangentMode: 0
+          weightedMode: 0
+          inWeight: 0
+          outWeight: 0
+        - serializedVersion: 3
+          time: 0.77
+          value: 0.51
+          inSlope: 0
+          outSlope: 0
+          tangentMode: 0
+          weightedMode: 0
+          inWeight: 0
+          outWeight: 0
+        - serializedVersion: 3
+          time: 0.88
+          value: 1.23
+          inSlope: 0
+          outSlope: 0
+          tangentMode: 0
+          weightedMode: 0
+          inWeight: 0
+          outWeight: 0
+        - serializedVersion: 3
+          time: 1
+          value: 1
+          inSlope: 0
+          outSlope: 0
+          tangentMode: 0
+          weightedMode: 0
+          inWeight: 0
+          outWeight: 0
+        m_PreInfinity: 2
+        m_PostInfinity: 2
+        m_RotationOrder: 4
+    _before:
+      _source: 0
+      _blackboardKey:
+      _value: {x: 0.86, y: 1.23, z: 0.86}
+      _relative: 0
+    _after:
+      _source: 0
+      _blackboardKey:
+      _value: {x: 1, y: 1, z: 1}
+      _relative: 0
+    _ignoreMask: 0
 --- !u!114 &-6873528442564266532
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -28,27 +286,90 @@ MonoBehaviour:
     _kind: 1
     _targetKey: Targets
     _scopeNodeId: 839d9d66c07b407e895d204a6a3ac69c
-  _targetKey: 
-  _duration: 0.2
+  _targetKey:
+  _duration: 0.65
   _delay: 0
   _tween:
     _ease:
-      _mode: 0
+      _mode: 1
       _easeType: 1
       _animationCurve:
         serializedVersion: 2
-        m_Curve: []
+        m_Curve:
+        - serializedVersion: 3
+          time: 0
+          value: 0
+          inSlope: 0
+          outSlope: 0
+          tangentMode: 0
+          weightedMode: 0
+          inWeight: 0
+          outWeight: 0
+        - serializedVersion: 3
+          time: 0.19
+          value: -0.12
+          inSlope: 0
+          outSlope: 0
+          tangentMode: 0
+          weightedMode: 0
+          inWeight: 0
+          outWeight: 0
+        - serializedVersion: 3
+          time: 0.51
+          value: 1
+          inSlope: 0
+          outSlope: 0
+          tangentMode: 0
+          weightedMode: 0
+          inWeight: 0
+          outWeight: 0
+        - serializedVersion: 3
+          time: 0.68
+          value: 0.83
+          inSlope: 0
+          outSlope: 0
+          tangentMode: 0
+          weightedMode: 0
+          inWeight: 0
+          outWeight: 0
+        - serializedVersion: 3
+          time: 0.84
+          value: 1
+          inSlope: 0
+          outSlope: 0
+          tangentMode: 0
+          weightedMode: 0
+          inWeight: 0
+          outWeight: 0
+        - serializedVersion: 3
+          time: 0.93
+          value: 0.977
+          inSlope: 0
+          outSlope: 0
+          tangentMode: 0
+          weightedMode: 0
+          inWeight: 0
+          outWeight: 0
+        - serializedVersion: 3
+          time: 1
+          value: 1
+          inSlope: 0
+          outSlope: 0
+          tangentMode: 0
+          weightedMode: 0
+          inWeight: 0
+          outWeight: 0
         m_PreInfinity: 2
         m_PostInfinity: 2
         m_RotationOrder: 4
     _before:
       _source: 0
-      _blackboardKey: 
+      _blackboardKey:
       _value: {x: 0, y: 3, z: 0}
       _relative: 0
     _after:
       _source: 0
-      _blackboardKey: 
+      _blackboardKey:
       _value: {x: 0, y: 0, z: 0}
       _relative: 0
     _ignoreMask: 5
@@ -78,7 +399,7 @@ MonoBehaviour:
   _signalPortSettingsVersion: 1
   _enterSignals: []
   _exitSignals: []
-  _delay: 0.2
+  _delay: 0.42
 --- !u!114 &11400000
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -103,6 +424,8 @@ MonoBehaviour:
   - {fileID: -5951645899684657384}
   - {fileID: 495745544839421161}
   - {fileID: 1903472403358699958}
+  - {fileID: -7315854441658986711}
+  - {fileID: -8824444702039307548}
   _targetSchema: {fileID: 11400000, guid: 5162a5e386fe510479b27fe43c590262, type: 2}
   _blackboardDefinitions:
   - _key: TargetPos1
@@ -110,7 +433,7 @@ MonoBehaviour:
     _defaultBoolValue: 0
     _defaultIntValue: 0
     _defaultFloatValue: 0
-    _defaultStringValue: 
+    _defaultStringValue:
     _defaultVector2Value: {x: 0, y: 0}
     _defaultVector3Value: {x: 0, y: 10, z: 0}
     _defaultColorValue: {r: 0, g: 0, b: 0, a: 0}
@@ -120,7 +443,7 @@ MonoBehaviour:
     _defaultBoolValue: 0
     _defaultIntValue: 0
     _defaultFloatValue: 0
-    _defaultStringValue: 
+    _defaultStringValue:
     _defaultVector2Value: {x: 0, y: 0}
     _defaultVector3Value: {x: 0, y: 0, z: 0}
     _defaultColorValue: {r: 1, g: 0, b: 0, a: 1}
@@ -151,9 +474,14 @@ MonoBehaviour:
   _exitSignals: []
   _collectionTargetKey: Targets
   _skipNullItems: 0
-  _interval: 0
+  _staggerMode: 0
+  _staggerDelay: 0
+  _minStaggerDelay: 0
+  _maxStaggerDelay: 0
   _eachNodeIds:
   - 454cb06bab5c47669e3b754778f27eba
+  - 7ec8bbaae8354661be2d976b3551dca6
+  - 00a3b2aa07bb4644ab42b3fa2628761c
 --- !u!114 &832963955223547466
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -191,7 +519,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 195884df96784b38a11a216b5129d5c6, type: 3}
   m_Name: PlayParticleSystemNode
   m_EditorClassIdentifier: UnityAnimationGraph::UnityAnimationGraph.PlayParticleSystemNode
-  _displayName: 
+  _displayName:
   _signalPorts:
     _enterEnabled: 0
     _exitEnabled: 0
@@ -207,7 +535,7 @@ MonoBehaviour:
   _targetReference:
     _kind: 0
     _targetKey: Effect
-    _scopeNodeId: 
+    _scopeNodeId:
   _targetKey:
   _autoDuration: 1
   _duration: 1
@@ -223,7 +551,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: a970fc496a6142f0930913dd2ca5df07, type: 3}
   m_Name: TweenTransformPositionNode
   m_EditorClassIdentifier: UnityAnimationGraph::UnityAnimationGraph.TweenTransformPositionNode
-  _displayName: 
+  _displayName:
   _signalPorts:
     _enterEnabled: 0
     _exitEnabled: 0
@@ -240,15 +568,96 @@ MonoBehaviour:
     _targetKey: Targets
     _scopeNodeId: 644c5723698e488cb16437a22fa4e687
   _targetKey:
-  _duration: 0.2
+  _duration: 1.48
   _delay: 0
   _tween:
     _ease:
-      _mode: 0
+      _mode: 1
       _easeType: 1
       _animationCurve:
         serializedVersion: 2
-        m_Curve: []
+        m_Curve:
+        - serializedVersion: 3
+          time: 0
+          value: 0
+          inSlope: 0
+          outSlope: 0
+          tangentMode: 0
+          weightedMode: 0
+          inWeight: 0
+          outWeight: 0
+        - serializedVersion: 3
+          time: 0.3
+          value: -0.22
+          inSlope: 0
+          outSlope: 0
+          tangentMode: 0
+          weightedMode: 0
+          inWeight: 0
+          outWeight: 0
+        - serializedVersion: 3
+          time: 0.43
+          value: -0.22
+          inSlope: 0
+          outSlope: 0
+          tangentMode: 0
+          weightedMode: 0
+          inWeight: 0
+          outWeight: 0
+        - serializedVersion: 3
+          time: 0.58
+          value: 0.04
+          inSlope: 0
+          outSlope: 0
+          tangentMode: 0
+          weightedMode: 0
+          inWeight: 0
+          outWeight: 0
+        - serializedVersion: 3
+          time: 0.66
+          value: 1
+          inSlope: 0
+          outSlope: 0
+          tangentMode: 0
+          weightedMode: 0
+          inWeight: 0
+          outWeight: 0
+        - serializedVersion: 3
+          time: 0.77
+          value: 0.88
+          inSlope: 0
+          outSlope: 0
+          tangentMode: 0
+          weightedMode: 0
+          inWeight: 0
+          outWeight: 0
+        - serializedVersion: 3
+          time: 0.88
+          value: 1
+          inSlope: 0
+          outSlope: 0
+          tangentMode: 0
+          weightedMode: 0
+          inWeight: 0
+          outWeight: 0
+        - serializedVersion: 3
+          time: 0.94
+          value: 0.984
+          inSlope: 0
+          outSlope: 0
+          tangentMode: 0
+          weightedMode: 0
+          inWeight: 0
+          outWeight: 0
+        - serializedVersion: 3
+          time: 1
+          value: 1
+          inSlope: 0
+          outSlope: 0
+          tangentMode: 0
+          weightedMode: 0
+          inWeight: 0
+          outWeight: 0
         m_PreInfinity: 2
         m_PostInfinity: 2
         m_RotationOrder: 4
@@ -276,7 +685,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: b68686c4982f4097bc199f470217aab8, type: 3}
   m_Name: LoopNode
   m_EditorClassIdentifier: UnityAnimationGraph::UnityAnimationGraph.LoopNode
-  _displayName: 
+  _displayName:
   _signalPorts:
     _enterEnabled: 0
     _exitEnabled: 0
