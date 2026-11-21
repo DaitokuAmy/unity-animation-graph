@@ -29,9 +29,9 @@ Tween、待機、分岐、合流、ループ、Timeline / ParticleSystem 再生�
 
 - Package name: `com.daitokuamy.unityanimationgraph`
 - Display name: `Unity Animation Graph`
-- Version: `0.9.4`
+- Version: `0.10.10`
 - Unity version: `6000.2`
-- Dependencies: `com.unity.timeline` `1.8.9`
+- Dependencies: `com.unity.timeline` `1.8.9`, `com.unity.nuget.newtonsoft-json` `3.2.1`
 - License: MIT
 
 ## インストール
@@ -53,6 +53,23 @@ https://github.com/DaitokuAmy/unity-animation-graph.git?path=/Packages/com.daito
   }
 }
 ```
+
+## AI でグラフを調整する
+
+Codex や Claude Code を使って、既存の `AnimationGraphAsset` の再生時間、待機時間、Tween の始点・終点、イージングやカーブを調整できます。AI は Editor の JSON API でグラフを読み、ノード ID と変更する項目を指定します。ノードの追加や接続の変更には Graph エディタを使います。
+
+### Skill をインストールする
+
+パッケージ導入後、Unity の **Tools > Unity Animation Graph > AI** から使うクライアントを選びます。
+
+| Unity メニュー | プロジェクト内の導入先 | 呼び出し方 |
+| --- | --- | --- |
+| Install Codex Skill | `.agents/skills/animationgraph-tuning/` | `$animationgraph-tuning` |
+| Install Claude Code Skill | `.claude/skills/animationgraph-tuning/` | `/animationgraph-tuning` |
+
+Skill はプロジェクト単位で追加され、同名の Skill がある場合は保持されます。AI から操作するには、Unity Editor 内で C# を実行できる連携手段が別途必要です。
+
+具体的な JSON 例、変更の検証・適用、プレビューでの確認方法は [AI 操作ガイド](Packages/com.daitokuamy.unityanimationgraph/Documentation~/ai-graph-editing.md) を参照してください。
 
 ## クイックスタート
 
