@@ -47,3 +47,9 @@ AssetDatabase.SaveAssets();
 - A patch with an invalid field is rejected before any values are applied. A successful patch is one Unity Undo operation.
 - Connections and scopes provide context for selecting nodes. The patch API edits supported values and curves on existing nodes. Use the graph editor for changes to graph structure.
 - Custom nodes can appear in the overview. Their custom tuning fields are available only when supported by the patch API.
+
+## Verify the motion in Unity
+
+Re-export the edited node with `ExportNode` to confirm the values were applied. Then use the graph preview or `AnimationGraphRunner.Seek(graph, time)` to check the motion at meaningful points, such as midair, landing, and the final pose.
+
+For a full turn, the start and end orientations can look identical. Sample the rotation at intermediate times and accumulate signed angle changes to verify the number and direction of turns. For example, confirm that a two-turn drop completes 720 degrees by impact and settles at the intended orientation.
