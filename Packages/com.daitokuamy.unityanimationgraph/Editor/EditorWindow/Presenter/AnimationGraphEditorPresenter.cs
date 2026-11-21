@@ -252,6 +252,7 @@ namespace UnityAnimationGraph.Editor {
             AssemblyReloadEvents.beforeAssemblyReload += OnBeforeAssemblyReload;
             Selection.selectionChanged += OnSelectionChanged;
             Undo.undoRedoPerformed += RefreshGraph;
+            AnimationGraphAssetImportObserver.AssetsImported += OnAssetsImported;
 
             RecoverPreviewAnimationModeAfterReload();
             SetFooterMessage("Select an AnimationGraphAsset");
@@ -351,6 +352,8 @@ namespace UnityAnimationGraph.Editor {
             AssemblyReloadEvents.beforeAssemblyReload -= OnBeforeAssemblyReload;
             Selection.selectionChanged -= OnSelectionChanged;
             Undo.undoRedoPerformed -= RefreshGraph;
+            AnimationGraphAssetImportObserver.AssetsImported -= OnAssetsImported;
+            EditorApplication.delayCall -= RefreshAfterAssetImport;
             _schemaView?.Dispose();
             _inspectorView?.Dispose();
             DestroyPreviewAnimationModeDriver();
@@ -380,6 +383,7 @@ namespace UnityAnimationGraph.Editor {
                 StopEditorPreview(null);
             }
 
+            EditorApplication.delayCall -= RefreshAfterAssetImport;
             _hasEditorPreviewInteraction = false;
             _assetModel.SetGraphAsset(graphAsset);
             if (_graphAssetField != null && _graphAssetField.value != graphAsset) {
@@ -410,6 +414,35 @@ namespace UnityAnimationGraph.Editor {
             }
 
             SetFooterMessage(_assetModel.HasStartNode ? graphAsset.name : "Graph is not initialized");
+        }
+
+        /// <summary>
+        /// 表示中の GraphAsset または Target Schema が再インポートされた後に更新を予約する
+        /// </summary>
+        /// <param name="paths">インポートされたアセットのパス</param>
+        private void OnAssetsImported(string[] paths) {
+            var graphAsset = _assetModel.GraphAsset;
+            if (graphAsset == null) {
+                return;
+            }
+
+            var graphPath = AssetDatabase.GetAssetPath(graphAsset);
+            var schemaPath = AssetDatabase.GetAssetPath(graphAsset.TargetSchema);
+            if (Array.IndexOf(paths, graphPath) < 0 && Array.IndexOf(paths, schemaPath) < 0) {
+                return;
+            }
+
+            EditorApplication.delayCall -= RefreshAfterAssetImport;
+            EditorApplication.delayCall += RefreshAfterAssetImport;
+        }
+
+        /// <summary>
+        /// AssetDatabase のインポート完了後にグラフ表示を更新する
+        /// </summary>
+        private void RefreshAfterAssetImport() {
+            if (_assetModel.GraphAsset != null) {
+                RefreshGraph();
+            }
         }
 
         /// <summary>
